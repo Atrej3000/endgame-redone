@@ -1,0 +1,552 @@
+cp vendor/SDL2-mingw/SDL2-2.32.10/x86_64-w64-mingw32/bin/SDL2.dll build-mingw/
+cp vendor/SDL2-mingw/SDL2_image-2.8.12/x86_64-w64-mingw32/bin/SDL2_image.dll build-mingw/
+cp vendor/SDL2-mingw/SDL2_ttf-2.24.0/x86_64-w64-mingw32/bin/SDL2_ttf.dll build-mingw/
+cp vendor/SDL2-mingw/SDL2_mixer-2.8.2/x86_64-w64-mingw32/bin/SDL2_mixer.dll build-mingw/
+gcc src/X_score.c src/app.c src/collide2d.c src/collisionDetect.c src/doRender.c src/doRender_leaderboard.c src/doRender_menu.c src/doRender_multiplayer.c src/doRender_pause.c src/draw_lifes.c src/kills_score.c src/leader_events.c src/loadGame.c src/load_menu.c src/menu_events.c src/mx_atoi.c src/mx_count_words.c src/mx_file_to_str.c src/mx_itoa.c src/mx_sort_arr_char.c src/mx_sort_arr_int.c src/mx_strcat.c src/mx_strcmp.c src/mx_strcpy.c src/mx_strdel.c src/mx_strdup.c src/mx_strjoin.c src/mx_strlen.c src/mx_strncpy.c src/mx_strnew.c src/mx_strsplit.c src/pause_events.c src/process.c src/processEvents.c src/random_sign.c src/status.c src/x_list_leader.c docs/verification/smoke_init_shutdown.c \
+	-std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wformat=2 -Wnull-dereference -Wdouble-promotion -I inc -I vendor/SDL2-mingw/compat-include -I vendor/SDL2-mingw/SDL2-2.32.10/x86_64-w64-mingw32/include -I vendor/SDL2-mingw/SDL2-2.32.10/x86_64-w64-mingw32/include/SDL2 -I vendor/SDL2-mingw/SDL2_image-2.8.12/x86_64-w64-mingw32/include -I vendor/SDL2-mingw/SDL2_image-2.8.12/x86_64-w64-mingw32/include/SDL2 -I vendor/SDL2-mingw/SDL2_ttf-2.24.0/x86_64-w64-mingw32/include -I vendor/SDL2-mingw/SDL2_ttf-2.24.0/x86_64-w64-mingw32/include/SDL2 -I vendor/SDL2-mingw/SDL2_mixer-2.8.2/x86_64-w64-mingw32/include -I vendor/SDL2-mingw/SDL2_mixer-2.8.2/x86_64-w64-mingw32/include/SDL2 -L vendor/SDL2-mingw/SDL2-2.32.10/x86_64-w64-mingw32/lib -L vendor/SDL2-mingw/SDL2_image-2.8.12/x86_64-w64-mingw32/lib -L vendor/SDL2-mingw/SDL2_ttf-2.24.0/x86_64-w64-mingw32/lib -L vendor/SDL2-mingw/SDL2_mixer-2.8.2/x86_64-w64-mingw32/lib \
+	-o build-mingw/smoketest.exe -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer
+src/collisionDetect.c: In function 'collisionDetect':
+src/collisionDetect.c:84:24: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+   84 |             float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                        ^~~~
+src/collisionDetect.c:84:48: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+   84 |             float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                ^~~~
+src/collisionDetect.c:84:72: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+   84 |             float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                        ^~~~
+src/collisionDetect.c:84:96: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+   84 |             float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                                                ^~~~
+src/collisionDetect.c:146:24: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  146 |             float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                        ^~~~
+src/collisionDetect.c:146:48: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  146 |             float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                ^~~~
+src/collisionDetect.c:146:72: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  146 |             float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                        ^~~~
+src/collisionDetect.c:146:96: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  146 |             float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                                                ^~~~
+src/collisionDetect.c:266:20: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  266 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                    ^~~~
+src/collisionDetect.c:266:44: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  266 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                            ^~~~
+src/collisionDetect.c:266:68: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  266 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                    ^~~~
+src/collisionDetect.c:266:92: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  266 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                                            ^~~~
+src/collisionDetect.c:327:24: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  327 |             float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                        ^~~~
+src/collisionDetect.c:327:48: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  327 |             float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                ^~~~
+src/collisionDetect.c:327:72: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  327 |             float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                        ^~~~
+src/collisionDetect.c:327:96: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  327 |             float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                                                ^~~~
+src/collisionDetect.c:386:20: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  386 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                    ^~~~
+src/collisionDetect.c:386:44: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  386 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                            ^~~~
+src/collisionDetect.c:386:68: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  386 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                    ^~~~
+src/collisionDetect.c:386:92: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  386 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                                            ^~~~
+src/collisionDetect.c:506:28: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  506 |                 float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                            ^~~~
+src/collisionDetect.c:506:52: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  506 |                 float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                    ^~~~
+src/collisionDetect.c:506:76: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  506 |                 float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                            ^~~~
+src/collisionDetect.c:506:100: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  506 |                 float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                                                    ^~~~
+src/collisionDetect.c: In function 'collisionDetect2':
+src/collisionDetect.c:629:63: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  629 |         if (collide2d(game->man.x, game->man.y, game->stars[i].x, game->stars[i].y, 30, 30, 30, 30))
+      |                                                 ~~~~~~~~~~~~~~^~
+src/collisionDetect.c:629:81: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  629 |         if (collide2d(game->man.x, game->man.y, game->stars[i].x, game->stars[i].y, 30, 30, 30, 30))
+      |                                                                   ~~~~~~~~~~~~~~^~
+src/collisionDetect.c:635:81: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  635 |         if (collide2d(game->secondPlayer.x, game->secondPlayer.y, game->stars[i].x, game->stars[i].y, 30, 30, 30, 30))
+      |                                                                   ~~~~~~~~~~~~~~^~
+src/collisionDetect.c:635:99: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  635 |         if (collide2d(game->secondPlayer.x, game->secondPlayer.y, game->stars[i].x, game->stars[i].y, 30, 30, 30, 30))
+      |                                                                                     ~~~~~~~~~~~~~~^~
+src/collisionDetect.c:645:20: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  645 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                    ^~~~
+src/collisionDetect.c:645:44: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  645 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                            ^~~~
+src/collisionDetect.c:645:68: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  645 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                    ^~~~
+src/collisionDetect.c:645:92: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  645 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                                            ^~~~
+src/collisionDetect.c:703:20: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  703 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                    ^~~~
+src/collisionDetect.c:703:44: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  703 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                            ^~~~
+src/collisionDetect.c:703:68: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  703 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                    ^~~~
+src/collisionDetect.c:703:92: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  703 |         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
+      |                                                                                            ^~~~
+src/doRender.c: In function 'doRender':
+src/doRender.c:87:34: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+   87 |                 SDL_Rect rect = {game->smartEnemies[i].x, game->smartEnemies[i].y, 85, 50};
+      |                                  ^~~~
+src/doRender.c:87:59: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+   87 |                 SDL_Rect rect = {game->smartEnemies[i].x, game->smartEnemies[i].y, 85, 50};
+      |                                                           ^~~~
+src/doRender.c:95:34: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+   95 |                 SDL_Rect rect = {game->enemyValues[i].x, game->enemyValues[i].y, 55, 55};
+      |                                  ^~~~
+src/doRender.c:95:58: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+   95 |                 SDL_Rect rect = {game->enemyValues[i].x, game->enemyValues[i].y, 55, 55};
+      |                                                          ^~~~
+src/doRender.c:105:34: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  105 |                 SDL_Rect rect = {game->boss[j].x, game->boss[j].y, 81, 55};
+      |                                  ^~~~
+src/doRender.c:105:51: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  105 |                 SDL_Rect rect = {game->boss[j].x, game->boss[j].y, 81, 55};
+      |                                                   ^~~~
+src/doRender.c:115:34: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  115 |                 SDL_Rect rect = {game->bullets[i]->x, game->bullets[i]->y, 32, 32};
+      |                                  ^~~~
+src/doRender.c:115:55: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  115 |                 SDL_Rect rect = {game->bullets[i]->x, game->bullets[i]->y, 32, 32};
+      |                                                       ^~~~
+src/doRender.c:126:38: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  126 |                     SDL_Rect rect = {game->secondBullets[i]->x, game->secondBullets[i]->y, 32, 32};
+      |                                      ^~~~
+src/doRender.c:126:65: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  126 |                     SDL_Rect rect = {game->secondBullets[i]->x, game->secondBullets[i]->y, 32, 32};
+      |                                                                 ^~~~
+src/doRender.c:136:30: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  136 |             SDL_Rect rect = {game->man.x, game->man.y, 55, 55};
+      |                              ^~~~
+src/doRender.c:136:43: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  136 |             SDL_Rect rect = {game->man.x, game->man.y, 55, 55};
+      |                                           ^~~~
+src/doRender.c:143:30: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  143 |             SDL_Rect rect = {game->man.x, game->man.y, 55, 55};
+      |                              ^~~~
+src/doRender.c:143:43: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  143 |             SDL_Rect rect = {game->man.x, game->man.y, 55, 55};
+      |                                           ^~~~
+src/doRender.c:152:35: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  152 |                 SDL_Rect rect2 = {game->secondPlayer.x, game->secondPlayer.y, 55, 55};
+      |                                   ^~~~
+src/doRender.c:152:57: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  152 |                 SDL_Rect rect2 = {game->secondPlayer.x, game->secondPlayer.y, 55, 55};
+      |                                                         ^~~~
+src/doRender.c:162:35: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  162 |                 SDL_Rect rect2 = {game->secondPlayer.x, game->secondPlayer.y, 55, 55};
+      |                                   ^~~~
+src/doRender.c:162:57: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  162 |                 SDL_Rect rect2 = {game->secondPlayer.x, game->secondPlayer.y, 55, 55};
+      |                                                         ^~~~
+src/doRender.c:176:30: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  176 |             SDL_Rect rect = {game->man.x, game->man.y - 10, 38, 83};
+      |                              ^~~~
+src/doRender.c:176:43: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  176 |             SDL_Rect rect = {game->man.x, game->man.y - 10, 38, 83};
+      |                                           ^~~~
+src/doRender.c: In function 'doRender2':
+src/doRender.c:222:28: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  222 |         SDL_Rect scdPlr = {game->scrollX + game->secondPlayer.x, game->secondPlayer.y, 54, 54};
+      |                            ^~~~
+src/doRender.c:222:66: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  222 |         SDL_Rect scdPlr = {game->scrollX + game->secondPlayer.x, game->secondPlayer.y, 54, 54};
+      |                                                                  ^~~~
+src/doRender.c:242:49: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  242 |             SDL_Rect ledgeRect = {game->scrollX + game->ledges[i].x, game->ledges[i].y, game->ledges[i].w, game->ledges[i].h};
+      |                                                 ^
+src/doRender.c:242:35: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  242 |             SDL_Rect ledgeRect = {game->scrollX + game->ledges[i].x, game->ledges[i].y, game->ledges[i].w, game->ledges[i].h};
+      |                                   ^~~~
+src/doRender.c:246:26: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  246 |         SDL_Rect rect = {game->scrollX + game->man.x, game->man.y, 54, 54};
+      |                          ^~~~
+src/doRender.c:246:55: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  246 |         SDL_Rect rect = {game->scrollX + game->man.x, game->man.y, 54, 54};
+      |                                                       ^~~~
+src/doRender.c:250:22: warning: declaration of 'rect' shadows a previous local [-Wshadow]
+  250 |             SDL_Rect rect = {game->scrollX + game->man.x, game->man.y - 10, 38, 83};
+      |                      ^~~~
+src/doRender.c:246:18: note: shadowed declaration is here
+  246 |         SDL_Rect rect = {game->scrollX + game->man.x, game->man.y, 54, 54};
+      |                  ^~~~
+src/doRender.c:250:30: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  250 |             SDL_Rect rect = {game->scrollX + game->man.x, game->man.y - 10, 38, 83};
+      |                              ^~~~
+src/doRender.c:250:59: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  250 |             SDL_Rect rect = {game->scrollX + game->man.x, game->man.y - 10, 38, 83};
+      |                                                           ^~~~
+src/doRender.c:262:44: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  262 |         SDL_Rect starRect = {game->scrollX + game->stars[i].x, game->stars[i].y, 56, 56};
+      |                                            ^
+src/doRender.c:262:30: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  262 |         SDL_Rect starRect = {game->scrollX + game->stars[i].x, game->stars[i].y, 56, 56};
+      |                              ^~~~
+src/kills_score.c: In function 'init_status_kills':
+src/kills_score.c:23:10: warning: declaration of 'str' shadows a previous local [-Wshadow]
+   23 |     char str[128] = "";
+      |          ^~~
+src/kills_score.c:5:10: note: shadowed declaration is here
+    5 |     char str[32] = "";
+      |          ^~~
+src/kills_score.c:26:15: warning: declaration of 'white' shadows a previous local [-Wshadow]
+   26 |     SDL_Color white = {0, 255, 255, 255};
+      |               ^~~~~
+src/kills_score.c:8:15: note: shadowed declaration is here
+    8 |     SDL_Color white = {0, 255, 255, 255};
+      |               ^~~~~
+src/kills_score.c:29:18: warning: declaration of 'tmp' shadows a previous local [-Wshadow]
+   29 |     SDL_Surface *tmp = TTF_RenderText_Blended(game->font, str, white);
+      |                  ^~~
+src/kills_score.c:11:18: note: shadowed declaration is here
+   11 |     SDL_Surface *tmp = TTF_RenderText_Blended(game->font, str, white);
+      |                  ^~~
+src/kills_score.c: In function 'draw_status_kills':
+src/kills_score.c:54:19: warning: declaration of 'renderer' shadows a previous local [-Wshadow]
+   54 |     SDL_Renderer *renderer = game->renderer;
+      |                   ^~~~~~~~
+src/kills_score.c:44:19: note: shadowed declaration is here
+   44 |     SDL_Renderer *renderer = game->renderer;
+      |                   ^~~~~~~~
+src/kills_score.c:59:14: warning: declaration of 'textRect' shadows a previous local [-Wshadow]
+   59 |     SDL_Rect textRect = {1150, 00, game->labelW, game->labelH};
+      |              ^~~~~~~~
+src/kills_score.c:49:14: note: shadowed declaration is here
+   49 |     SDL_Rect textRect = {50, 00, game->labelW, game->labelH};
+      |              ^~~~~~~~
+src/loadGame.c: In function 'loadGame2':
+src/loadGame.c:977:60: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  977 |         game->stars[i].phase = 2 * 3.14 * (random() % 360) / 360.0f;
+      |                                                            ^
+src/loadGame.c:977:32: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  977 |         game->stars[i].phase = 2 * 3.14 * (random() % 360) / 360.0f;
+      |                                ^
+src/mx_atoi.c: In function 'mx_atoi':
+src/mx_atoi.c:32:20: warning: conversion to 'long long unsigned int' from 'int' may change the sign of the result [-Wsign-conversion]
+   32 |         n = n * 10 + str[i] - 48;
+      |                    ^
+src/mx_atoi.c:34:15: warning: conversion to 'long long unsigned int' from 'int' may change the sign of the result [-Wsign-conversion]
+   34 |     return ch * n;
+      |               ^
+src/mx_atoi.c:34:15: warning: conversion from 'long long unsigned int' to 'int' may change value [-Wconversion]
+   34 |     return ch * n;
+      |            ~~~^~~
+src/mx_itoa.c: In function 'mx_itoa':
+src/mx_itoa.c:15:30: warning: conversion from 'long int' to 'char' may change value [-Wconversion]
+   15 |             new_str[len--] = (buf % 10) + '0';
+      |                              ^
+src/mx_strnew.c: In function 'mx_strnew':
+src/mx_strnew.c:8:34: warning: conversion to 'size_t' {aka 'long long unsigned int'} from 'int' may change the sign of the result [-Wsign-conversion]
+    8 |     string = (char *)malloc(size + 1);
+      |                             ~~~~~^~~
+src/mx_strsplit.c: In function 'mx_strsplit':
+src/mx_strsplit.c:13:33: warning: conversion to 'long long unsigned int' from 'int' may change the sign of the result [-Wsign-conversion]
+   13 |     arr = malloc(sizeof(char *) * (amm_words + 1));
+      |                                 ^
+src/process.c: In function 'process':
+src/process.c:94:42: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+   94 |                 if (game->bullets[i]->dx > 0.1)
+      |                                          ^
+src/process.c:96:44: warning: conversion from 'double' to 'float' changes value from '1.0000000000000001e-1' to '1.00000001e-1f' [-Wfloat-conversion]
+   96 |                     game->bullets[i]->dx = 0.1;
+      |                                            ^~~
+src/process.c:98:42: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+   98 |                 if (game->bullets[i]->dx < -0.1)
+      |                                          ^
+src/process.c:100:44: warning: conversion from 'double' to 'float' changes value from '-1.0000000000000001e-1' to '-1.00000001e-1f' [-Wfloat-conversion]
+  100 |                     game->bullets[i]->dx = -0.1;
+      |                                            ^
+src/process.c:126:46: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  126 |                     if (game->bullets[i]->dx > 0.1)
+      |                                              ^
+src/process.c:128:48: warning: conversion from 'double' to 'float' changes value from '1.0000000000000001e-1' to '1.00000001e-1f' [-Wfloat-conversion]
+  128 |                         game->bullets[i]->dx = 0.1;
+      |                                                ^~~
+src/process.c:130:46: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  130 |                     if (game->bullets[i]->dx < -0.1)
+      |                                              ^
+src/process.c:132:48: warning: conversion from 'double' to 'float' changes value from '-1.0000000000000001e-1' to '-1.00000001e-1f' [-Wfloat-conversion]
+  132 |                         game->bullets[i]->dx = -0.1;
+      |                                                ^
+src/process.c:166:46: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  166 |                     if (game->bullets[i]->dx > 0.1)
+      |                                              ^
+src/process.c:168:48: warning: conversion from 'double' to 'float' changes value from '1.0000000000000001e-1' to '1.00000001e-1f' [-Wfloat-conversion]
+  168 |                         game->bullets[i]->dx = 0.1;
+      |                                                ^~~
+src/process.c:170:46: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  170 |                     if (game->bullets[i]->dx < -0.1)
+      |                                              ^
+src/process.c:172:48: warning: conversion from 'double' to 'float' changes value from '-1.0000000000000001e-1' to '-1.00000001e-1f' [-Wfloat-conversion]
+  172 |                         game->bullets[i]->dx = -0.1;
+      |                                                ^
+src/process.c:206:52: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  206 |                     if (game->secondBullets[i]->dx > 0.1)
+      |                                                    ^
+src/process.c:208:54: warning: conversion from 'double' to 'float' changes value from '1.0000000000000001e-1' to '1.00000001e-1f' [-Wfloat-conversion]
+  208 |                         game->secondBullets[i]->dx = 0.1;
+      |                                                      ^~~
+src/process.c:210:52: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  210 |                     if (game->secondBullets[i]->dx < -0.1)
+      |                                                    ^
+src/process.c:212:54: warning: conversion from 'double' to 'float' changes value from '-1.0000000000000001e-1' to '-1.00000001e-1f' [-Wfloat-conversion]
+  212 |                         game->secondBullets[i]->dx = -0.1;
+      |                                                      ^
+src/process.c:238:56: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  238 |                         if (game->secondBullets[i]->dx > 0.1)
+      |                                                        ^
+src/process.c:240:58: warning: conversion from 'double' to 'float' changes value from '1.0000000000000001e-1' to '1.00000001e-1f' [-Wfloat-conversion]
+  240 |                             game->secondBullets[i]->dx = 0.1;
+      |                                                          ^~~
+src/process.c:242:56: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  242 |                         if (game->secondBullets[i]->dx < -0.1)
+      |                                                        ^
+src/process.c:244:58: warning: conversion from 'double' to 'float' changes value from '-1.0000000000000001e-1' to '-1.00000001e-1f' [-Wfloat-conversion]
+  244 |                             game->secondBullets[i]->dx = -0.1;
+      |                                                          ^
+src/process.c:273:56: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  273 |                         if (game->secondBullets[i]->dx > 0.1)
+      |                                                        ^
+src/process.c:275:58: warning: conversion from 'double' to 'float' changes value from '1.0000000000000001e-1' to '1.00000001e-1f' [-Wfloat-conversion]
+  275 |                             game->secondBullets[i]->dx = 0.1;
+      |                                                          ^~~
+src/process.c:277:56: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  277 |                         if (game->secondBullets[i]->dx < -0.1)
+      |                                                        ^
+src/process.c:279:58: warning: conversion from 'double' to 'float' changes value from '-1.0000000000000001e-1' to '-1.00000001e-1f' [-Wfloat-conversion]
+  279 |                             game->secondBullets[i]->dx = -0.1;
+      |                                                          ^
+src/process.c:310:38: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  310 |             game->enemyValues[i].y = (i) * -200; // - random() % 100;
+      |                                      ^
+src/process.c:315:42: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  315 |             game->enemyValues[i + 1].y = (i) * -200; //- random() % 50;
+      |                                          ^
+src/process.c:328:38: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  328 |             game->enemyValues[j].y = (j) * -200;
+      |                                      ^
+src/process.c:333:42: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  333 |             game->enemyValues[j + 1].y = (j) * -200;
+      |                                          ^
+src/process.c:347:38: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  347 |             game->enemyValues[j].y = (j) * -200; // - random() % 100;
+      |                                      ^
+src/process.c:352:42: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  352 |             game->enemyValues[j + 1].y = (j) * -200; // - random() % 50;
+      |                                          ^
+src/process.c:379:38: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  379 |             game->enemyValues[j].y = (j) * -100;
+      |                                      ^
+src/process.c:384:42: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  384 |             game->enemyValues[j + 1].y = (j) * -100;
+      |                                          ^
+src/process.c:411:38: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  411 |             game->enemyValues[j].y = (j) * -100;
+      |                                      ^
+src/process.c:416:42: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  416 |             game->enemyValues[j + 1].y = (j) * -100;
+      |                                          ^
+src/process.c:456:38: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  456 |             game->enemyValues[j].y = (j) * -100;
+      |                                      ^
+src/process.c:461:42: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  461 |             game->enemyValues[j + 1].y = (j) * -100;
+      |                                          ^
+src/process.c:518:38: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  518 |             game->enemyValues[i].y = i * (-100);
+      |                                      ^
+src/process.c:523:42: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+  523 |             game->enemyValues[i + 1].y = i * (-100);
+      |                                          ^
+src/process.c:587:26: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  587 |         game->boss[i].dy += 0.1;
+      |                          ^~
+src/process.c:587:29: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  587 |         game->boss[i].dy += 0.1;
+      |                             ^~~
+src/process.c:588:30: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  588 |         if (game->boss[i].dy > 1.5)
+      |                              ^
+src/process.c:594:30: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  594 |             game->boss[i].dx += 0.1;
+      |                              ^~
+src/process.c:594:33: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  594 |             game->boss[i].dx += 0.1;
+      |                                 ^~~
+src/process.c:602:30: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  602 |             game->boss[i].dx -= 0.1;
+      |                              ^~
+src/process.c:602:33: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  602 |             game->boss[i].dx -= 0.1;
+      |                                 ^~~
+src/process.c:627:23: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  627 |             enemy->dx += 0.2;
+      |                       ^~
+src/process.c:627:26: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  627 |             enemy->dx += 0.2;
+      |                          ^~~
+src/process.c:641:23: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  641 |             enemy->dx -= 0.2;
+      |                       ^~
+src/process.c:641:26: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  641 |             enemy->dx -= 0.2;
+      |                          ^~~
+src/process.c:651:19: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  651 |         enemy->dy += 0.4;
+      |                   ^~
+src/process.c:651:22: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  651 |         enemy->dy += 0.4;
+      |                      ^~~
+src/process.c:652:23: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  652 |         if (enemy->dy >= 2.5)
+      |                       ^~
+src/process.c:714:42: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  714 |                 game->smartEnemies[i].dx += 0.2;
+      |                                          ^~
+src/process.c:714:45: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  714 |                 game->smartEnemies[i].dx += 0.2;
+      |                                             ^~~
+src/process.c:729:42: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  729 |                 game->smartEnemies[i].dx -= 0.2;
+      |                                          ^~
+src/process.c:729:45: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  729 |                 game->smartEnemies[i].dx -= 0.2;
+      |                                             ^~~
+src/process.c:783:46: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  783 |                     game->smartEnemies[i].dx += 0.2;
+      |                                              ^~
+src/process.c:783:49: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  783 |                     game->smartEnemies[i].dx += 0.2;
+      |                                                 ^~~
+src/process.c:798:46: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  798 |                     game->smartEnemies[i].dx -= 0.2;
+      |                                              ^~
+src/process.c:798:49: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  798 |                     game->smartEnemies[i].dx -= 0.2;
+      |                                                 ^~~
+src/process.c:839:46: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  839 |                     game->smartEnemies[i].dx += 0.2;
+      |                                              ^~
+src/process.c:839:49: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  839 |                     game->smartEnemies[i].dx += 0.2;
+      |                                                 ^~~
+src/process.c:854:46: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  854 |                     game->smartEnemies[i].dx -= 0.2;
+      |                                              ^~
+src/process.c:854:49: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  854 |                     game->smartEnemies[i].dx -= 0.2;
+      |                                                 ^~~
+src/process.c: In function 'process2':
+src/process.c:1060:87: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+ 1060 |           game->stars[i].x = game->stars[i].baseX+sinf(game->stars[i].phase+game->time*0.06f)*75;
+      |                                                                                       ^
+src/process.c:1060:50: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+ 1060 |           game->stars[i].x = game->stars[i].baseX+sinf(game->stars[i].phase+game->time*0.06f)*75;
+      |                                                  ^
+src/process.c:1060:30: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+ 1060 |           game->stars[i].x = game->stars[i].baseX+sinf(game->stars[i].phase+game->time*0.06f)*75;
+      |                              ^~~~
+src/process.c:1064:87: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+ 1064 |           game->stars[i].y = game->stars[i].baseY+cosf(game->stars[i].phase+game->time*0.06f)*75;
+      |                                                                                       ^
+src/process.c:1064:50: warning: conversion from 'int' to 'float' may change value [-Wconversion]
+ 1064 |           game->stars[i].y = game->stars[i].baseY+cosf(game->stars[i].phase+game->time*0.06f)*75;
+      |                                                  ^
+src/process.c:1064:30: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+ 1064 |           game->stars[i].y = game->stars[i].baseY+cosf(game->stars[i].phase+game->time*0.06f)*75;
+      |                              ^~~~
+src/processEvents.c: In function 'processEvents':
+src/processEvents.c:248:22: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  248 |         game->man.dx -= 0.5;
+      |                      ^~
+src/processEvents.c:248:25: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  248 |         game->man.dx -= 0.5;
+      |                         ^~~
+src/processEvents.c:265:22: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  265 |         game->man.dx += 0.5;
+      |                      ^~
+src/processEvents.c:265:25: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  265 |         game->man.dx += 0.5;
+      |                         ^~~
+src/processEvents.c:337:35: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  337 |             game->secondPlayer.dx -= 0.5;
+      |                                   ^~
+src/processEvents.c:337:38: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  337 |             game->secondPlayer.dx -= 0.5;
+      |                                      ^~~
+src/processEvents.c:354:35: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  354 |             game->secondPlayer.dx += 0.5;
+      |                                   ^~
+src/processEvents.c:354:38: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  354 |             game->secondPlayer.dx += 0.5;
+      |                                      ^~~
+src/processEvents.c: In function 'processEvents2':
+src/processEvents.c:671:22: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  671 |         game->man.dx -= 0.5;
+      |                      ^~
+src/processEvents.c:671:25: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  671 |         game->man.dx -= 0.5;
+      |                         ^~~
+src/processEvents.c:681:22: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  681 |         game->man.dx += 0.5;
+      |                      ^~
+src/processEvents.c:681:25: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  681 |         game->man.dx += 0.5;
+      |                         ^~~
+src/processEvents.c:710:31: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  710 |         game->secondPlayer.dx -= 0.5;
+      |                               ^~
+src/processEvents.c:710:34: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  710 |         game->secondPlayer.dx -= 0.5;
+      |                                  ^~~
+src/processEvents.c:720:31: warning: implicit conversion from 'float' to 'double' to match other operand of binary expression [-Wdouble-promotion]
+  720 |         game->secondPlayer.dx += 0.5;
+      |                               ^~
+src/processEvents.c:720:34: warning: conversion from 'double' to 'float' may change value [-Wfloat-conversion]
+  720 |         game->secondPlayer.dx += 0.5;
+      |                                  ^~~
+src/processEvents.c:776:25: warning: conversion from 'float' to 'int' may change value [-Wfloat-conversion]
+  776 |         game->x_score = game->man.x / 293;
+      |                         ^~~~
+src/random_sign.c: In function 'random_sign':
+src/random_sign.c:5:12: warning: conversion from 'double' to 'int' may change value [-Wfloat-conversion]
+    5 |     step = step * mult * pow(-1, (random()%2));
+      |            ^~~~
+./build-mingw/smoketest.exe
+SMOKE TEST: app_init ok (game=000002b252bf0080 window=000002b252bf8b40 renderer=000002b252782460)
+SMOKE TEST: load_menu0 ok (menu0=000002b252c43960 menuMus=000002b252c43530)
+SMOKE TEST: load_menu0 second call -- menu0 unchanged=yes, menuMus unchanged=yes
+SMOKE TEST: first app_shutdown ok (game=0000000000000000 window=0000000000000000 renderer=0000000000000000)
+SMOKE TEST: second app_shutdown (idempotency check) completed without crash
+SMOKE TEST: PASS

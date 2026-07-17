@@ -1,5 +1,13 @@
 #pragma once
 
+// On Windows, SDL2's headers rewrite main() into a signature expecting
+// (int argc, char *argv[]) so SDL2main can hook WinMain. This project's
+// main() takes no arguments; SDL_MAIN_HANDLED opts out of that rewrite so
+// the existing signature keeps compiling as-is. No effect on macOS/Linux.
+#ifdef _WIN32
+#define SDL_MAIN_HANDLED
+#endif
+
 //our frameworks
 #include <SDL2/SDL.h>
 #include <SDL2_image/SDL_image.h>
@@ -15,8 +23,23 @@
 #include <fcntl.h>
 #include <time.h>
 #include <math.h>
+#ifdef __APPLE__
 #include <malloc/malloc.h>
+#endif
 #include <limits.h>
+
+// random()/srandom() are POSIX/BSD extensions with no equivalent in the
+// Windows CRT that MinGW targets; rand()/srand() are the nearest portable
+// stand-ins. Only takes effect on Windows builds -- macOS/Linux keep using
+// the real random()/srandom() unchanged. Routed through a differently-named
+// wrapper (not a bare "rand()" expansion) because at least one call site
+// declares a local variable literally named "rand", which would otherwise
+// shadow the C library rand() the macro expands to.
+#ifdef _WIN32
+static inline long ucode_endgame_win32_random(void) { return rand(); }
+#define random() ucode_endgame_win32_random()
+#define srandom(seed) srand(seed)
+#endif
 
 #define STATUS_STATE_LIVES 0
 #define STATUS_STATE_GAME 1
@@ -225,6 +248,14 @@ typedef struct
 
     //Renderer
     SDL_Renderer *renderer;
+
+    // Explicit asset-group lifecycle flags. Set to true only as the last
+    // statement of loadGame()/loadGame2()'s asset-loading block, once every
+    // load in the group has run -- not tied to any individual texture
+    // pointer, so a single texture happening to be the "first" resource
+    // loaded can no longer make the whole group look loaded prematurely.
+    bool arcadeAssetsLoaded;
+    bool runnerAssetsLoaded;
 
     int menu_status;
     int menu0_status;

@@ -1,3 +1,10 @@
+# Vendored third-party MinGW SDL2 devel packages (downloaded locally for
+# Windows/MinGW build validation; see docs/refactor-plan.md for fetch steps)
+/vendor/
+
+# Local Windows/MinGW validation build outputs
+/build-mingw/
+
 # Prerequisites
 *.d
 

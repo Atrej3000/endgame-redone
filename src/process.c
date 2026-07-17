@@ -512,7 +512,7 @@ void process(GameState *game)
 
     if (game->tempScore == 366)
     {
-        for (int i = 0; i < NUM_ENEMIES; i += 2)
+        for (int i = 0; i < NUM_ENEMIES - 1; i += 2)
         {
             game->enemyValues[i].x = 620;
             game->enemyValues[i].y = i * (-100);

@@ -1,29 +1,16 @@
 #include "header.h"
+#include "app.h"
 
 int main()
 {
-    GameState *gameState =  (GameState*)calloc(1, sizeof(GameState));
-    SDL_Window *window;     //Declare a window
-    SDL_Renderer *renderer; //Declare a renderer
+    GameState *gameState = NULL;
+    SDL_Window *window = NULL;
+    SDL_Renderer *renderer = NULL;
 
-    SDL_Init(SDL_INIT_VIDEO); //Initialize SDL2
-
-    srandom((int)time(NULL));
-
-    //Create an application window  with the following settings:
-    window = SDL_CreateWindow("Game Window",           //window title
-                              SDL_WINDOWPOS_UNDEFINED, //initial x position
-                              SDL_WINDOWPOS_UNDEFINED, //initial y position
-                              WIDTH,                    //width, in pixels
-                              HEIGHT,                     //height, in pixels
-                              0                        //flags
-    );
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    gameState->renderer = renderer;
-
-    TTF_Init(); // init font system
-
-    Mix_OpenAudio(MIX_DEFAULT_FREQUENCY, MIX_DEFAULT_FORMAT, MIX_DEFAULT_CHANNELS, 4096); //initialize sound
+    if (!app_init(&gameState, &window, &renderer))
+    {
+        return 1;
+    }
 
     int done0 = 0;
     int done = 0;
@@ -164,61 +151,6 @@ int main()
         }
     }
 
-    //Shutdown game and umload all memory
-    //SDL_DestroyTexture(gameState.star);
-    //printf("EXIT\n");
-    /*SDL_DestroyTexture(gameState.manFrames[0]);
-    SDL_DestroyTexture(gameState.man.sheetTextureIdle);
-    SDL_DestroyTexture(gameState.man.sheetTextureRun);
-    SDL_DestroyTexture(gameState.man.sheetTextureJump);
-    SDL_DestroyTexture(gameState.enemy.sheetTextureRun);
-    SDL_DestroyTexture(gameState.bulletTexture);
-    // SDL_DestroyTexture(gameState.man.sheetTextureAttack1);
-    SDL_DestroyTexture(gameState.brick);
-    if (gameState.label != NULL)
-        SDL_DestroyTexture(gameState.label);
-    TTF_CloseFont(gameState.font);
-    for (int i = 0; i < MAX_BULLETS; i++)
-    {
-        removeBullet(&gameState, i);
-    }*/
-    // SDL_DestroyTexture(gameState->background);
-    // SDL_DestroyTexture(gameState->bossTexture);
-    // SDL_DestroyTexture (gameState->star);
-    // for (int i = 0; i < 11; i++)
-    // {
-    // SDL_DestroyTexture (gameState->manFrames[i]);
-    // SDL_DestroyTexture (gameState->secondPlayerFrames[i]);
-    // }
-    // SDL_DestroyTexture (gameState->secondPlayerImage);
-    // SDL_DestroyTexture (gameState->brick);
-    // SDL_DestroyTexture (gameState->menu0);
-    // SDL_DestroyTexture (gameState->menu1);
-    // SDL_DestroyTexture (gameState->menu2);
-    // SDL_DestroyTexture (gameState->mult);
-    // SDL_DestroyTexture (gameState->leaders);
-    // SDL_DestroyTexture (gameState->fon);
-    // SDL_DestroyTexture (gameState->pause);
-    // SDL_DestroyTexture (gameState->label);
-    // SDL_DestroyTexture (gameState->labelMultiplayer);
-    // SDL_DestroyTexture (gameState->death);
-    // SDL_DestroyTexture (gameState->enemyFrame);
-    // SDL_DestroyTexture (gameState->brick_block);
-    // SDL_DestroyTexture (gameState->copper_block);
-    // SDL_DestroyTexture (gameState->background);
-    // SDL_DestroyTexture (gameState->bulletTexture);
-    // SDL_DestroyTexture (gameState->secondBulletTexture);
-    // SDL_DestroyTexture (gameState->enemyTexture2);
-    // SDL_DestroyTexture (gameState->bossTexture);
-
-    //Close and destroy the window
-    SDL_DestroyWindow(window);
-    free(gameState);
-    SDL_DestroyRenderer(renderer);
-
-    //Clean up
-    TTF_Quit();
-    SDL_Quit();
-    //printf("END\n");
+    app_shutdown(&gameState, &window, &renderer);
     return 0;
 }

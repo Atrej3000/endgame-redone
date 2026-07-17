@@ -16,6 +16,20 @@ for every read/write of every guarded field to rule out a missed call site, and 
 brace-count sanity check across all 12 touched files (open `{` count equals close `}` count in
 every file). No build was attempted; no build or runtime claim is made anywhere in this log.
 
+## Pass 2 summary — validation and hardening (2026-07-17)
+
+This pass turned Pass 1's uncompiled patch into a compiled, partially runtime-verified,
+git-protected baseline. Environment: Windows, no compiler previously available. This pass
+installed MinGW-w64 GCC (scoop `gcc`, nuwen 15.2.0) and the official SDL2/SDL2_image/SDL2_ttf/
+SDL2_mixer MinGW "devel" packages (from github.com/libsdl-org releases, vendored locally and
+gitignored under `./vendor/`), added an additive `mingw`/`mingw-asan`/`mingw-smoketest` Makefile
+target family (the macOS `all` target and its flags are untouched), and initialized git
+(`git init` + baseline commit `cfb7ca7`) since none existed and the user asked for a real
+rollback point this pass. See `docs/refactor-plan.md` for the full build-environment writeup and
+`docs/verification/` for saved build/run logs. Every entry below states precisely how it was
+verified: compilation, a real runtime smoke test, or static inspection — sanitizer instrumentation
+was attempted but is unavailable in this environment (see its own entry below).
+
 ## Entry template
 
 ### [YYYY-MM-DD] Short title
@@ -263,3 +277,134 @@ every file). No build was attempted; no build or runtime claim is made anywhere 
 - Behavior impact: preserving. `game->label` still ends up `NULL` afterward exactly as before; only the previously-referenced texture (if any) is now freed first instead of orphaned.
 - Verification performed: re-read both call sites after editing; brace count for the whole file confirmed balanced (99 open / 99 close) after the change. No compiler available; compilation not attempted.
 - Rollback: remove the `if (game->label) { SDL_DestroyTexture(game->label); }` line immediately before each `game->label = NULL;` in loadGame.c.
+
+---
+
+### [2026-07-17] Pass 2 — git baseline
+- Phase: rollback safety (pre-Pass-2)
+- File(s): repository-wide (`git init` + `git add -A` + commit)
+- Action: initialized git in the repo root (none existed) and committed the complete Pass-1 state as commit `cfb7ca7` ("chore: preserve initial correctness and resource-lifetime fixes"). `.gitignore` (already present in the working tree) correctly excludes build artifacts; nothing else was excluded.
+- Reasoning: this pass's own instructions require a reliable rollback mechanism before further edits; the user had earlier declined git for Pass 1 but explicitly asked for it in this pass.
+- Verification performed: `git log -1`, `git status --short` reviewed before committing (1338 files staged: source, docs, and the project's own pre-existing vendored resources/frameworks — nothing unexpected).
+- Rollback: `git reset --hard cfb7ca7` restores exactly this point (not run in this pass; noted for the user's reference only, since it is a destructive command).
+
+### [2026-07-17] Pass 2 — Windows/MinGW portability shims in inc/header.h
+- Phase: 3 (build validation path)
+- File(s): inc/header.h
+- Before:
+  ```c
+  #pragma once
+
+  //our frameworks
+  #include <SDL2/SDL.h>
+  ...
+  #include <math.h>
+  #include <malloc/malloc.h>
+  #include <limits.h>
+  ```
+- After: three additive, `#ifdef`-gated blocks, each inert on macOS/Linux:
+  1. `#include <malloc/malloc.h>` wrapped in `#ifdef __APPLE__` (confirmed via grep that no Apple-specific malloc extension, e.g. `malloc_size`, is used anywhere in src/ — the include only ever needed `malloc`/`free`, already available via the already-included `<stdlib.h>`).
+  2. `#ifdef _WIN32 #define SDL_MAIN_HANDLED #endif` before the SDL includes, because SDL2 on Windows rewrites `main()` to expect `(int argc, char *argv[])` so `SDL2main` can hook `WinMain`; this project's `main()` takes no arguments.
+  3. `#ifdef _WIN32` shim mapping `random()`/`srandom()` (POSIX/BSD, no Windows-CRT equivalent) to `rand()`/`srand()`, routed through a uniquely-named wrapper function (`ucode_endgame_win32_random`) rather than a bare `rand()` expansion, because `src/processEvents.c:439` declares a local variable literally named `rand` (`int rand = random() % 2;`) that would otherwise shadow the C library `rand()` the macro expands to.
+- Reasoning: none of these affect macOS/Linux compilation at all (every block is `#ifdef`-gated to a platform that was never buildable here anyway); each was required to get any Windows compilation at all, discovered by iterating on real compiler errors, not guessed in advance.
+- Behavior impact: none on macOS (unchanged). On Windows, `random()` now returns `rand()`'s value range instead of glibc/BSD `random()`'s — a different PRNG algorithm/range, scoped only to this validation build; the shipped macOS build's randomness is untouched.
+- Verification performed: compiled clean (0 errors) after each addition, iteratively, using the real MinGW GCC toolchain (see build log below).
+- Rollback: remove all three `#ifdef`-gated blocks from inc/header.h.
+
+### [2026-07-17] Pass 2 — additive MinGW build path (Makefile, vendor/, compat-include shims)
+- Phase: 3 (build validation path)
+- File(s): Makefile (new `mingw`/`mingw-dlls`/`mingw-asan`/`mingw-run`/`mingw-smoketest`/`mingw-clean` targets appended; `all`/`clean`/`run` and all existing variables untouched), `.gitignore` (added `/vendor/` and `/build-mingw/`), new `vendor/SDL2-mingw/compat-include/{SDL2_image,SDL2_ttf,SDL2_mixer}/*.h` (one-line forwarding headers so the project's macOS-framework-style `#include <SDL2_image/SDL_image.h>` etc. resolve against the MinGW devel packages' actual layout, `include/SDL2/SDL_image.h`)
+- Action: installed MinGW-w64 GCC 15.2.0 and GNU Make 4.4.1 via `scoop`; downloaded the official SDL2/SDL2_image/SDL2_ttf/SDL2_mixer MinGW "devel" packages (SDL2-devel-2.32.10-mingw.tar.gz, SDL2_image-devel-2.8.12-mingw.tar.gz, SDL2_ttf-devel-2.24.0-mingw.tar.gz, SDL2_mixer-devel-2.8.2-mingw.tar.gz, all from github.com/libsdl-org/*/releases) into `vendor/SDL2-mingw/` (gitignored, not committed — regeneratable from the documented URLs in docs/refactor-plan.md).
+- Reasoning: user explicitly chose the native-MinGW validation path over a Docker-based Linux container. macOS Makefile (`all`, `CC := clang`, `.framework` flags) is completely untouched; the new targets are additive and self-contained.
+- Verification performed: `make mingw` produces `build-mingw/endgame-mingw.exe` plus the four required runtime DLLs; confirmed via `ls`.
+- Rollback: delete the appended Makefile section, the two `.gitignore` lines, and `vendor/`.
+
+### [2026-07-17] Pass 2 — strict-warning compilation and classification
+- Phase: 3 (build validation path)
+- File(s): none changed by this entry (classification only; the one fix it prompted is its own entry below)
+- Action: compiled all 36 `src/*.c` files with `-std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion -Wformat=2 -Wnull-dereference -Wdouble-promotion` via the new `mingw` target. Result: 0 errors, 169 warnings.
+- Classification (full list cross-referenced against every line touched in Pass 1 and Pass 2): **zero warnings fall on any line either pass modified.** All 169 are pre-existing code that had never been compiled with these flags before. Breakdown: `-Wfloat-conversion`/`-Wdouble-promotion` (100, mostly `process.c`/`collisionDetect.c`/`doRender.c` float-literal-vs-`float`-field arithmetic in physics/collision code — pre-existing, high-risk-in-principle but empirically safe today since all values involved stay well within float's exact-integer range), `-Wconversion` (58, mostly `int`-to-`float` narrowing assigning small screen-coordinate values — pre-existing, lower priority), `-Wshadow` (6, variable name reuse across sibling `if` blocks in `kills_score.c`/`doRender.c` — pre-existing, real but inert maintainability risk), `-Wsign-conversion` (5, `int`-to-`size_t`/`unsigned` at `main.c:11`'s `srandom` call and inside the confirmed-dead `mx_*.c` string-utility layer — pre-existing, dead-code-scoped where applicable). Full log saved at `docs/verification/mingw-build-strict-warnings.log`.
+- Behavior impact: none (compilation/classification only).
+- Verification performed: exhaustive line-number cross-reference between every warning and every line changed in this and the prior pass; zero overlap found.
+- Rollback: n/a (no code change).
+
+### [2026-07-17] Pass 2 — one warning fixed (introduced by this pass's own new code)
+- Phase: 3 (build validation path)
+- File(s): src/app.c
+- Before: `srandom((int)time(NULL));`
+- After: `srandom((unsigned int)time(NULL));`
+- Reasoning: this exact line was relocated from main.c into the new `app_init()` (see its own entry below); under strict warnings it produced one `-Wsign-conversion` warning (`srandom`/`srand` expects `unsigned int`). Since the line is now part of newly-written code this pass, fixed it directly rather than classifying it as pre-existing.
+- Behavior impact: none — `(unsigned int)time(NULL)` and `(int)time(NULL)` produce the same bit pattern passed to `srand`, just without the sign-conversion warning.
+- Verification performed: rebuilt; warning count dropped from 169 to 168, confirming this was the only warning in the new code.
+- Rollback: revert the cast to `(int)`.
+
+### [2026-07-17] Pass 2 — replaced implicit texture-pointer sentinels with explicit lifecycle flags
+- Phase: 3 (asset-lifecycle hardening, response to the mandated 7-point sentinel audit)
+- File(s): inc/header.h (new `bool arcadeAssetsLoaded, runnerAssetsLoaded` fields), src/loadGame.c (guard conditions and flag-set statements in both `loadGame()` and `loadGame2()`)
+- Before: `loadGame()` guarded its ~30-resource asset-load block on `if (game->bossTexture == NULL)`, and `loadGame2()` on `if (game->star == NULL)` — each an individual texture that happened to be the first (or an early) resource loaded in its group.
+- After: guards changed to `if (!game->arcadeAssetsLoaded)` / `if (!game->runnerAssetsLoaded)`, with `game->arcadeAssetsLoaded = true;` / `game->runnerAssetsLoaded = true;` added as the very last statement inside each guarded block (immediately before its closing brace), not tied to any individual texture.
+- Reasoning: audited against the 7 required conditions (NULL-initialized: yes, via Phase-2's `calloc`; assigned only after load: yes for the new flags, since they're now set last; never destroyed while siblings remain expected: not yet applicable, no in-play "unload" event exists; reset to NULL on unload: n/a for the same reason, handled at final shutdown instead; **partial-failure-cannot-falsely-mark-loaded: the OLD pointer-sentinel design could NOT fully guarantee this** — a few `IMG_Load` sites in `loadGame()`/`loadGame2()` have no NULL check at all, and no call site anywhere checks whether `SDL_CreateTextureFromSurface` itself returned NULL, so if the specific texture used as the sentinel happened to load successfully while a *later* texture in the same ~30-resource block silently failed, the group would be marked "loaded" while a texture inside it was actually NULL; re-entry: correct — mode re-entry within one process run intentionally does not reload, by design, this is the leak fix from Pass 1; cross-mode reuse: confirmed safe by grep, `bossTexture` is read only in `doRender()`/Arcade and `star` only in `doRender2()`/Runner). Per the task's own prescribed remediation ("replace implicit pointer sentinels with explicit lifecycle state"), introduced the two boolean flags.
+- Behavior impact: preserving for the checked/successful-load path (the overwhelming common case, since virtually every `IMG_Load` failure still calls `exit(1)` immediately, as before) — the flag is only reachable at the end of a run that didn't already terminate the process. **Not fully closed**: the handful of unchecked `IMG_Load` sites and the universally-unchecked `SDL_CreateTextureFromSurface` return values remain pre-existing gaps (documented, deferred — see `docs/refactor-plan.md` Phase 7); the flag-relocation fix narrows but does not eliminate the theoretical partial-failure window, and this is stated plainly rather than overclaimed.
+- Verification performed: rebuilt (0 errors, same 169→168 warning count, no new warnings); grepped to confirm `game->arcadeAssetsLoaded`/`runnerAssetsLoaded` are each set exactly once, inside the correct function; smoke test (see below) empirically exercises this guard by calling `load_menu1()+loadGame()` and `load_menu2()+loadGame2()` three times each and confirming the resulting texture/font pointers are identical across calls.
+- Rollback: revert the two guard conditions to `game->bossTexture == NULL`/`game->star == NULL`, remove the two flag-set statements, and remove the two new `GameState` fields.
+
+### [2026-07-17] Pass 2 — re-evaluated the ledges[96..98] fix with contiguity evidence
+- Phase: 1 (re-verification, no further code change)
+- File(s): src/loadGame.c (no change this entry — evidence-gathering only)
+- Action: enumerated every ledge-initialization `for` loop in `loadGame()` in declaration order: `[0,12) [12,24) [24,32) [32,40) [40,51) [51,59) [59,67) [67,78) [78,87) [87,99)`, then `ledges[99]` set explicitly. This is a perfectly contiguous, non-overlapping sequence covering indices 0–98 with zero gaps, immediately followed by a single explicit override of index 99 — and `loadGame2()` (Runner mode) independently uses the exact same two-part shape (a full `i<100` algorithmic loop, then an explicit override of `ledges[99]` only).
+- Reasoning: the task asked whether the original `i<96` bound (leaving 96/97/98 uninitialized) was an intentional gap or an off-by-three loop-bound bug. The perfect contiguity of the corrected sequence (0→98 with no gaps), corroborated by Runner mode's independent parallel design (full range + one reserved final slot), is strong evidence this was a bug, not an intentional short segment — a claim that could not be made with this level of confidence during Pass 1 (which flagged it only as a judgment call).
+- Behavior impact: n/a, no code change this entry — the Pass-1 fix (extending the loop to `i<99`) stands, now with materially higher confidence attached in the audit.
+- Verification performed: exact loop-bound enumeration via grep against `inc/header.h`'s declared array capacity (`Ledge ledges[100]`).
+- Rollback: n/a.
+
+### [2026-07-17] Pass 2 — centralized, idempotent application lifecycle (new inc/app.h, src/app.c)
+- Phase: new (application lifecycle — corresponds to the original refactor brief's suggested `app.h`/`app.c` module)
+- File(s): new inc/app.h, new src/app.c, src/main.c (rewritten init/shutdown sections)
+- Before: `main()` called `malloc`/`SDL_Init`/`SDL_CreateWindow`/`SDL_CreateRenderer`/`TTF_Init`/`Mix_OpenAudio` with no return-value checks at all; shutdown was ~45 lines of dead/commented-out code (stale non-pointer dot-notation that wouldn't even compile if uncommented) plus four live lines (`SDL_DestroyWindow`, `free(gameState)`, `SDL_DestroyRenderer`, `TTF_Quit`, `SDL_Quit`) that destroyed neither textures, fonts, sound chunks, nor music, and never called `Mix_CloseAudio`/`IMG_Quit`. `IMG_Init` was never called anywhere despite ~65 `IMG_Load` sites.
+- After: `app_init(GameState**, SDL_Window**, SDL_Renderer**)` checks every step (`calloc`, `SDL_Init`, `IMG_Init(IMG_INIT_PNG|IMG_INIT_JPG)` — newly added, was previously entirely missing — `SDL_CreateWindow`, `SDL_CreateRenderer`, `TTF_Init`, `Mix_OpenAudio`) and on any failure prints which step failed via `SDL_GetError()`/`IMG_GetError()`/`TTF_GetError()`/`Mix_GetError()`, calls `app_shutdown` on whatever partially succeeded, and returns `false` (main() returns exit code 1, no `exit()` call). `app_shutdown(GameState**, SDL_Window**, SDL_Renderer**)` is idempotent and null-tolerant throughout: stops playback (`Mix_HaltChannel(-1)`, `Mix_HaltMusic()`) → frees all `MAX_BULLETS` bullets/secondBullets via the existing `removeBullet`/`removeSecondBullet` → destroys every texture field in `GameState` (23 individual fields + the two 12-element arrays + `man`/`secondPlayer`/`enemy`'s 7+7+2 sprite-sheet textures + `train`/`cloud1..8`'s textures — confirmed by grep that `enemyValues[]`/`smartEnemies[]`/`boss[]` never have their own per-instance textures assigned, only the single shared `man`/`secondPlayer`/`enemy` master instances do, so no double-free risk from destroying a shared pointer twice) → closes the font → frees the 5 chunks + 3 music tracks → destroys the renderer → destroys the window → calls `Mix_CloseAudio()`/`IMG_Quit()`/`TTF_Quit()` (each documented-safe to call even if never successfully initialized) → `SDL_Quit()` → frees `GameState` — nulling every pointer immediately after destroying/freeing it, via three tiny local helpers (`destroy_texture`/`free_chunk`/`free_music`) that no-op on an already-NULL pointer.
+- Reasoning: directly implements this pass's mandated items 6 ("complete application shutdown") and 7 ("correct initialization failure handling"). Scoped narrowly to the top-level `main()` init/shutdown boundary only — the ~65 per-asset `exit(1)` calls inside `loadGame.c`/`load_menu.c` are unchanged and remain a documented, deferred issue (Phase 7 of `docs/refactor-plan.md`); rewriting those was explicitly out of this pass's scope (a much larger, separately-risked change).
+- Behavior impact: preserving for the success path (identical sequence of calls, same window size/title/flags, same renderer flags, same font/audio parameters). Deliberately new behavior only on failure paths that previously didn't exist at all (previously, e.g., a failed `SDL_CreateWindow` would dereference a NULL window pointer moments later with no diagnostic) — startup failures now print a specific error and exit cleanly with status 1 instead of crashing or continuing with invalid state. `IMG_Init` is a new, additive call with no prior behavior to preserve (its absence was itself Pass-1-documented defect #16).
+- Verification performed: compiled clean (0 warnings from the new files); **real runtime smoke test** (see next entry) exercised the actual `app_init`/`app_shutdown` functions end to end multiple times, including a deliberate repeated-shutdown idempotency check.
+- Rollback: delete inc/app.h and src/app.c; restore main.c's previous inline init/shutdown code (preserved verbatim in this file's Pass-1 section above and in git commit `cfb7ca7`).
+
+### [2026-07-17] Pass 2 — fixed a newly-discovered out-of-bounds write in process.c (odd-sized array, `+=2` loop)
+- Phase: 1 (correctness — found during the mandated project-wide nested-loop index-confusion sweep)
+- File(s): src/process.c:515
+- Before:
+  ```c
+          for (int i = 0; i < NUM_ENEMIES; i += 2)
+          {
+              game->enemyValues[i].x = 620;
+              ...
+              game->enemyValues[i + 1].x = 580;
+              ...
+          }
+  ```
+- After:
+  ```c
+          for (int i = 0; i < NUM_ENEMIES - 1; i += 2)
+          {
+  ```
+  (loop body otherwise unchanged)
+- Reasoning: `NUM_ENEMIES` = 101 (odd, `inc/header.h:53`). The loop steps by 2 and writes both `enemyValues[i]` and `enemyValues[i+1]` per iteration; on the final iteration (`i=100`), `enemyValues[i+1]` = `enemyValues[101]` is one past the 101-element array (valid indices 0–100), aliasing into the immediately-following `smartEnemies[0]` (confirmed via `inc/header.h`'s field order: `boss[2]`, then `enemyValues[NUM_ENEMIES]`, then `smartEnemies[NUM_SMART_ENEMIES]`, with no intervening fields). This code only runs once per Arcade playthrough, when `game->tempScore` reaches exactly 366 (a wave-spawn threshold). Found via an explicit project-wide sweep for the same bug class as the already-fixed `boss[i]`/`boss[j]` defect (nested/nearby loop with an array-bound mismatch), requested by this pass; six other structurally similar `+= 2` loops in the same file (lines 307/325/344/376/408/453) all use small even literal bounds (10/20/30/50/70/100) and were confirmed safe by the same check — this was the only one using the odd `NUM_ENEMIES`.
+- Behavior impact: deliberate defect fix. Previously, reaching `tempScore == 366` in Arcade mode corrupted `smartEnemies[0]`'s position/velocity/visibility (overwriting it with `x=580, y=-10000, dx=0, dy=0, visible=1`) as an unintended side effect of this wave-spawn code. After the fix, the loop stops one iteration earlier (last pair spawned is `enemyValues[98]`/`enemyValues[99]`; `enemyValues[100]`, the array's last slot, is simply not touched by this specific spawn call, same as before the bug — the fix only removes the overflowing final iteration, it does not add a new one to compensate).
+- Verification performed: grepped all `+= 2` loops in process.c to confirm this was the only one with a mismatched odd bound; rebuilt (0 errors, same warning count, confirming no new warning from this one-token change); cross-checked struct field order in `inc/header.h` to confirm exactly what memory the OOB write had been corrupting.
+- Rollback: revert `NUM_ENEMIES - 1` back to `NUM_ENEMIES` at process.c:515.
+
+### [2026-07-17] Pass 2 — sanitizer instrumentation attempted, confirmed unavailable in this environment
+- Phase: 3 (sanitizer validation, best-effort)
+- File(s): Makefile (`mingw-asan` target added, documented as currently non-functional here)
+- Action: attempted `-fsanitize=address,undefined` with two different MinGW-w64 GCC distributions (scoop `gcc`/nuwen 15.2.0, and scoop `mingw-winlibs`/WinLibs 16.1.0). Both fail at the link step: `cannot find -lasan` / `cannot find -lubsan` — neither distribution bundles the sanitizer runtime libraries for the `x86_64-w64-mingw32` target. This is a known, documented ecosystem gap (ASan/UBSan on native Windows is primarily supported through the MSVC toolchain via clang-cl, not mingw-w64 GCC); no Visual Studio/MSVC Build Tools are installed in this environment, and installing them was judged out of scope for this pass's "smallest practical validation path."
+- Reasoning: rather than silently dropping sanitizer validation or claiming it ran, the attempt, the exact failure, and the reason are recorded here per this pass's explicit instruction not to conceal or fake verification. The `mingw-asan` Makefile target is left in place, correctly specified, ready to use in an environment with a sanitizer-capable toolchain (a real Linux/macOS build, or clang-cl + MSVC on Windows).
+- Behavior impact: n/a (no sanitizer run occurred).
+- Verification performed: two independent toolchain attempts, both producing the identical class of linker error; confirmed no `*asan*`/`*ubsan*` files exist anywhere under either toolchain's install directory.
+- Rollback: n/a.
+
+### [2026-07-17] Pass 2 — real runtime smoke test (non-interactive init/shutdown/asset-guard cycle)
+- Phase: 3 (runtime verification)
+- File(s): new docs/verification/smoke_init_shutdown.c (test-only, not part of the shipped game; excluded from the `mingw`/`all` targets, built only by the new `mingw-smoketest` Makefile target against all of `src/*.c` except `main.c`)
+- Action: since this environment has no way to inject keyboard/window input into a native window (only browser-page automation is available, not arbitrary desktop windows), a full interactive menu-navigation smoke test could not be automated. Instead, wrote a small standalone harness that calls the real `app_init()`, then `load_menu0()` twice (confirming the pointer is unchanged the second time), then `load_menu1()+loadGame()` three times in a row and `loadGame()` once more (confirming `bossTexture`/`font` are unchanged across repeats and `arcadeAssetsLoaded` reads `1`), then `load_menu2()+loadGame2()` three times and `loadGame2()` once more (confirming `star` unchanged, `runnerAssetsLoaded` reads `1`), then `app_shutdown()`, then `app_shutdown()` again on the now-NULLed pointers (idempotency check). Ran three times.
+- Result (all three runs): `app_init` succeeded with a real accelerated renderer (this machine has a real GPU/display, so this exercised the actual SDL/IMG/TTF/Mix subsystems and window/renderer creation, not a headless stub); every "unchanged" check reported `yes`; the second `app_shutdown()` call completed without crashing; final line `SMOKE TEST: PASS` printed every time. Full logs saved at `docs/verification/mingw-smoketest-run1.log` and `mingw-smoketest-run2-expanded.log`.
+- Reasoning: this is the closest automatable equivalent to the task's requested "repeated transitions: menu → gameplay → menu, several times, verify no crashes/no duplicated music/no repeated asset loading" — it directly exercises the exact functions Pass 1's leak fixes and this pass's sentinel hardening changed, under the real OS/GPU/audio stack, not a mock.
+- Verification performed: **this is genuine runtime verification**, not static inspection — see the distinction maintained throughout this log and in `docs/refactor-audit.md`. Explicitly not covered: actual keyboard-driven gameplay (movement, shooting, collisions, pause/resume, leaderboard entry) and the `SDLK_ESCAPE`/`SDLK_q` in-game sound-cleanup paths in `processEvents.c`, since those require a live event loop this environment cannot drive automatically.
+- Rollback: delete docs/verification/smoke_init_shutdown.c and the `mingw-smoketest` Makefile target; no shipped code is affected.

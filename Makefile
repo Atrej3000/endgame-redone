@@ -53,4 +53,87 @@ reinstall: uninstall all
 run: all
 	./$(EXEC)
 
-.PHONY: all clean
+# ---------------------------------------------------------------------------
+# Additive Windows/MinGW validation build (does not affect the macOS build
+# above). Requires the SDL2 MinGW "devel" packages for SDL2/SDL2_image/
+# SDL2_ttf/SDL2_mixer, vendored locally and gitignored under ./vendor/.
+# See docs/refactor-plan.md for the exact fetch/setup steps.
+# ---------------------------------------------------------------------------
+CC_MINGW := gcc
+MINGW_ROOT := vendor/SDL2-mingw
+MINGW_TRIPLET := x86_64-w64-mingw32
+
+MINGW_INCLUDES := \
+	-I $(INC) \
+	-I $(MINGW_ROOT)/compat-include \
+	-I $(MINGW_ROOT)/SDL2-2.32.10/$(MINGW_TRIPLET)/include \
+	-I $(MINGW_ROOT)/SDL2-2.32.10/$(MINGW_TRIPLET)/include/SDL2 \
+	-I $(MINGW_ROOT)/SDL2_image-2.8.12/$(MINGW_TRIPLET)/include \
+	-I $(MINGW_ROOT)/SDL2_image-2.8.12/$(MINGW_TRIPLET)/include/SDL2 \
+	-I $(MINGW_ROOT)/SDL2_ttf-2.24.0/$(MINGW_TRIPLET)/include \
+	-I $(MINGW_ROOT)/SDL2_ttf-2.24.0/$(MINGW_TRIPLET)/include/SDL2 \
+	-I $(MINGW_ROOT)/SDL2_mixer-2.8.2/$(MINGW_TRIPLET)/include \
+	-I $(MINGW_ROOT)/SDL2_mixer-2.8.2/$(MINGW_TRIPLET)/include/SDL2
+
+MINGW_LIBDIRS := \
+	-L $(MINGW_ROOT)/SDL2-2.32.10/$(MINGW_TRIPLET)/lib \
+	-L $(MINGW_ROOT)/SDL2_image-2.8.12/$(MINGW_TRIPLET)/lib \
+	-L $(MINGW_ROOT)/SDL2_ttf-2.24.0/$(MINGW_TRIPLET)/lib \
+	-L $(MINGW_ROOT)/SDL2_mixer-2.8.2/$(MINGW_TRIPLET)/lib
+
+MINGW_LIBS := -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer
+
+MINGW_WARN_FLAGS := -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion \
+	-Wsign-conversion -Wformat=2 -Wnull-dereference -Wdouble-promotion
+
+# Sources minus main.c, for the non-interactive smoke-test harness below
+# (which supplies its own main()).
+MINGW_SRCS_NO_MAIN := $(filter-out src/main.c,$(wildcard src/*.c))
+
+BUILD_DIR := build-mingw
+MINGW_EXEC := $(BUILD_DIR)/endgame-mingw.exe
+
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+# Copy the runtime DLLs next to the built exe so it can actually run.
+mingw-dlls: $(BUILD_DIR)
+	cp $(MINGW_ROOT)/SDL2-2.32.10/$(MINGW_TRIPLET)/bin/SDL2.dll $(BUILD_DIR)/
+	cp $(MINGW_ROOT)/SDL2_image-2.8.12/$(MINGW_TRIPLET)/bin/SDL2_image.dll $(BUILD_DIR)/
+	cp $(MINGW_ROOT)/SDL2_ttf-2.24.0/$(MINGW_TRIPLET)/bin/SDL2_ttf.dll $(BUILD_DIR)/
+	cp $(MINGW_ROOT)/SDL2_mixer-2.8.2/$(MINGW_TRIPLET)/bin/SDL2_mixer.dll $(BUILD_DIR)/
+
+mingw: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(SRCS) $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(MINGW_EXEC) $(MINGW_LIBS)
+
+# Debug build with AddressSanitizer + UndefinedBehaviorSanitizer.
+# NOTE: as of this writing, neither MinGW-w64 GCC distribution available in
+# this environment (scoop 'gcc'/nuwen, or scoop 'mingw-winlibs'/WinLibs) ships
+# libasan/libubsan for the x86_64-w64-mingw32 target, so this target currently
+# fails to link with "cannot find -lasan"/"-lubsan". This is a documented,
+# confirmed toolchain gap (ASan/UBSan on native Windows generally needs the
+# MSVC toolchain, not mingw), not something disabled or worked around here.
+# Kept as correctly-specified, ready-to-use infrastructure for whenever a
+# sanitizer-capable toolchain (Linux gcc/clang, or clang-cl + MSVC) is used.
+mingw-asan: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(SRCS) $(MINGW_WARN_FLAGS) -g -O0 -fsanitize=address,undefined -fno-omit-frame-pointer \
+		$(MINGW_INCLUDES) $(MINGW_LIBDIRS) -o $(BUILD_DIR)/endgame-mingw-asan.exe $(MINGW_LIBS)
+
+mingw-run: mingw
+	./$(MINGW_EXEC)
+
+# Non-interactive runtime smoke test: exercises the real app_init -> one real
+# asset-load pass -> app_shutdown -> repeated app_shutdown cycle end to end,
+# without needing keyboard/window input injection. See
+# docs/verification/smoke_init_shutdown.c and docs/refactor-log.md.
+mingw-smoketest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/smoke_init_shutdown.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/smoketest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/smoketest.exe
+
+mingw-clean:
+	rm -rf $(BUILD_DIR)
+
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-clean

@@ -2,7 +2,7 @@
 
 void loadGame(GameState *game)
 {
-    if (game->bossTexture == NULL)
+    if (!game->arcadeAssetsLoaded)
     {
     SDL_Surface *surface = NULL;
 
@@ -342,6 +342,7 @@ void loadGame(GameState *game)
     //    }
     //    game->bulletTexture = SDL_CreateTextureFromSurface(game->renderer, surface);
     //    SDL_FreeSurface(surface);
+    game->arcadeAssetsLoaded = true;
     }
 
     if (game->label) {
@@ -574,7 +575,7 @@ void loadGame(GameState *game)
 
 void loadGame2(GameState *game)
 {
-    if (game->star == NULL)
+    if (!game->runnerAssetsLoaded)
     {
     SDL_Surface *surface = NULL;
     //game->menu_status = 0;
@@ -906,6 +907,7 @@ void loadGame2(GameState *game)
         SDL_Quit();
         exit(1);
     }
+    game->runnerAssetsLoaded = true;
     }
 
     if (game->label) {

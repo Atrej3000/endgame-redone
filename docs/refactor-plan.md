@@ -16,12 +16,18 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
 | 4 | Raw scene-state ints → descriptive enums (`menu_status`, `menu0_status`) | Deferred |
 | 5 | `doRender2` gameplay-state mutation moved into `process2()` | Deferred |
 | 6 | `collisionDetect.c` enemy-vs-enemy self-collision guard | Deferred |
-| 7 | `IMG_Load`/NULL-check ordering normalization (~10 sites) | Deferred |
-| 8 | Full shutdown-path reconstruction (texture/font/chunk/music destruction, `Mix_CloseAudio`, `IMG_Quit`, `IMG_Init`) | Deferred |
+| 7 | `IMG_Load`/NULL-check ordering normalization (~10 sites) | Deferred (residual gap in Phase 3b's asset-lifecycle flags — see Pass 2 notes below) |
+| 8 | Full shutdown-path reconstruction (texture/font/chunk/music destruction, `Mix_CloseAudio`, `IMG_Quit`, `IMG_Init`) | **Done — Pass 2** (`src/app.c`) |
 | 9 | `mx_*` dead-code removal (16 files) | Deferred |
 | 10 | Large paired-function deduplication (`process`/`process2`, etc.) | Deferred (explicitly out of scope until a build-verified baseline exists) |
 | 11 | Delta-time conversion | Deferred (explicitly out of scope until a stable, comparable baseline exists) |
-| 12 | Build system / README modernization | Deferred |
+| 12 | Build system / README modernization | Partially done — Pass 2 (additive Windows/MinGW `make` targets only; macOS `all` target and README's gameplay documentation untouched) |
+| 13 | Git-protected rollback baseline | **Done — Pass 2** (`git init` + commit `cfb7ca7`) |
+| 14 | Real compiler validation (strict warnings) | **Done — Pass 2** (MinGW-w64 GCC; 0 errors, 169 pre-existing warnings, 0 introduced) |
+| 15 | Sanitizer validation (ASan/UBSan) | Attempted — **unavailable in this environment** (two MinGW toolchains both lack `libasan`/`libubsan`; target left in place for a future capable toolchain) |
+| 16 | Asset-lifecycle sentinel hardening (implicit texture-pointer guards → explicit `bool` flags) | **Done — Pass 2** |
+| 17 | Non-interactive runtime smoke test (`app_init`→asset-guard→`app_shutdown`→idempotency) | **Done — Pass 2**, 3 consecutive passing runs |
+| 18 | New defect found during mandated nested-loop sweep: `process.c:515` OOB write | **Found and fixed — Pass 2** |
 
 ## Phases executed in Pass 1
 
@@ -75,6 +81,84 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
   per-frame or per-shot path; no HUD texture is recreated without destroying its predecessor —
   met
 
+## Phases executed in Pass 2 (validation and hardening)
+
+### Phase 13 — Git baseline
+- Files: whole repo (`git init` + initial commit)
+- Risk: none (additive; no destructive git command run)
+- Validation: `git log`, `git status --short` reviewed before and after commit
+- Rollback: `git reset --hard cfb7ca7` returns to this exact point (not run; noted for reference)
+- Completion criteria: met — commit `cfb7ca7` exists
+
+### Phase 14 — Real compiler validation
+- Files: `Makefile` (additive `mingw*` targets), `inc/header.h` (3 `#ifdef`-gated portability
+  shims), `vendor/SDL2-mingw/` (gitignored, downloaded MinGW SDL2 devel packages + compat-include
+  shims)
+- Risk: none to the macOS build (untouched); Windows-only shims are gated to never affect
+  non-Windows compilation
+- Validation: `make mingw` — 0 errors, 169 pre-existing warnings (0 introduced by either pass,
+  confirmed by line-number cross-reference — see `docs/refactor-log.md`)
+- Rollback: delete the appended Makefile section, the 3 `#ifdef` blocks in `header.h`, and
+  `vendor/`
+- Completion criteria: met
+
+### Phase 15 — Sanitizer validation (attempted, environment-limited)
+- Files: `Makefile` (`mingw-asan` target, correctly specified but non-functional here)
+- Risk: none (no code depends on this succeeding)
+- Validation: two independent MinGW-w64 toolchains attempted, both fail identically
+  (`cannot find -lasan`/`-lubsan`) — confirmed, documented gap, not concealed
+- Rollback: n/a
+- Completion criteria: **not met in this environment** — met once a sanitizer-capable toolchain
+  (Linux/macOS gcc/clang, or clang-cl+MSVC) is available
+
+### Phase 16 — Asset-lifecycle sentinel hardening
+- Files: `inc/header.h` (2 new `bool` fields), `src/loadGame.c` (guard conditions + flag-set
+  statements)
+- Risk: low — narrowly scoped to 4 lines total; does not change *when* `loadGame`/`loadGame2` are
+  called, only what gates their internal asset-load block
+- Validation: rebuilt clean; runtime-verified via the Phase 17 smoke test (repeated calls confirm
+  pointers unchanged)
+- Rollback: revert guards to `bossTexture == NULL`/`star == NULL`, remove the flag-set lines and
+  the 2 new struct fields
+- Completion criteria: met, with the residual limitation documented (Phase 7's unchecked
+  `IMG_Load`/`SDL_CreateTextureFromSurface` sites mean the flag-based design narrows but does not
+  fully close the theoretical partial-failure window — see `docs/refactor-audit.md` Section 5)
+
+### Phase 8 — Full shutdown-path reconstruction (now done, previously deferred)
+- Files: new `inc/app.h`, new `src/app.c`, `src/main.c` (init/shutdown sections rewritten)
+- Risk: this is the one Pass-2 change that touches the same category of thing (init/shutdown
+  control flow) the Pass-1 plan flagged as needing a "running build to rule out regressions" —
+  now satisfied, since a running build exists this pass
+- Validation: compiled clean; **runtime-verified** — the Phase 17 smoke test calls `app_shutdown`
+  twice in a row (idempotency) and completes without crashing, 3 consecutive runs
+- Rollback: delete `inc/app.h`/`src/app.c`; restore `main.c`'s previous inline init/shutdown code
+  (preserved in `docs/refactor-log.md`'s Pass-1 section and in git commit `cfb7ca7`)
+- Completion criteria: met — every resource category from the task's required list (bullets,
+  generated/static textures, fonts, chunks, music, renderer, window, mixer, SDL_mixer/ttf/image,
+  SDL, `GameState`) is destroyed in dependency order, idempotently, with every pointer nulled
+  after release; `IMG_Init` (previously never called) added
+
+### Phase 17 — Non-interactive runtime smoke test
+- Files: new `docs/verification/smoke_init_shutdown.c` (test-only; not part of `all`/`mingw`,
+  built only by the new `mingw-smoketest` target against `src/*.c` minus `main.c`)
+- Risk: none (test-only file, cannot affect the shipped game)
+- Validation: 3 consecutive runs, all printing `SMOKE TEST: PASS`; logs saved under
+  `docs/verification/`
+- Rollback: delete the file and the `mingw-smoketest` Makefile target
+- Completion criteria: met for what's automatable in this environment (no desktop input
+  injection available) — explicitly does NOT cover keyboard-driven gameplay, collisions,
+  pause/resume, or the in-game `SDLK_ESCAPE`/`SDLK_q` sound-cleanup paths, which need a live event
+  loop this environment cannot drive
+
+### Phase 18 — New defect found during the mandated nested-loop sweep
+- Files: `src/process.c:515`
+- Risk: none beyond the fix itself (one-token loop-bound change)
+- Validation: compiled clean, same warning count; struct-layout cross-check confirmed the
+  corruption target (`smartEnemies[0]`); confirmed via grep this was the only `+= 2` loop in the
+  file with an odd bound (6 siblings all use safe even literals)
+- Rollback: revert `NUM_ENEMIES - 1` to `NUM_ENEMIES` at process.c:515
+- Completion criteria: met
+
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
 **Phase 4 — Scene-state enums.** `enum menu_buttons` already exists (`header.h:252-259`) but is
@@ -96,13 +180,14 @@ Ready once a compiler/runtime is available to screen for subtle AABB-resolution-
 **Phase 7 — `IMG_Load` ordering.** Confirmed functionally inert (SDL's
 `SDL_CreateTextureFromSurface(renderer, NULL)`/`SDL_FreeSurface(NULL)` are documented-safe
 no-ops). Wide (~10 sites across two files), zero live behavioral payoff — batch it in a
-dedicated, mechanical future pass once a compiler can confirm no accidental behavior change.
+dedicated, mechanical future pass now that a compiler is available (Pass 2) to confirm no
+accidental behavior change. Note added in Pass 2: this is also the reason Phase 16's asset-group
+lifecycle flags can't fully guarantee "a partial load failure never marks the group as loaded" —
+fixing this phase would close that residual gap too.
 
-**Phase 8 — Shutdown-path reconstruction.** Requires deciding a correct destruction order for
-~24 textures, the font, 5 sound chunks, 3 music tracks, and the renderer/window, none of which
-can be smoke-tested here (does destroying texture X before texture Y ever matter? — untestable
-without running the binary). Ready once build/run verification is available; should be scoped
-as its own phase, not bundled with anything else.
+**Phase 8 — Shutdown-path reconstruction.** Done in Pass 2 (see above) — a compiler became
+available this pass, which is exactly the precondition this entry originally said it was
+waiting for.
 
 **Phase 9 — `mx_*` dead-code removal.** Confirmed zero live callers (beyond the one-line
 arithmetic fix already applied to `mx_strsplit.c` in Phase 1, which remains unreachable).
@@ -128,16 +213,23 @@ Makefile in an environment that can't build it would be an unverified guess. REA
 controls were checked against live code this pass and found accurate; revisit only if a future
 phase introduces a real behavior/documentation mismatch.
 
-## Environment/build limitation (restated)
+## Environment/build limitation (updated after Pass 2)
 
-No git repository, no C compiler available in this environment. The project's Makefile is
-macOS-specific regardless (`clang`, bundled `.framework`s, `-rpath`) and `inc/header.h` includes
-a BSD/macOS-only header. No compilation was attempted or claimed to succeed at any point in this
-pass. See `docs/refactor-audit.md` Section 6 for full detail.
+Pass 1 had no git repository and no C compiler available. **Pass 2 resolved both**: git is now
+initialized with a baseline commit (`cfb7ca7`), and a real Windows/MinGW build path exists
+(`make mingw`, `make mingw-smoketest`) — see `docs/refactor-audit.md` Section 6 for the exact
+toolchain, dependency source, and build command. The one remaining, confirmed-unavailable piece
+is sanitizer instrumentation (ASan/UBSan) — attempted with two MinGW-w64 distributions, both
+lack the required runtime libraries; this is a genuine toolchain gap, not a skipped step. The
+project's macOS Makefile target and `README.md`'s documented controls remain untouched and
+unverified in this environment (no macOS/clang toolchain available here either).
 
-## Rollback approach (no git)
+## Rollback approach
 
-Every change in `docs/refactor-log.md` records the exact "before" code. To roll back any single
-change, locate its log entry and paste the "before" block back over the corresponding file:lines.
-Because Pass 1's changes are each independently scoped (no change depends on another compiling
-or behaving a certain way), any subset can be reverted without affecting the rest.
+Git is now available (Pass 2): `git log` shows every commit; use `git diff`/`git show` to inspect
+any change and standard `git revert`/`git checkout` to undo it (destructive `git reset --hard`
+should only be used with explicit user confirmation, per this project's own safety conventions).
+`docs/refactor-log.md` remains the authoritative narrative record (why each change was made, what
+was checked) even though git now also provides mechanical diffs — the two are complementary, not
+redundant: the log explains intent and verification level; git provides exact byte-for-byte diffs
+and rollback commands.
