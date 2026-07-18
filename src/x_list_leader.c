@@ -30,7 +30,3 @@ void init_status_x_list(GameState *game) {
         SDL_RenderCopy(renderer, game->label, NULL, &textRect);
     }
 }
-void shutdown_status_x_list(GameState *game) {
-    SDL_DestroyTexture(game->label);
-    game->label = NULL;
-}
