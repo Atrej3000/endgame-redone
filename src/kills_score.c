@@ -57,14 +57,7 @@ void draw_status_kills(GameState *game)
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 
     SDL_Rect textRect = {1150, 00, game->labelW, game->labelH};
-    SDL_RenderCopy(renderer, game->labelMultiplayer, NULL, &textRect);   
+    SDL_RenderCopy(renderer, game->labelMultiplayer, NULL, &textRect);
     }
 
-}
-
-void shutdown_status_kills (GameState *game) {
-    SDL_DestroyTexture(game->label);
-    SDL_DestroyTexture(game->labelMultiplayer);
-    game->label = NULL;
-    game->labelMultiplayer = NULL;
 }

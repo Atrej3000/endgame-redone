@@ -50,6 +50,11 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
 | 38 | Fix confirmed respawn-position gap (found during design validation): left-edge falls and multiplayer deaths would otherwise re-trigger indefinitely once movement freezes during the death animation | **Found and fixed — Pass 6** |
 | 39 | Non-interactive Runner death-lifecycle test | **Done — Pass 6**, 39 checks |
 | 40 | Reproducible GitHub Actions CI (MinGW/Windows, matching the validated local path) | **Done — Pass 6** — Phase 5's PR merged with no CI run at all; this closes that gap |
+| 41 | Unused-code/asset audit (`docs/unused-code-assets-audit.md`) | **Done — Pass 7** |
+| 42 | Remove 18 unreachable source files (16 `mx_*` cluster, `leader_events.c`, `doRender_multiplayer.c`) and 4 dead helper functions | **Found and fixed — Pass 7** |
+| 43 | Remove 13 dead `GameState`/`Man` struct fields, 2 dead macros, 1 orphaned prototype, 2 obsolete commented-out implementation blocks | **Found and fixed — Pass 7** |
+| 44 | Remove 22 zero-reference asset files (~7.68MB) | **Found and fixed — Pass 7** |
+| 45 | Repository usage integrity check (`scripts/audit_repository_usage.py`) — asset-path-with-case + dangling-prototype checks, wired into CI | **Done — Pass 7** |
 
 ## Phases executed in Pass 1
 
@@ -504,6 +509,92 @@ edit.
   **CI itself validated by the PR's own workflow run** — see the PR for the actual result; do not
   merge until it shows green (this phase's explicit requirement).
 - Rollback: `git revert` the commit; the version-variable extraction is safe to keep regardless.
+
+## Phases executed in Pass 7 (unused code/asset cleanup)
+
+Full evidence-based audit in `docs/unused-code-assets-audit.md`, written before any Pass 7 code
+edit. Baseline: commit `94d117b` (tag `refactor-pre-unused-cleanup`, created at the start of this
+pass), `make mingw` 0 errors/167 warnings, all six existing test targets passing — confirmed
+before any edit. Three independent research passes (source/symbol reachability, asset
+reference-tracing + SHA-256 duplicate hashing, generated/tracked-artifact review), personal
+re-verification of every high-impact finding, and a dedicated validation pass that caught one real
+gap (the dead `shooting` field's two write sites needed deleting alongside it, or `loadGame.c`
+would fail to compile).
+
+### Phase 41 — Unused-code/asset audit
+- Files: new `docs/unused-code-assets-audit.md`.
+- What was done: complete classification of every source file, function, declaration, macro,
+  commented block, and asset — Proven unused / Highly likely unused / Unclear / Used, per the
+  phase's own confidence tiers. Only "Proven unused" items were scheduled for deletion.
+- Rollback: delete the file; no code affected.
+
+### Phase 42 — Remove unreachable source files and dead helper functions
+- Files: deleted `src/mx_atoi.c` through `src/mx_strsplit.c` (16 files, a self-contained dead
+  string/array-helper cluster where every function is either uncalled or called only by another
+  uncalled function in the same cluster), `src/leader_events.c`, `src/doRender_multiplayer.c`;
+  removed `shutdown_status_x`/`shutdown_status_x_list`/`shutdown_status_kills`/`load_chunk` (each
+  zero-caller, siblings in the same files left untouched); removed all 18 corresponding
+  `header.h` prototypes.
+- Risk: none identified — confirmed via a dedicated validation pass that read every deletion site
+  directly; no memory-layout, `#include`, or Makefile-listing dependency exists on any of them
+  (`SRCS := src/*.c` is a pure glob).
+- Validation: `make mingw` — 0 errors, warnings dropped 167→161 (6 pre-existing warnings that
+  lived *inside* the deleted `mx_*` files themselves, confirmed via an exact before/after diff of
+  the warning list — zero new warnings anywhere else). All six test targets still pass.
+- Rollback: `git revert` the two commits.
+- Completion criteria: met — every deleted item had zero live callers, confirmed independently
+  twice.
+
+### Phase 43 — Remove dead struct fields, macros, orphaned prototype, and obsolete comments
+- Files: `inc/header.h` (13 dead `GameState`/`Man` fields, 2 dead macros
+  `STATUS_STATE_GAMEOVER`/`LEADERBOARD_TXT`, 1 never-defined prototype `draw_status_x_list`);
+  `src/app.c` (7 now-dangling `destroy_texture()` calls removed alongside the fields they
+  referenced); `src/doRender.c` (a commented-out "attack render" block tied to the removed
+  fields); `src/loadGame.c` (the write-only `shooting` field's 2 write sites — a gap a
+  Plan-mode validation pass caught before any code was touched, since leaving them would have
+  broken compilation); `src/processEvents.c` (two self-contained obsolete commented-out
+  leaderboard-file-persistence blocks, both superseded by the live in-memory `x_list[25]`
+  approach, plus several small dangling comment fragments referencing the removed fields).
+- Risk: the `shooting`-field/`loadGame.c` coupling was the one real gap found during design
+  validation — folded into the same atomic commit rather than left for a follow-up, matching this
+  project's established practice (see Pass 6's `runner_death.c` commit) of landing tightly-coupled
+  correctness-critical edits together.
+- Validation: `make mingw` — 0 errors, 167 warnings (unchanged; none of the removed items
+  contributed a warning). All six test targets pass after each of the two commits in this phase.
+- Rollback: `git revert` the relevant commits.
+- Completion criteria: met — confirmed no memory-layout dependency exists anywhere (single
+  `calloc(1, sizeof(GameState))` in `main.c`, no `offsetof`/serialization use of either struct).
+
+### Phase 44 — Remove proven-unused game assets
+- Files: 22 asset files deleted (~7.68MB) — an unused 8-color background palette plus 2 alternate
+  train sprites, 2 superseded prototype bullet sprites, 5 dead attack/idle/death sprites tied to
+  the fields removed in Phase 43, 1 unwired terrain tile, 1 unused sound effect, and 2 dead
+  leaderboard data files referenced only from inside the comment blocks removed in Phase 43.
+- Risk: none — every asset load in this codebase is a single string literal (confirmed: no
+  dynamic path construction exists anywhere), so exhaustive literal grep is fully dispositive.
+- Validation: all five asset-loading test suites (which exercise `arcade_assets_load`/
+  `runner_assets_load` end to end) pass unmodified after deletion, confirming none of the 22 files
+  was ever actually loaded.
+- Rollback: `git revert` the commit.
+- Completion criteria: met.
+
+### Phase 45 — Repository usage integrity check
+- Files: new `scripts/audit_repository_usage.py` (stdlib-only, deterministic), `Makefile` (new
+  `audit-repo` target), `.github/workflows/mingw-validation.yml` (new CI step), plus a tiny
+  Makefile stale-comment cleanup (`build: remove stale build references`, 2 dead lines under
+  `SRCS`, unrelated to any deletion).
+- What was done: extracts every `resource/`-shaped string literal from `src/*.c` and confirms
+  exact-case existence (a manual case-sensitive directory listing, not `os.path.exists`, so it
+  catches casing bugs even on a case-insensitive host); confirms every `header.h` prototype has a
+  matching definition. Supports an explicit allowlist — currently used for exactly the 3
+  confirmed, pre-existing case-mismatch bugs found during the audit (`Sunset_front.png`,
+  `brick_block.png`, `copper_block.png` — real cross-platform defects, deliberately left unfixed
+  this phase per its "remove unused content, not fix bugs" charter, documented prominently rather
+  than silently allowlisted away).
+- Validation: script runs clean (0 findings) against the post-cleanup tree; wired into CI via the
+  runner's own pre-installed Python (no MSYS2 dependency, since the script only reads files).
+- Rollback: delete the script, Makefile target, and CI step.
+- Completion criteria: met.
 
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 

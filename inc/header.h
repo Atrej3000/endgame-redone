@@ -43,7 +43,6 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 
 #define STATUS_STATE_LIVES 0
 #define STATUS_STATE_GAME 1
-#define STATUS_STATE_GAMEOVER 2
 #define WIDTH 1280
 #define HEIGHT 720
 #define GRAVITY 0.5f
@@ -52,7 +51,6 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define NUM_STARS 100
 #define NUM_ENEMIES 101
 #define NUM_SMART_ENEMIES 10
-#define LEADERBOARD_TXT "./resource/text/Fonts/leaderboard"
 
 typedef struct 
 {
@@ -77,13 +75,13 @@ typedef struct
     float dx, dy;
     short lives;
     char *name;
-    int onLedge, isDead, shooting;//, isdead, visible, countShots;
+    int onLedge, isDead;//, isdead, visible, countShots;
 
     int animFrame, animFrameSecond, currentSpriteIdle, currentSpriteRun, currentSpriteRun2,
-        currentSpriteJump, currentSpriteJump2, currentSpriteAttack1, currentSpriteSkill,
-        facingLeft, slowingDown, visible0, visible2, attack;
+        currentSpriteJump, currentSpriteJump2,
+        facingLeft, slowingDown, visible0;
     SDL_Texture *sheetTextureIdle, *sheetTextureRun,
-            *sheetTextureRun2, *sheetTextureJump, *sheetTextureJump2, *sheetTextureAttack1, *sheetTextureSkill;
+            *sheetTextureRun2, *sheetTextureJump, *sheetTextureJump2;
 } Man;
 
 typedef struct
@@ -247,7 +245,6 @@ typedef struct
     SDL_Texture *star;
     SDL_Texture *manFrames[12];
     SDL_Texture *secondPlayerFrames[12];
-    SDL_Texture *secondPlayerImage;
     SDL_Texture *brick;
     SDL_Texture *menu0;
     SDL_Texture *menu1;
@@ -259,13 +256,10 @@ typedef struct
     SDL_Texture *label;
     SDL_Texture *labelMultiplayer;
     SDL_Texture *death;
-    SDL_Texture *enemyFrame;
     SDL_Texture *brick_block;
     SDL_Texture *copper_block;
-    SDL_Texture *background;
     SDL_Texture *bulletTexture;
     SDL_Texture *secondBulletTexture;
-    SDL_Texture *enemyTexture2;
     SDL_Texture *bossTexture;
     int labelW, labelH;
 
@@ -276,11 +270,7 @@ typedef struct
     // Fonts
     TTF_Font *font;
 
-    // FOR WAVES
-    int countWaves;
-
     //SOUNDS
-    int musicChannel;
     Mix_Music *menuMus, *battleMus, *runnerMus;
     Mix_Chunk *jumpSound, *kickSound, *select, *shootSound, *damageSound;
 
@@ -311,7 +301,6 @@ typedef struct
     //char *x_names[20];
     int x_i;
     int kills_score;
-    int kills_list[25];
     int kills_score_multi;
     int time, deathCountdown;
     int statusState;
@@ -351,7 +340,6 @@ void draw_status_lives2(GameState *game);
 void init_status_lives(GameState *game);
 int  doRender_menu1(SDL_Renderer *renderer, GameState *game);
 int  doRender_menu2(SDL_Renderer *renderer, GameState *game);
-void doRender_multiplayer(SDL_Renderer *renderer, GameState *game);
 int doRender_leaderboard(SDL_Renderer *renderer, GameState *game);
 int doRender_pause(SDL_Renderer *renderer, GameState *game);
 void doRender(SDL_Renderer *renderer, GameState *game);
@@ -386,10 +374,8 @@ void free_music(Mix_Music **music);
 // the failing asset path via stderr, and never calls exit()/SDL_Quit().
 bool load_texture(SDL_Renderer *renderer, const char *path, SDL_Texture **out_texture);
 bool load_music(const char *path, Mix_Music **out_music);
-bool load_chunk(const char *path, Mix_Chunk **out_chunk);
 bool load_font(const char *path, int ptsize, TTF_Font **out_font);
 int pause_events(GameState *gameState);
-int leader_events(GameState *gameState);
 void addBullet(GameState *game, float x, float y, float dx);
 void addSecondBullet(GameState *game, float x, float y, float dx);
 void removeSecondBullet(GameState *game, int i);
@@ -399,9 +385,7 @@ void init_status_kills(GameState *game);
 void draw_status_kills(GameState *game);
 void init_status_x(GameState *game);
 void draw_status_x(GameState *game);
-void shutdown_status_kills (GameState *game);
 void init_status_x_list(GameState *game);
-void draw_status_x_list(GameState *game);
 
 //for two mods game
 void load_menu0(GameState *game);
@@ -412,28 +396,8 @@ void doRender2(SDL_Renderer *renderer, GameState *game);
 void process2(GameState *game);
 int processEvents2(SDL_Window *window, GameState *game);
 int doRender_leaderboard2(SDL_Renderer *renderer, GameState *game);
-void doRender_multiplayer2(SDL_Renderer *renderer, GameState *game);
 
 void removeBullet(GameState *game, int i);
 
 //Leo functions
 int random_sign(int mult, int step);
-void mx_sort_arr_char(char *arr[], int size);
-
-//mx_lib
-char *mx_itoa(int number);
-int mx_strlen(const char *s);
-//void mx_printerr(const char *s);
-char *mx_strcat(char *s1, const char *s2);
-char *mx_strcpy(char *dst, const char *src);
-char *mx_strdup(const char *str);
-char *mx_strjoin(char const *s1, char const *s2);
-char *mx_strnew(const int size);
-char *mx_file_to_str(const char *filename);
-void mx_strdel(char **str);
-int mx_count_words(const char *str, char delimiter);
-char *mx_strncpy(char *dst, const char *src, int len);
-char **mx_strsplit(char const *s, char c);
-int mx_strcmp(const char *s1, const char *s2);
-void mx_sort_arr_int(int *arr, int size);
-int mx_atoi(const char *str);

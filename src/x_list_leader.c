@@ -17,10 +17,7 @@ void init_status_x_list(GameState *game) {
         }
         game->label = SDL_CreateTextureFromSurface(game->renderer, tmp);
         SDL_FreeSurface(tmp);
-        //}
-//}
-//void draw_status_x_list(GameState *game) {
-//    for (int i = 0; i < 25; i++) {
+
         SDL_Renderer *renderer = game->renderer;
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 
@@ -29,8 +26,4 @@ void init_status_x_list(GameState *game) {
         SDL_Rect textRect = {370, 50 + i * 28, game->labelW, game->labelH};
         SDL_RenderCopy(renderer, game->label, NULL, &textRect);
     }
-}
-void shutdown_status_x_list(GameState *game) {
-    SDL_DestroyTexture(game->label);
-    game->label = NULL;
 }

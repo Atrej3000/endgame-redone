@@ -29,8 +29,3 @@ void draw_status_x(GameState *game)
     SDL_Rect textRect = {1100, 00, game->labelW, game->labelH};
     SDL_RenderCopy(renderer, game->label, NULL, &textRect);
 }
-
-void shutdown_status_x(GameState *game) {
-    SDL_DestroyTexture(game->label);
-    game->label = NULL;
-}

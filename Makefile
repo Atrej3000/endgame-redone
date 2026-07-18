@@ -17,8 +17,6 @@ HDRS := inc/header.h \
 
 # add source files here
 SRCS := src/*.c
-		#src/main.c \
-		#src/status.c
 
 # generate names of object files
 # OBJS := $(SRCS:.c=.o)
@@ -194,7 +192,19 @@ mingw-deathtest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/deathtest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/deathtest.exe
 
+# Dependency-light (stdlib-only) Python script. Override PYTHON on the
+# command line if python3 isn't on PATH (e.g. `make PYTHON="py -3" audit-repo`
+# on some Windows setups).
+PYTHON := python3
+
+# Repository usage integrity check: confirms every resource/-shaped string
+# literal in src/*.c points at a file that exists with exact case, and every
+# inc/header.h function prototype has a matching definition. See
+# scripts/audit_repository_usage.py and docs/unused-code-assets-audit.md.
+audit-repo:
+	$(PYTHON) scripts/audit_repository_usage.py
+
 mingw-clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest print-mingw-versions mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest print-mingw-versions audit-repo mingw-clean

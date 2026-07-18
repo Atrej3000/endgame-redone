@@ -1117,3 +1117,170 @@ this documentation commit.
   until it shows green.
 - Rollback: `git revert f38a032`; the Makefile version-variable extraction is safe to keep
   regardless of whether the workflow itself is kept.
+
+## Pass 7 summary — unused code/asset cleanup (2026-07-18)
+
+Baseline: commit `94d117b` (tag `refactor-pre-unused-cleanup`, created at the start of this pass
+since it didn't exist yet), working tree clean, `make mingw` 0 errors/167 warnings, all six
+existing test targets passing — all confirmed before any edit. Three independent research passes
+(source/symbol reachability across `src/`+`inc/`+`docs/verification/`+`.github/`; asset
+reference-tracing + SHA-256 duplicate hashing across `resource/`; generated/tracked-artifact
+review via `git ls-files`+`.gitignore`), each independently re-verified by direct grep/read before
+being trusted, plus a dedicated Plan-mode validation pass that caught one real gap before any code
+was touched. Full audit in `docs/unused-code-assets-audit.md`, written first. Eight commits:
+`3ffdeec` (audit doc), `d258527` (dead fields/macros), `b0b59fa` (dead helper functions), `2dacd2b`
+(unreachable source files), `9e7adcf` (obsolete commented code), `6982d2c` (unused assets),
+`e57a06e` (stale Makefile comments), `1b1fbba` (integrity check script), and this documentation
+commit.
+
+### [2026-07-18] Tag baseline + write docs/unused-code-assets-audit.md
+- Phase: safety gate + pre-edit documentation
+- File(s): git tag `refactor-pre-unused-cleanup` on commit `94d117b`; new
+  `docs/unused-code-assets-audit.md`
+- Action: confirmed working tree clean (after fast-forwarding local `main` to include the
+  already-merged Phase 6 commits, which had not yet been pulled locally), current commit hash,
+  and that the pre-cleanup rollback tag didn't yet exist before creating it; ran
+  `make mingw-clean && make mingw` (0 errors/167 warnings) and all six existing test targets
+  (`smoketest`/`scenetest`/`lifecycletest`/`frametest`/`deathtest`) as the safety gate; launched 3
+  parallel read-only Explore agents to audit source reachability, asset references + duplicate
+  hashing, and tracked-artifact hygiene; personally re-verified every high-impact claim via direct
+  grep/read before trusting it; then wrote the complete audit — no code changed in this step.
+- Verification performed: `make mingw` (0 errors/167 warnings),
+  `mingw-smoketest`/`mingw-scenetest`/`mingw-lifecycletest`/`mingw-frametest`/`mingw-deathtest`
+  (all PASS) re-confirmed as the safety gate before any edit.
+- Rollback: `git tag -d refactor-pre-unused-cleanup`; delete `docs/unused-code-assets-audit.md`.
+
+### [2026-07-18] Remove dead GameState/Man fields and macros
+- Phase: Pass 7 (commit `d258527`)
+- File(s): `inc/header.h`, `src/app.c`, `src/doRender.c`, `src/loadGame.c`, `src/processEvents.c`
+- Action: removed 13 confirmed-zero-reference struct fields (`Man.shooting` — write-only, `.
+  visible2`, `.attack`, `.currentSpriteAttack1`, `.currentSpriteSkill`, `.sheetTextureAttack1`,
+  `.sheetTextureSkill`; `GameState.kills_list[25]`, `.countWaves`, `.musicChannel`,
+  `.secondPlayerImage`, `.enemyFrame`, `.background`, `.enemyTexture2`) and 2 dead macros
+  (`STATUS_STATE_GAMEOVER`, `LEADERBOARD_TXT`), plus the one never-defined `draw_status_x_list`
+  prototype. Landed atomically with every now-dangling touch point: 7 `destroy_texture()` calls in
+  `app.c` (the 4 dead-texture fields plus the man/secondPlayer `sheetTextureAttack1/Skill` pairs),
+  the commented "attack render" block in `doRender.c`, `loadGame.c`'s 2 `shooting = 0;` write
+  sites, and several small dangling comment fragments in `processEvents.c` that referenced the
+  removed `shooting`/`attack` fields.
+- Reasoning: a Plan-mode validation pass (reading every deletion site directly, not just the
+  audit's summary) caught that `shooting`'s two `loadGame.c` write sites had to be deleted in the
+  *same* commit as the field itself, or the build would fail — folded in before any code was
+  written, not discovered by a failed build.
+- Behavior impact: none — every removed item had zero live reads (or, for the write-only
+  `shooting` field, zero reads anywhere at all). Confirmed no memory-layout dependency exists
+  (single `calloc(1, sizeof(GameState))` in `main.c`, no `offsetof`/serialization use of either
+  struct).
+- Verification performed: `make mingw` — 0 errors, 167 warnings (unchanged). All six test targets
+  pass.
+- Rollback: `git revert d258527`.
+
+### [2026-07-18] Remove dead helper functions
+- Phase: Pass 7 (commit `b0b59fa`)
+- File(s): `src/X_score.c`, `src/x_list_leader.c`, `src/kills_score.c`, `src/asset_loader.c`,
+  `inc/header.h`
+- Action: removed `shutdown_status_x`, `shutdown_status_x_list`, `shutdown_status_kills`, and
+  `load_chunk` — each confirmed zero callers via repo-wide grep (including all 5
+  `docs/verification/*.c` test harnesses). `load_chunk` specifically: every real SFX load site (8
+  checked) uses raw `Mix_LoadWAV()` directly and already replicates the NULL-guard this helper
+  would provide, so nothing was lost by leaving them as-is. Each file's sibling `init_*`/`draw_*`
+  functions are untouched and remain live. Removed the one corresponding `header.h` prototype
+  (`shutdown_status_kills`; the other two never had one).
+- Behavior impact: none.
+- Verification performed: `make mingw` — 0 errors, 167 warnings (unchanged). All six test targets
+  pass.
+- Rollback: `git revert b0b59fa`.
+
+### [2026-07-18] Remove unreachable source files
+- Phase: Pass 7 (commit `2dacd2b`)
+- File(s): 16 `mx_*.c` files deleted (`mx_atoi`, `mx_count_words`, `mx_file_to_str`, `mx_itoa`,
+  `mx_sort_arr_char`, `mx_sort_arr_int`, `mx_strcat`, `mx_strcmp`, `mx_strcpy`, `mx_strdel`,
+  `mx_strdup`, `mx_strjoin`, `mx_strlen`, `mx_strncpy`, `mx_strnew`, `mx_strsplit`),
+  `src/leader_events.c`, `src/doRender_multiplayer.c`, and the 18 corresponding `header.h`
+  prototypes.
+- Reasoning: the `mx_*` cluster is fully self-contained and dead — every function either has zero
+  callers, or is called only by another function in the same cluster that itself has zero
+  external callers, confirmed by tracing every internal cross-call (`mx_strdup`→`mx_strnew`+
+  `mx_strcpy`; `mx_strjoin`→`mx_strdup`+`mx_strnew`+`mx_strcat`+`mx_strlen`; `mx_strsplit`→
+  `mx_count_words`+`mx_strnew`+`mx_strncpy`; `mx_sort_arr_char`→`mx_strcmp`), none of which escape
+  the cluster. `leader_events.c` re-confirms `docs/scene-state-map.md`'s own prior finding, fresh
+  against current code, not assumed from memory. `random_sign.c` (grouped alongside the dead
+  `mx_sort_arr_char` under the same "Leo functions" header comment) was independently confirmed
+  live (`loadGame.c:467,474`, `processEvents.c:770,777`) and explicitly *not* deleted.
+- Behavior impact: none.
+- Verification performed: `make mingw` — 0 errors, warnings dropped 167→161. Diffed the exact
+  warning list before/after: exactly 6 warnings disappeared, all originating inside the deleted
+  `mx_*` files themselves (`mx_atoi.c` ×3, `mx_itoa.c` ×1, `mx_strnew.c` ×1, `mx_strsplit.c` ×1) —
+  zero new warnings anywhere else. All six test targets pass.
+- Rollback: `git revert 2dacd2b`.
+
+### [2026-07-18] Remove obsolete commented-out implementation
+- Phase: Pass 7 (commit `9e7adcf`)
+- File(s): `src/processEvents.c`, `src/doRender_leaderboard.c`, `src/x_list_leader.c`
+- Action: deleted two self-contained dead blocks in `processEvents.c` — Arcade's multiplayer
+  game-over branch (dead pointer-arithmetic pseudocode referencing an undeclared `leader`
+  variable, plus a file-write attempt against `resource/files/leaderboard.txt`) and Runner's
+  game-over branch (a file-write attempt against `LEADERBOARD_TXT` using the just-removed
+  `mx_itoa`/`mx_strlen`) — both fully superseded by the live in-memory `x_list[25]`-based score
+  persistence immediately adjacent. Also cleaned up two small stale comment fragments left over
+  from a past merge/rename, referencing the already-nonexistent `draw_status_x_list` and
+  `mx_sort_arr_int`.
+- Behavior impact: none — pure comment removal; the live guards/comments immediately before and
+  after each deleted block were confirmed intact.
+- Verification performed: `make mingw` — 0 errors, 161 warnings (unchanged). All six test targets
+  pass.
+- Rollback: `git revert 9e7adcf`.
+
+### [2026-07-18] Remove proven-unused game assets
+- Phase: Pass 7 (commit `6982d2c`)
+- File(s): 22 asset files deleted (~7.68MB) — see `docs/unused-code-assets-audit.md` section 5.6
+  for the full list with sizes.
+- Reasoning: every asset load in this codebase is a single string literal passed directly to
+  `load_texture`/`load_music`/`load_chunk`/`load_font` or a raw `Mix_LoadWAV`/`Mix_LoadMUS`/
+  `TTF_OpenFont` call — confirmed no dynamic path construction exists anywhere (`sprintf`/
+  `strcat`/`mx_strcat`/`mx_strjoin` hits are all unrelated to file paths), making exhaustive
+  string-literal grep fully dispositive for "is this asset ever loaded."
+- Behavior impact: none — confirmed by running all five asset-loading test suites (which exercise
+  `arcade_assets_load`/`runner_assets_load` end to end) unmodified after deletion; all still pass,
+  proving none of the 22 files was ever actually loaded.
+- Verification performed: `make mingw` — 0 errors, 161 warnings (unchanged). All six test targets
+  pass.
+- Rollback: `git revert 6982d2c`.
+
+### [2026-07-18] Remove stale build references
+- Phase: Pass 7 (commit `e57a06e`)
+- File(s): `Makefile`
+- Action: removed two dead commented-out lines under `SRCS` (`#src/main.c \`, `#src/status.c \`)
+  — leftover from some earlier Makefile shape, unrelated to the current glob-based `src/*.c`, no
+  effect on any target.
+- Behavior impact: none.
+- Verification performed: `make mingw` — 0 errors, 161 warnings. All six test targets pass.
+- Rollback: `git revert e57a06e`.
+
+### [2026-07-18] Add non-interactive repository usage integrity check
+- Phase: Pass 7 (commit `1b1fbba`)
+- File(s): new `scripts/audit_repository_usage.py`, `Makefile` (new `audit-repo` target),
+  `.github/workflows/mingw-validation.yml` (new CI step)
+- Action: a dependency-light (Python stdlib only), deterministic script with two checks: (1)
+  extracts every `resource/`-shaped string literal from `src/*.c` and confirms the file exists
+  with **exact case** — a manual case-sensitive directory-listing comparison, not
+  `os.path.exists`, so it correctly catches casing bugs even on a case-insensitive host filesystem
+  like this machine's Windows; (2) confirms every `header.h` function prototype has a matching
+  definition somewhere in `src/*.c`.
+- **This script found something real on its first run**: the same 3 case-mismatched literals
+  documented in the audit (`Sunset_front.png`, `brick_block.png`, `copper_block.png` — source
+  requests lowercase, on-disk files are capitalized, works today only because Windows is
+  case-insensitive, would break `IMG_Load` on case-sensitive macOS/Linux). Also initially reported
+  5 false-positive "dangling prototypes" (`load_menu0/1/2`, `init_status_x_list`, `random_sign`)
+  before the definition-matching regex was fixed to accept K&R-style brace-on-same-line function
+  definitions, not just brace-on-next-line — after the fix, 0 false positives.
+- Reasoning: added the 3 confirmed case-mismatch paths to an explicit allowlist (with a comment
+  explaining why, citing the audit doc) rather than fixing the casing bug in this phase — fixing a
+  naming/casing bug is a different kind of change than removing unused content, out of this
+  phase's charter; the allowlist makes the script a meaningful gate against *new* dangling
+  references instead of always failing on a known, already-documented issue.
+- Verification performed: **runtime-verified**, not static — the script actually runs and reports
+  real findings, not a code-reading exercise. Wired into CI via the runner's own pre-installed
+  Python (no MSYS2 dependency needed, since the script only reads files). `make mingw` — 0 errors,
+  161 warnings (unchanged). All six test targets pass.
+- Rollback: delete the script, the `audit-repo` Makefile target, and the CI step.
