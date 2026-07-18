@@ -38,6 +38,10 @@ static bool shared_assets_load(GameState *game)
     {
         ok = ok && load_font("./resource/text/Fonts/crazy-pixel.ttf", 48, &game->font);
     }
+    if (game->manFrames[0] == NULL)
+    {
+        ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)0.png", &game->manFrames[0]);
+    }
 
     if (!ok)
     {
@@ -56,6 +60,7 @@ void shared_assets_unload(GameState *game)
     destroy_texture(&game->pause);
     destroy_texture(&game->brick);
     destroy_texture(&game->death);
+    destroy_texture(&game->manFrames[0]);
     if (game->font)
     {
         TTF_CloseFont(game->font);
@@ -91,14 +96,9 @@ bool arcade_assets_load(GameState *game)
     ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/Run_(32x32).png", &game->secondPlayer.sheetTextureRun2);
     ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/jump/Double_Jump_(32x32).png", &game->secondPlayer.sheetTextureJump2);
 
-    // manFrames[0] is written by both modes with different source images
-    // (see docs/game-session-lifecycle.md) -- destroy whatever the other
-    // mode may have loaded there instead of skip-if-loaded, so this mode's
-    // own image always wins on its own (re)load, matching today's "whichever
-    // mode loaded most recently wins" outcome without the leak.
-    destroy_texture(&game->manFrames[0]);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)0.png", &game->manFrames[0]);
-
+    // manFrames[0] is loaded by shared_assets_load() above -- both modes
+    // load the byte-for-byte identical path (see docs/game-session-lifecycle.md),
+    // so it belongs in the shared bucket, not here.
     ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/Run_(32x32).png", &game->man.sheetTextureRun);
     ok = ok && load_texture(game->renderer, "./resource/images/main_hero/jump/Double_Jump_(32x32).png", &game->man.sheetTextureJump);
     ok = ok && load_texture(game->renderer, "./resource/images/enemies/shroom_Run(32x32).png", &game->enemy.sheetTextureRun);
@@ -154,8 +154,8 @@ void arcade_assets_unload(GameState *game)
     destroy_texture(&game->train.textureTrain);
     destroy_texture(&game->brick_block);
     destroy_texture(&game->copper_block);
-    // manFrames[0] intentionally left alone -- contested field, destroyed
-    // centrally in app_shutdown() (see docs/game-session-lifecycle.md).
+    // manFrames[0] intentionally left alone -- owned by shared_assets_unload()
+    // (see docs/game-session-lifecycle.md).
     game->arcadeAssetsLoaded = false;
 }
 
@@ -362,9 +362,8 @@ bool runner_assets_load(GameState *game)
     ok = ok && load_texture(game->renderer, "./resource/images/backgrounds/fon.png", &game->fon);
     ok = ok && load_texture(game->renderer, "./resource/images/traps/spike_head.png", &game->star);
 
-    // manFrames[0] -- see arcade_assets_load()'s comment; same contested-field handling.
-    destroy_texture(&game->manFrames[0]);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)0.png", &game->manFrames[0]);
+    // manFrames[0] is loaded by shared_assets_load() above -- see
+    // arcade_assets_load()'s comment.
     ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)1.png", &game->manFrames[1]);
     ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)2.png", &game->manFrames[2]);
     ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)3.png", &game->manFrames[3]);
@@ -413,7 +412,8 @@ void runner_assets_unload(GameState *game)
     {
         destroy_texture(&game->secondPlayerFrames[i]);
     }
-    // manFrames[0] intentionally left alone -- see arcade_assets_unload().
+    // manFrames[0] intentionally left alone -- owned by shared_assets_unload()
+    // (see docs/game-session-lifecycle.md).
     game->runnerAssetsLoaded = false;
 }
 
