@@ -786,14 +786,14 @@ int processEvents2(SDL_Window *window, GameState *game)
 
     if (game->man.y >= 719 || game->man.x < 0)
     {
-        game->gameLives = 0;
+        runner_trigger_death(game);
     }
 
     if (game->multiPlayer)
     {
         if (game->secondPlayer.y >= 719 || game->secondPlayer.x < 0)
         {
-            game->gameLives = 0;
+            runner_trigger_death(game);
         }
     }
 

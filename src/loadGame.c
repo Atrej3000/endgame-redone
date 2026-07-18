@@ -417,6 +417,9 @@ void runner_assets_unload(GameState *game)
     game->runnerAssetsLoaded = false;
 }
 
+// Death-state fields (isDead, deathCountdown, and the players' position/velocity these two
+// fields gate) are reset below to their idle values -- see docs/runner-death-lifecycle.md for
+// the full lifecycle these fields drive.
 void runner_session_reset(GameState *game, GameMode mode)
 {
     game->multiPlayer = mode;

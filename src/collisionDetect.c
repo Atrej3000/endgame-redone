@@ -628,13 +628,11 @@ void collisionDetect2(GameState *game)
     {
         if (collide2d(game->man.x, game->man.y, game->stars[i].x, game->stars[i].y, 30, 30, 30, 30))
         {
-           // game->man.isDead = 1;
-            game->gameLives = 0;
-//            game->man.isDead = 0;
+            runner_trigger_death(game);
         }
         if (collide2d(game->secondPlayer.x, game->secondPlayer.y, game->stars[i].x, game->stars[i].y, 30, 30, 30, 30))
         {
-            game->gameLives = 0;
+            runner_trigger_death(game);
         }
     }
     //Check for collision wit any ledges (brick blocks)
