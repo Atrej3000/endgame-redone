@@ -520,27 +520,6 @@ int processEvents(SDL_Window *window, GameState *game)
             {
                 app_change_scene(game, APP_SCENE_ARCADE_MENU);
             }
-            //work with local leaderboards
-
-            //        leader = &game->kills_score;
-            //        leader++;
-
-            /*//work with saving leaders history
-
-        //write("../resource/files/leaderboard.txt",game->kills_score, mx_strlen(game->kills_score));
-        char buf;
-        int content = open("../resource/files/leaderboard.txt", O_RDWR);
-        int count = 0;
-
-        while(read(content, &buf, 1)) {
-            count++;
-        }
-        write(content,"LOH\n",3);
-        //NULL the score of kills
-        //_____________________________________________________________*/
-
-//            game->kills_score = 0;
-//            game->kills_score_multi = 0;
         }
     }
     return done;
@@ -790,20 +769,6 @@ int processEvents2(SDL_Window *window, GameState *game)
             game->x_i++;
         }
 
-        //
-        /*char buff[1] = " ";
-        int conntent;
-        int j = 0;
-
-        conntent = open(LEADERBOARD_TXT, O_RDWR);
-        for (j = 0; read(conntent, &buff, 1) > 0; j++)
-            ;
-        //for (j = 0; read(game->x_score, &buff, 1) > 0; j++)
-        //printf("%d ",j);
-        write(conntent, mx_itoa(game->x_score), mx_strlen(mx_itoa(game->x_score)));
-        write(conntent, "\n", 1);
-
-        close(conntent);*/
         // Score-persist above stays unconditional; only the transition
         // itself is guarded against overwriting one an earlier handler in
         // this same call (e.g. SDLK_q) already made -- see

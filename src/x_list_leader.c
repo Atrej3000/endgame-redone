@@ -17,10 +17,7 @@ void init_status_x_list(GameState *game) {
         }
         game->label = SDL_CreateTextureFromSurface(game->renderer, tmp);
         SDL_FreeSurface(tmp);
-        //}
-//}
-//void draw_status_x_list(GameState *game) {
-//    for (int i = 0; i < 25; i++) {
+
         SDL_Renderer *renderer = game->renderer;
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 
