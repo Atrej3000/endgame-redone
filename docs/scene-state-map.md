@@ -1,9 +1,20 @@
 # Scene / State Map — Ucode_Endgame
 
-Written **before** any Phase 3 code edit, per the phase's own requirement. Describes the system
-exactly as it existed at commit `ac00c87` (tag `refactor-pass-2-validated`) — the pre-refactor
-baseline — then is updated in place once the refactor lands, with each entry noting both the old
-and new representation.
+Written **before** any Phase 3 code edit, per that phase's own requirement, and updated in place
+for Phase 4 (asset/session lifecycle separation — see `docs/game-session-lifecycle.md` for the
+full detail). Describes the system as it existed at commit `ac00c87` (tag
+`refactor-pass-2-validated`) — the pre-Phase-3 baseline — then is updated with each phase's actual
+landed behavior.
+
+**Phase 4 update**: the "Arcade/Runner in-mode menu" rows below described Phase 3's behavior
+(`loadGame()`/`loadGame2()` reset gameplay state on every menu arrival). As of Phase 4, menu
+arrival triggers **only** asset loading (`arcade_assets_load`/`runner_assets_load`) — session
+reset (`arcade_session_reset`/`runner_session_reset`) now fires explicitly when a new game is
+selected (`menu_events.c`'s `SDLK_1`/`SDLK_2`), immediately before the transition to the gameplay
+scene, not merely by arriving at the menu. This is a further application of the same
+"unobservable while nothing renders that state" reasoning Phase 3 already established for moving
+the reset from "every frame" to "every arrival" — Phase 4 moves it one step further, from "every
+arrival" to "new-game-start."
 
 ## Legend
 
@@ -27,11 +38,11 @@ single authoritative field safe.
 | Scene | Old repr. | New repr. | Entry condition | Input handler | Update fn(s) | Render fn(s) | Exit transitions | Resources loaded on entry | Blocks/pauses/resets? |
 |---|---|---|---|---|---|---|---|---|---|
 | Main menu | `menu0_status==0` | `APP_SCENE_MAIN_MENU` | Program start, or any mode's quit-to-menu key | `menu0_events` | — | `doRender_menu0` | `b`/`1`→Arcade menu; `r`/`2`→Runner menu; `q`/`ESC`→Quit | `load_menu0()` — once only, at program start, never re-invoked (menu0/menuMus, guarded by `!=NULL`) | No gameplay to block/pause; nothing reset (there is no gameplay state relevant here) |
-| Arcade in-mode menu | `menu0_status==1, menu_status==0` | `APP_SCENE_ARCADE_MENU` | From Main menu (`1`/`b`), or returning from Arcade gameplay/leaderboard/pause (ESC, game over, or pause `q`) | `menu_events` (shared with Runner menu) | `loadGame()` (pre-Phase-3: ran every frame while idling here; post-Phase-3: fires once per arrival, see note below) | `doRender_menu1` | `1`→Arcade game (multiPlayer=0); `2`→Arcade game (multiPlayer=1); `3`→Arcade leaderboard; `q`→Main menu | `load_menu1()` **only when arriving from Main menu** (menu1 texture guarded by `!=NULL`; unconditional `Mix_PlayMusic(menuMus)`; resets `x_score`/`x_list`) + `loadGame()`'s `arcadeAssetsLoaded`-guarded asset block (textures/font/`battleMus`, fires once ever) every arrival | Resets gameplay state (position/lives/score/enemies/bullets) on every arrival, matching the pre-Phase-3 per-frame reset's *observable* effect (nothing renders/reads that state while on this menu) |
-| Arcade gameplay | `menu0_status==1, menu_status==1 or 2` | `APP_SCENE_ARCADE_GAME` | From Arcade menu (`1` or `2`), or resuming from Arcade pause (`ESC`) | `processEvents` | `process`, `collisionDetect` | `doRender` | `ESC`→Arcade menu; `p`→Arcade pause; `q`→Main menu; lives reach 0 (game over)→Arcade menu | None (assets already loaded via Arcade menu's guarded block) | Runs live; `multiPlayer` (untouched by this phase) distinguishes single/multi — both numeric sub-cases called byte-identical functions pre-Phase-3, confirmed, which is why they collapse into one scene |
+| Arcade in-mode menu | `menu0_status==1, menu_status==0` | `APP_SCENE_ARCADE_MENU` | From Main menu (`1`/`b`), or returning from Arcade gameplay/leaderboard/pause (ESC, game over, or pause `q`) | `menu_events` (shared with Runner menu) | *(Phase 4: none — session reset moved to new-game-start, see below)* | `doRender_menu1` | `1`→Arcade game, single-player session reset first; `2`→Arcade game, multiplayer session reset first; `3`→Arcade leaderboard; `q`→Main menu | `load_menu1()` **only when arriving from Main menu** (menu1 texture guarded by `!=NULL`; unconditional `Mix_PlayMusic(menuMus)`; resets `x_score`/`x_list`) + `arcade_assets_load()` (Phase 4; guarded by `arcadeAssetsLoaded`, fires once ever) every arrival | **Phase 4 change**: no longer resets gameplay state on arrival (that only happens now via an explicit `arcade_session_reset()` call in `menu_events.c`'s `1`/`2` handlers, right before the transition to `APP_SCENE_ARCADE_GAME`) |
+| Arcade gameplay | `menu0_status==1, menu_status==1 or 2` | `APP_SCENE_ARCADE_GAME` | From Arcade menu (`1` or `2`, after `arcade_session_reset()` runs), or resuming from Arcade pause (`ESC`, no reset) | `processEvents` | `process`, `collisionDetect` | `doRender` | `ESC`→Arcade menu; `p`→Arcade pause; `q`→Main menu; lives reach 0 (game over)→Arcade menu | None (assets already loaded via Arcade menu) | Runs live; `multiPlayer` (`GameMode` as of Phase 4, previously `int`) distinguishes single/multi — both numeric sub-cases called byte-identical functions, confirmed, which is why they collapse into one scene |
 | Arcade leaderboard | `menu0_status==1, menu_status==3` | `APP_SCENE_ARCADE_LEADERBOARD` | From Arcade menu (`3`) | `processEvents` (same function as gameplay — still polls all its key handlers) | — | `doRender_leaderboard` | `ESC`→Arcade menu; `q`→Main menu; `p`→Arcade pause (**pre-existing quirk, preserved**: resuming from this lands in live gameplay, never back at the leaderboard, because `processEvents` is reused verbatim and pause-resume always targets the gameplay scene) | None | Gameplay itself is not "running" but its update functions aren't called either — purely a static-texture screen driven by the shared input handler |
 | Arcade pause | `menu0_status==1, menu_status==5` | `APP_SCENE_ARCADE_PAUSE` | From Arcade gameplay or leaderboard (`p`) | `pause_events` (shared with Runner pause) | — | `doRender_pause` (shared with Runner pause) | `ESC`→Arcade gameplay (resume); `q`→Main menu | None | Gameplay fully frozen (no update calls); `Mix_PauseMusic()`/`Mix_ResumeMusic()` bracket the pause (called inline in `processEvents`/`pause_events`, unchanged) |
-| Runner in-mode menu | `menu0_status==2, menu_status==0` | `APP_SCENE_RUNNER_MENU` | Mirror of Arcade menu | `menu_events` (shared) | `loadGame2()` (same once-per-arrival change as Arcade) | `doRender_menu2` | Mirror of Arcade menu | `load_menu2()` only from Main menu + `loadGame2()`'s `runnerAssetsLoaded`-guarded block every arrival | Mirror of Arcade menu |
+| Runner in-mode menu | `menu0_status==2, menu_status==0` | `APP_SCENE_RUNNER_MENU` | Mirror of Arcade menu | `menu_events` (shared) | *(Phase 4: none, same as Arcade)* | `doRender_menu2` | Mirror of Arcade menu | `load_menu2()` only from Main menu + `runner_assets_load()` (Phase 4) every arrival | Mirror of Arcade menu (Phase 4 change) |
 | Runner gameplay | `menu0_status==2, menu_status==1 or 2` | `APP_SCENE_RUNNER_GAME` | Mirror of Arcade gameplay | `processEvents2` | `process2`, `collisionDetect2` | `doRender2` | Mirror of Arcade gameplay (game over trigger is `gameLives==0`, appends score to `x_list` first) | None | Mirror of Arcade gameplay |
 | Runner leaderboard | `menu0_status==2, menu_status==3` | `APP_SCENE_RUNNER_LEADERBOARD` | Mirror of Arcade leaderboard | `processEvents2` | — | `doRender_leaderboard2` (also calls `init_status_x_list`, pre-existing, unrelated to this phase) | Mirror of Arcade leaderboard | None | Mirror of Arcade leaderboard |
 | Runner pause | `menu0_status==2, menu_status==5` | `APP_SCENE_RUNNER_PAUSE` | Mirror of Arcade pause | `pause_events` (shared) | — | `doRender_pause` (shared) | Mirror of Arcade pause | None | Mirror of Arcade pause |
@@ -90,11 +101,11 @@ transitions not supported by the current game").
   self-resets (`load_menu0/1/2()` still set them to 0 as a harmless leftover — writing to a field
   nobody reads is inert, and leaving these three lines alone was judged lower-risk than touching a
   file with no other reason to change this phase). Safe to delete entirely in a future phase.
-- `int multiPlayer` — **not** touched by this phase at all. Still read directly (not through an
-  enum) at ~15+ sites across `process.c`/`processEvents.c`/`doRender.c`/`collisionDetect.c`. A
-  `GameMode` enum was considered for this phase and deliberately deferred (see
-  `docs/refactor-plan.md`) since it would have had zero use sites without also migrating all of
-  `multiPlayer`'s existing read sites — a separate, larger, future migration.
+- `multiPlayer` — deferred by Phase 3 (kept as `int`), **retyped to `GameMode` in Phase 4** (field
+  name unchanged; all ~29 existing boolean-truth-test read sites across `process.c`/
+  `processEvents.c`/`doRender.c`/`collisionDetect.c`/`kills_score.c` compile and behave
+  identically, confirmed by the Phase 4 build). See `docs/game-session-lifecycle.md` for the full
+  audit and the single-writer resolution (`arcade_session_reset()`/`runner_session_reset()`).
 - `enum menu_buttons` — **deleted** this phase (not kept as legacy): confirmed zero references
   anywhere, directly superseded by `AppScene`, and its last member (`RUNNER=5`) was actively
   misleading (5 meant "pause", not "runner mode"). Judged safe and in-scope to remove rather than

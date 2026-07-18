@@ -18,10 +18,12 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
     Extract each into `vendor/SDL2-mingw/<PackageName-version>/` (see `docs/refactor-plan.md`
     for the exact versions last verified and the small include-compatibility shims needed).
     Then:
-        make mingw            # builds build-mingw/endgame-mingw.exe with strict warnings
-        make mingw-run         # builds and runs it
-        make mingw-smoketest   # non-interactive init/asset-guard/shutdown runtime check
-        make mingw-asan        # ASan/UBSan debug build, where the toolchain supports it
+        make mingw               # builds build-mingw/endgame-mingw.exe with strict warnings
+        make mingw-run           # builds and runs it
+        make mingw-smoketest     # non-interactive init/asset-guard/shutdown runtime check
+        make mingw-scenetest     # non-interactive scene-transition check
+        make mingw-lifecycletest # non-interactive asset-load/session-reset lifecycle check
+        make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
     regeneratable, third-party/build artifacts.
 

@@ -585,3 +585,179 @@ conversions), `ff630bc` (scene transition test), and this documentation commit.
   `PrintWindow`-based capture (focus-independent, verified against the exact PID launched this
   session) is treated as real evidence.
 - Rollback: n/a (no code changed; the screenshot is documentation evidence only).
+
+## Pass 4 summary — separate asset loading from session reset (2026-07-18)
+
+Baseline: commit `82927d6` (tag `refactor-pass-2-validated` from Pass 2 — Pass 3's own tag,
+`refactor-pass-3-scenes`, was created at the start of this pass since it didn't exist yet), working
+tree clean, `make mingw` 0 errors/168 warnings, both existing test suites passing — all confirmed
+before any edit. Split `loadGame()`/`loadGame2()` (each combining a one-time asset-load guard with
+an unconditional per-call gameplay-state reset) into 7 explicit functions
+(`shared_assets_load/unload`, `arcade_assets_load/unload`, `arcade_session_reset`,
+`runner_assets_load/unload`, `runner_session_reset`), backed by 4 new checked SDL loading helpers
+(`src/asset_loader.c`). Full audit, statement-by-statement classification, and resource ownership
+table in `docs/game-session-lifecycle.md`, written before any code edit per this phase's own
+requirement. Six commits: `fbf9cae` (lifecycle doc), `be2ddb1` (checked loaders), `586c031` (the
+combined Arcade+Runner split), `a349e07` (`multiPlayer`→`GameMode`), `ac55082` (lifecycle tests),
+and this documentation commit.
+
+### [2026-07-18] Tag baseline + write docs/game-session-lifecycle.md
+- Phase: safety gate + pre-edit documentation
+- File(s): git tag `refactor-pass-3-scenes` on commit `82927d6`; new `docs/game-session-lifecycle.md`
+- Action: confirmed working tree clean, current commit hash, and that the Phase 3 rollback tag
+  didn't yet exist before creating it; ran `make mingw`/`mingw-smoketest`/`mingw-scenetest` as the
+  safety gate; then wrote the complete statement-by-statement classification of `loadGame()`/
+  `loadGame2()` (every line's category: static/audio asset loading, level geometry, player/enemy/
+  bullet init, score/life/session reset, animation reset, or unclear/mixed) purely from reading the
+  pre-Pass-4 code, plus the resource ownership table required by this phase — no code changed in
+  this step.
+- Verification performed: `make mingw` (0 errors/168 warnings), `make mingw-smoketest` (PASS),
+  `make mingw-scenetest` (PASS) all re-confirmed as the safety gate before any edit.
+- Rollback: `git tag -d refactor-pass-3-scenes`; delete `docs/game-session-lifecycle.md`.
+
+### [2026-07-18] Add checked SDL asset loading helpers; promote app.c's destroy helpers
+- Phase: Pass 4 (commit `be2ddb1`)
+- File(s): new `src/asset_loader.c`, `src/app.c`, `inc/header.h`
+- Action: `load_texture`/`load_music`/`load_chunk`/`load_font` (each: rejects NULL arguments, nulls
+  the output pointer before attempting, refuses to overwrite an already-loaded destination
+  (returns `false` instead), frees the temporary `SDL_Surface` on every path, reports the failing
+  path via `stderr`, never calls `exit()`/`SDL_Quit()`). `app.c`'s `destroy_texture`/`free_chunk`/
+  `free_music` promoted from `static` to `extern` (header.h prototypes added) so the upcoming
+  mode-specific unload helpers could reuse them instead of duplicating null-safe destroy logic.
+  `app_shutdown()` itself unchanged in this commit.
+- Behavior impact: none — nothing calls the four new loaders yet; this commit only introduces
+  them, compiling standalone.
+- Verification performed: `make mingw` — 0 errors, 168 warnings (unchanged), confirmed 0 warnings
+  from the new file. Both existing test suites still pass.
+- Rollback: delete `src/asset_loader.c`, revert the `static` removal in `app.c`, remove the new
+  header.h prototypes.
+
+### [2026-07-18] Separate asset loading from session reset (Arcade + Runner, combined)
+- Phase: Pass 4 (commit `586c031`)
+- File(s): `inc/header.h`, `src/loadGame.c` (rewritten), `src/scene.c`, `src/menu_events.c`,
+  `src/app.c`, `docs/verification/smoke_init_shutdown.c`, `docs/verification/scene_transition_test.c`
+- Before: `loadGame()`/`loadGame2()` each combined a one-time-guarded asset-load block with an
+  unconditional per-call gameplay-state reset tail; both ran on every arrival at
+  `APP_SCENE_ARCADE_MENU`/`APP_SCENE_RUNNER_MENU` via `src/scene.c`'s enter-hooks.
+- After: `arcade_menu_enter`/`runner_menu_enter` call only `arcade_assets_load()`/
+  `runner_assets_load()` (falling back to `APP_SCENE_MAIN_MENU` on failure, printing the reason to
+  `stderr`). `arcade_session_reset(game, mode)`/`runner_session_reset(game, mode)` are now called
+  explicitly from `menu_events.c`'s `SDLK_1`/`SDLK_2` handlers, immediately before the transition
+  to the gameplay scene — matching this phase's required "select mode → verify assets loaded →
+  reset session → transition" sequence. `app_shutdown()` now delegates to the three new
+  `*_unload()` functions for every field they unambiguously own, instead of duplicating their
+  destroy lists inline.
+- Three confirmed pre-existing bugs fixed as part of the split (not new behavior — see
+  `docs/game-session-lifecycle.md` §10 for the full reasoning on why each is invisible in the
+  common case):
+  1. `loadGame.c:407`'s unconditional `game->multiPlayer = 1;` (ran on every call, making the
+     very next `if (game->multiPlayer)` guards effectively always-true) — deleted; the mode is now
+     set exactly once, as `*_session_reset()`'s first statement, from an explicit parameter.
+  2. Bullet-array leak: the old reset loops did `game->bullets[i] = NULL;`/`secondBullets[i] =
+     NULL;` directly, leaking any bullet still in flight; now calls `removeBullet(game, i)`/
+     `removeSecondBullet(game, i)` (the existing, correct free-then-NULL functions from
+     `process.c`), closing the leak.
+  3. Shared-texture leak: `mult`/`leaders`/`pause`/`brick`/`death`/`font` were each loaded
+     independently by both `loadGame()` and `loadGame2()` into the same field — visiting both
+     modes in one process lifetime orphaned whichever texture loaded first. Fixed via a new
+     `shared_assets_load()`/`shared_assets_unload()` pair with its own `sharedAssetsLoaded` flag:
+     whichever mode is visited first loads the 6 shared fields, the other mode's load is skipped.
+     `manFrames[0]` (written by both modes with genuinely *different* source images) got a
+     narrower fix instead — destroy-before-overwrite at each mode's own load site, preserving
+     today's "most-recently-visited mode's image wins" outcome without the leak, and its
+     destruction stays centralized in `app_shutdown()` (not delegated to either mode's
+     `_unload()`) since no single mode exclusively owns it.
+- The redundant `init_status_lives()` call and `game->label` destroy-and-null block (present in
+  both old reset tails) were dropped entirely, not relocated — `doRender()`/`doRender2()` already
+  call `init_status_lives(game)` unconditionally on every rendered gameplay frame
+  (`doRender.c:187-194`/`:266-272`), which is what actually keeps the HUD label correct regardless
+  of load/reset timing; the calls inside `loadGame()`/`loadGame2()` were dead weight relative to
+  that per-frame safety net.
+- Behavior impact: **deliberate, evidence-based timing change, confirmed unobservable**. Session
+  reset now fires once per new-game-start instead of once per menu arrival — verified safe because
+  nothing renders or reads gameplay state while sitting on a menu screen (`doRender_menu0/1/2` only
+  blit a static background), so the end state by the time gameplay actually starts is identical
+  either way. The three bug fixes above are deliberate defect fixes, not preserved-as-is behavior;
+  each is invisible in the overwhelmingly common case (a single mode visited per session, or a
+  normal fresh-game start) and only changes outcomes in the specific buggy edge cases (visiting
+  both modes in one process lifetime; a bullet still in flight at the exact moment of returning to
+  the menu; the mode-selection flag being read before the next explicit selection).
+- Verification performed: `make mingw` — 0 errors, 167 warnings (down from 168 — one pre-existing
+  `-Wdouble-promotion`/`-Wfloat-conversion` pair on a line directly moved into
+  `runner_session_reset()` was fixed in passing, since the line was genuinely touched by the
+  extraction). Both existing test suites (`smoke_init_shutdown.c`, `scene_transition_test.c`,
+  updated to call the new function names) still pass; `scene_transition_test.c`'s check that used
+  to assert "returning to the menu resets gameplay state" was corrected to assert the new,
+  intentional behavior instead (verified the old assertion would now be wrong), with two new
+  checks added exercising `arcade_session_reset()` directly.
+- Rollback: `git revert 586c031` (this single commit covers what the plan originally scoped as two
+  — splitting further would have left an intermediate state that doesn't compile, since
+  `main.c`/`scene.c`/`menu_events.c` all needed the full new function set simultaneously).
+
+### [2026-07-18] `multiPlayer` int → GameMode retype
+- Phase: Pass 4 (commit `a349e07`)
+- File(s): `inc/header.h` only
+- Before: `int multiPlayer;`
+- After: `GameMode multiPlayer;` (field name unchanged)
+- Reasoning: confirmed via the previous commit's build that all ~29 read sites across
+  `process.c`/`processEvents.c`/`doRender.c`/`collisionDetect.c`/`kills_score.c` are bare boolean
+  truth tests (`if (game->multiPlayer)`/`if (!game->multiPlayer)`) — zero `==` comparisons, zero
+  arithmetic, so the retype requires zero changes to any of them (`GAME_MODE_SINGLE_PLAYER=0`/
+  `GAME_MODE_MULTIPLAYER=1` match the int's previous values exactly).
+- Behavior impact: none — purely a type-safety improvement; `multiPlayer` now has exactly one
+  writer (`arcade_session_reset`/`runner_session_reset`'s first statement), already wired up in
+  the previous commit.
+- Verification performed: `make mingw` — 0 errors, 167 warnings (unchanged), confirming all 29
+  read sites compiled identically. Both test suites still pass.
+- Rollback: `git revert a349e07`.
+
+### [2026-07-18] Add non-interactive asset/session lifecycle test
+- Phase: Pass 4 (commit `ac55082`)
+- File(s): new `docs/verification/lifecycle_test.c`, `Makefile` (`mingw-lifecycletest` target)
+- Action: 55 checks covering, per mode: asset lifecycle (starts unloaded → loads successfully →
+  flag true → a second load is a pointer-identical no-op → unload nulls every owned pointer and
+  clears the flag → a second unload doesn't crash → reload succeeds again), the shared bucket's
+  own independent lifecycle and its interaction with both modes' loaders, session reset (mutates
+  score/lives/position/enemy/bullet state — including a real `addBullet()`-allocated bullet to
+  verify no leak on reset — then confirms fresh values and that asset pointers/loaded flags are
+  completely untouched), pause/resume (session state survives unchanged across both transitions),
+  and the new-game transition sequence (reset + assets retained + correct scene).
+- **This test found a real, previously-undiscovered gap** in the code just written this pass:
+  `arcade_assets_load()`/`runner_assets_load()` checked their own `*AssetsLoaded` flag *before*
+  re-verifying the shared bucket via `shared_assets_load()`. If the shared bucket were ever
+  unloaded independently while a mode's own flag stayed true — not reachable from today's actual
+  call graph (`shared_assets_unload()` is currently only called from `app_shutdown()`), but a real
+  hole in the function's own contract that "returning `true` means every asset this mode needs is
+  loaded" — a subsequent call to that mode's loader would skip re-loading the shared bucket
+  entirely. Fixed by re-ordering: `shared_assets_load()` is now checked unconditionally, before
+  each mode's own early-return, in both `arcade_assets_load()` and `runner_assets_load()`
+  (`src/loadGame.c`).
+- Behavior impact: the ordering fix is a genuine robustness improvement to code introduced this
+  same pass, not a change to any previously-existing behavior (the old `loadGame()`/`loadGame2()`
+  had no equivalent shared-bucket concept at all, so there's no "prior behavior" to compare against
+  here).
+- Verification performed: **runtime-verified**, not static — the built `lifecycletest.exe` runs
+  and every check is a live assertion, not a code-reading exercise. Initial run: 2 failures
+  (`sharedAssetsLoaded true again`, `mult non-NULL again`), diagnosed to the ordering gap above,
+  fixed, rebuilt: 55/55 pass. `make mingw` — 0 errors, 167 warnings (unchanged, confirmed 0 from
+  the new test file). Both other test suites still pass.
+- Rollback: delete `docs/verification/lifecycle_test.c` and the `mingw-lifecycletest` target; the
+  `arcade_assets_load`/`runner_assets_load` ordering fix should be kept regardless of whether the
+  test itself is kept, since it's a correctness fix independent of the test that found it.
+
+### [2026-07-18] Interactive manual test — Pass 4, real launch + Main-menu render re-confirmed
+- Phase: Pass 4 (manual verification, no commit — evidence only)
+- File(s): none changed; new `docs/verification/manual-test-phase4-main-menu.png`
+- Action: launched the real Pass-4 `build-mingw/endgame-mingw.exe`, confirmed via `Get-Process` it
+  started, created a window, and stayed alive (no crash). Captured the window's actual rendered
+  contents via the same focus-independent `PrintWindow` technique used in Pass 3 — the resulting
+  PNG is byte-for-byte the same file size as Pass 3's equivalent screenshot, confirming the Main
+  menu still renders identically (no visual regression from this pass's changes).
+- What was not attempted again, and why: Pass 3 already established, with concrete evidence, that
+  `SetForegroundWindow` is rejected by Windows' foreground-lock restriction in this automation
+  context (returns `false`, foreground window unchanged) and that a `PostMessage`-based keypress
+  has no effect on SDL2's input handling on Windows. Re-attempting either this pass would have
+  reproduced the same known-negative result at the cost of time better spent elsewhere, so this
+  pass did not repeat them. **No transition beyond the initial Main-menu render was interactively
+  verified this pass either** — stated plainly, matching Pass 3's own disclosure.
+- Rollback: n/a (no code changed; the screenshot is documentation evidence only).

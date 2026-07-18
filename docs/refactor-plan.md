@@ -31,6 +31,13 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
 | 19 | Top-level main-loop simplification (two nested loops → one flat loop with scene dispatch) | **Done — Pass 3** |
 | 20 | Non-interactive scene-transition test | **Done — Pass 3**, 16 checks, 3 consecutive passing runs |
 | 21 | `doRender2` gameplay-state mutation (Phase 5, listed above as item 5) | Still deferred — unaffected by Pass 3, which only changed routing, not `doRender2`'s internals |
+| 22 | Separate asset loading from session reset (`loadGame()`/`loadGame2()` split) | **Done — Pass 4** (`shared_assets_load/unload`, `arcade_assets_load/unload`, `runner_assets_load/unload`, `arcade_session_reset`, `runner_session_reset`) |
+| 23 | Checked SDL asset-loading helpers (`load_texture`/`load_music`/`load_chunk`/`load_font`) | **Done — Pass 4** (`src/asset_loader.c`) |
+| 24 | Fix confirmed `multiPlayer` clobber bug (`loadGame.c:407` hardcoded `=1` every call) | **Found and fixed — Pass 4** |
+| 25 | Fix confirmed bullet-array memory leak (direct `NULL` assignment instead of `removeBullet`/`removeSecondBullet`) | **Found and fixed — Pass 4** |
+| 26 | Fix confirmed shared-texture leak (mult/leaders/pause/brick/death/font loaded independently by both modes) | **Found and fixed — Pass 4** (`shared_assets_load`/`shared_assets_unload`) |
+| 27 | `multiPlayer` `int` → `GameMode` enum migration | **Done — Pass 4** (deferred by Pass 3, completed once its sole remaining writer was centralized) |
+| 28 | Non-interactive asset/session lifecycle test | **Done — Pass 4**, 55 checks, caught and led to fixing one real gap in the new code before landing |
 
 ## Phases executed in Pass 1
 
@@ -217,6 +224,74 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
   test matrix (Arcade/Runner single/multi/pause/resume/game-over/leaderboard, 5x repeated
   menu↔mode cycles), was interactively verified this pass.
 - Rollback: n/a, no code changed.
+
+## Phases executed in Pass 4 (asset loading / session reset separation)
+
+Full audit, classification, and ownership table in `docs/game-session-lifecycle.md`, written
+before any Pass 4 code edit. Baseline: commit `82927d6` (tag `refactor-pass-3-scenes`), `make
+mingw` 0 errors/168 warnings, both existing test suites passing — confirmed before any edit.
+
+### Phase 22-26 — Split `loadGame()`/`loadGame2()`, checked loaders, three confirmed-bug fixes
+- Files: new `src/asset_loader.c`; rewritten `src/loadGame.c` (`loadGame()`/`loadGame2()` deleted,
+  replaced by `shared_assets_load/unload`, `arcade_assets_load/unload`, `arcade_session_reset`,
+  `runner_assets_load/unload`, `runner_session_reset`); `src/scene.c` (enter-hooks call only
+  asset-load, with a Main-menu fallback on failure); `src/menu_events.c` (new-game selection calls
+  session-reset explicitly before transitioning); `src/app.c` (promoted 3 static helpers,
+  `app_shutdown()` delegates to the 3 new unload functions for unambiguous fields); `inc/header.h`
+  (`GameMode` enum, `sharedAssetsLoaded` flag, new prototypes).
+- Risk: the largest, most interdependent commit of this pass — main.c/scene.c/menu_events.c all
+  needed the full new function set simultaneously to keep compiling, so this combined what the
+  original plan scoped as two separate commits (Arcade split, Runner split) into one, explicitly
+  justified in the commit message.
+- Validation: `make mingw` — 0 errors, 167 warnings (down from 168 — one pre-existing warning on a
+  directly-moved line fixed in passing, confirmed via before/after line-number diff). Existing
+  lifecycle smoke test and scene transition test both still pass (both updated to call the new
+  function names in place of the deleted `loadGame()`/`loadGame2()`).
+- Rollback: `git revert 586c031` (also revert `a349e07` for the dependent `multiPlayer` retype).
+- Completion criteria: met — asset loading and session reset are fully separate operations; all
+  mode asset loads return success/failure and clean up via their own `_unload()` on any failure;
+  `*AssetsLoaded` flags set true only after complete success; the `multiPlayer` clobber
+  (`loadGame.c:407`'s hardcoded `=1`) and the bullet-array leak (direct `NULL` instead of
+  `removeBullet`/`removeSecondBullet`) are both fixed; the shared-texture leak (mult/leaders/
+  pause/brick/death/font loaded independently by both modes) is fixed via the new shared-assets
+  bucket with its own one-time flag.
+
+### Phase 27 — `multiPlayer` → `GameMode`
+- Files: `inc/header.h` only (field retype, name unchanged).
+- Risk: none — confirmed via the previous commit's clean build that all ~29 read sites are bare
+  boolean truth tests, unaffected by the type change.
+- Validation: `make mingw` — 0 errors, 167 warnings (unchanged). Both test suites still pass.
+- Rollback: `git revert a349e07`.
+- Completion criteria: met — `multiPlayer` now has exactly one writer
+  (`arcade_session_reset`/`runner_session_reset`'s first statement), eliminating the two-writers-
+  one-value risk flagged during design validation.
+
+### Phase 28 — Non-interactive asset/session lifecycle test
+- Files: new `docs/verification/lifecycle_test.c`, `Makefile` (`mingw-lifecycletest` target).
+- Risk: test-only file, cannot affect the shipped game.
+- Validation: 55 checks; **caught a real gap** in the just-written `arcade_assets_load()`/
+  `runner_assets_load()` (the `*AssetsLoaded` early-return skipped re-verifying the shared bucket,
+  so a mode already marked loaded would not re-cascade a shared-bucket reload if that bucket had
+  been unloaded independently — not reachable from today's actual call graph, but a real hole in
+  the function's own contract) — fixed by re-ordering the check, then all 55 checks pass. Both
+  other test suites still pass.
+- Rollback: delete the test file and Makefile target; the `arcade_assets_load`/
+  `runner_assets_load` ordering fix should stay regardless (it's a correctness fix independent of
+  the test that found it).
+- Completion criteria: met — covers asset lifecycle (both modes + the shared bucket), session
+  reset (both modes, including a real `addBullet()`-allocated bullet to verify no leak), pause/
+  resume (session state survives unchanged), and the new-game transition sequence.
+
+### Phase 21 (continued) — Interactive manual test, Pass 4
+- Files: none; new `docs/verification/manual-test-phase4-main-menu.png`.
+- What was done: same `PrintWindow`-capture technique as Pass 3 — launched the real Pass-4 build,
+  confirmed it starts and stays alive, captured its actual rendered Main menu (byte-identical file
+  size to Pass 3's screenshot, confirming no visual regression).
+- What was not attempted again: Pass 3 already established that `SetForegroundWindow` is rejected
+  by Windows' foreground-lock restriction in this automation context and `PostMessage`-based
+  keypresses don't reach SDL2's input handling — repeating those failed techniques would waste
+  time for a known-negative result, so this pass did not re-attempt keyboard injection. No
+  transition beyond the Main menu render was interactively verified.
 
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
