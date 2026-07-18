@@ -14,7 +14,7 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
 | 2 | Deterministic initialization: `GameState` `malloc` → `calloc` | **Done — Pass 1** |
 | 3 | Eliminate per-frame asset reloading (textures/font/music/SFX) via NULL-guarded one-time loads; fix companion free-without-null bug; fix HUD-texture leak | **Done — Pass 1** |
 | 4 | Raw scene-state ints → descriptive enums (`menu_status`, `menu0_status`) | **Done — Pass 3** (`AppScene` enum, `GameState.scene`, `app_change_scene()`) |
-| 5 | `doRender2` gameplay-state mutation moved into `process2()` | Deferred |
+| 5 | `doRender2` gameplay-state mutation removed from render path | **Done — Pass 5** (relocated to `runner_resolve_death()`, called from `runner_frame()` after `doRender2()` returns — not merged into `process2()`, see Pass 5 notes below) |
 | 6 | `collisionDetect.c` enemy-vs-enemy self-collision guard | Deferred |
 | 7 | `IMG_Load`/NULL-check ordering normalization (~10 sites) | Deferred (residual gap in Phase 3b's asset-lifecycle flags — see Pass 2 notes below) |
 | 8 | Full shutdown-path reconstruction (texture/font/chunk/music destruction, `Mix_CloseAudio`, `IMG_Quit`, `IMG_Init`) | **Done — Pass 2** (`src/app.c`) |
@@ -30,7 +30,7 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
 | 18 | New defect found during mandated nested-loop sweep: `process.c:515` OOB write | **Found and fixed — Pass 2** |
 | 19 | Top-level main-loop simplification (two nested loops → one flat loop with scene dispatch) | **Done — Pass 3** |
 | 20 | Non-interactive scene-transition test | **Done — Pass 3**, 16 checks, 3 consecutive passing runs |
-| 21 | `doRender2` gameplay-state mutation (Phase 5, listed above as item 5) | Still deferred — unaffected by Pass 3, which only changed routing, not `doRender2`'s internals |
+| 21 | `doRender2` gameplay-state mutation (Phase 5, listed above as item 5) | **Done — Pass 5** |
 | 22 | Separate asset loading from session reset (`loadGame()`/`loadGame2()` split) | **Done — Pass 4** (`shared_assets_load/unload`, `arcade_assets_load/unload`, `runner_assets_load/unload`, `arcade_session_reset`, `runner_session_reset`) |
 | 23 | Checked SDL asset-loading helpers (`load_texture`/`load_music`/`load_chunk`/`load_font`) | **Done — Pass 4** (`src/asset_loader.c`) |
 | 24 | Fix confirmed `multiPlayer` clobber bug (`loadGame.c:407` hardcoded `=1` every call) | **Found and fixed — Pass 4** |
@@ -38,6 +38,12 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
 | 26 | Fix confirmed shared-texture leak (mult/leaders/pause/brick/death/font loaded independently by both modes) | **Found and fixed — Pass 4** (`shared_assets_load`/`shared_assets_unload`) |
 | 27 | `multiPlayer` `int` → `GameMode` enum migration | **Done — Pass 4** (deferred by Pass 3, completed once its sole remaining writer was centralized) |
 | 28 | Non-interactive asset/session lifecycle test | **Done — Pass 4**, 55 checks, caught and led to fixing one real gap in the new code before landing |
+| 29 | Frame-pipeline map for all 10 scenes (`docs/frame-pipeline-map.md`) | **Done — Pass 5** |
+| 30 | Explicit named per-mode frame wrappers (`arcade_frame`/`runner_frame`, `src/frame.c`) | **Done — Pass 5** |
+| 31 | `doRender2` gameplay mutation removed from render path (see Phase 5 above) | **Done — Pass 5** |
+| 32 | Fix confirmed double scene-transition risk (`SDLK_q` falling through into a stale game-over check) | **Found and fixed — Pass 5** |
+| 33 | Fix confirmed `manFrames[0]` mis-documentation/duplication (both modes load the identical file) | **Found and fixed — Pass 5** (`shared_assets_load`/`shared_assets_unload`) |
+| 34 | Non-interactive frame-pipeline test (render purity, relocated mutation, transition guard, animation wrap/idle, pause purity) | **Done — Pass 5**, 38 checks |
 
 ## Phases executed in Pass 1
 
@@ -293,17 +299,124 @@ mingw` 0 errors/168 warnings, both existing test suites passing — confirmed be
   time for a known-negative result, so this pass did not re-attempt keyboard injection. No
   transition beyond the Main menu render was interactively verified.
 
+## Phases executed in Pass 5 (frame-pipeline separation)
+
+Full audit, per-scene ordering, and every finding (fixed or deliberately left unfixed) in
+`docs/frame-pipeline-map.md`, written before any Pass 5 code edit. Baseline: commit `86dac33`
+(tag `refactor-pass-4-lifecycle`, created at the start of this pass since it didn't exist yet),
+`make mingw` 0 errors/167 warnings, all three existing test suites passing — confirmed before any
+edit.
+
+### Phase 29 — Frame-pipeline map
+- Files: new `docs/frame-pipeline-map.md`.
+- What was done: exact per-scene ordering (event polling, input mutation, movement, AI, spawning,
+  collision, health/score, animation, render, present, transitions) for all 10 scenes, gathered via
+  three parallel read-only audits, cross-checked against direct re-reads of every source file
+  immediately before writing. No code changed in this step.
+- Rollback: delete the file.
+
+### Phase 30 — Explicit named per-mode frame wrappers
+- Files: new `src/frame.c` (`arcade_frame`, `runner_frame`), `inc/header.h` (prototypes),
+  `src/main.c` (`APP_SCENE_ARCADE_GAME`/`APP_SCENE_RUNNER_GAME` cases call the wrappers instead of
+  4 inline calls each).
+- Risk: none — each wrapper calls the same functions in the same order as before; introduced as
+  two separate commits (`arcade_frame` first, `runner_frame` second) specifically so each landed
+  as a pure, independently-verifiable structural move before Phase 31's actual behavior change.
+- Validation: `make mingw` — 0 errors, 167 warnings (unchanged) after each commit. All three
+  existing test suites still pass after each commit.
+- Rollback: `git revert` the two introduction commits; restore the 4 inline calls in `main.c`.
+- Completion criteria: met — both gameplay scenes now have one named entry point per mode, with no
+  behavior change.
+
+### Phase 31 — Remove gameplay mutation from `doRender2()`
+- Files: `src/doRender.c` (mutation + dead duplicate deleted), `src/frame.c`
+  (`runner_resolve_death()` added, called from `runner_frame()`).
+- What was done: confirmed via grep that `man.isDead` is never set to `1` anywhere in the live
+  codebase (only in a commented-out line and in test harnesses), so this branch was dead code —
+  relocating it changes zero observable behavior today. A Plan-mode validation pass caught that the
+  naive placement (calling the new function *before* `doRender2()`) would either delete the
+  death-sprite draw or silently prevent it from ever firing (since the mutation would clear
+  `isDead` before the draw's own `if (isDead)` guard ran); corrected to call
+  `runner_resolve_death()` *after* `doRender2()` returns instead, which draws correctly and is
+  behaviorally identical since nothing between the two points reads the affected fields.
+- Validation: `make mingw` — 0 errors, 167 warnings. All three existing test suites still pass;
+  the new `mingw-frametest` (Phase 34) directly verifies both the render-purity and the relocated
+  mutation's correct firing.
+- Rollback: `git revert` the commit; restore the deleted lines in `doRender2()`.
+- Completion criteria: met — `doRender2()` no longer mutates any `game->` field.
+
+### Phase 32 — Fix confirmed double scene-transition risk
+- Files: `src/processEvents.c` (both `processEvents()` and `processEvents2()`).
+- What was done: found via audit that `SDLK_q` (unlike `SDLK_ESCAPE`) does not return early after
+  setting the scene, so a same-frame game-over check later in the same function could fire a
+  second, overwriting transition. Fixed by guarding each game-over transition call with a check
+  that the scene is still the gameplay scene it assumes, rather than a blanket early return (which
+  a Plan-mode validation pass showed would also skip Runner's unconditional score-persist step on
+  the same rare coincidence).
+- Validation: `make mingw` — 0 errors, 167 warnings. All test suites pass; `mingw-frametest`
+  exercises both the normal-fire and already-transitioned cases directly for both modes.
+- Rollback: `git revert` the commit; remove the four added scene-checks.
+- Completion criteria: met — a transition already made earlier in the same call can no longer be
+  silently overwritten; the score-persist step is untouched either way.
+
+### Phase 33 — Fix confirmed `manFrames[0]` mis-documentation
+- Files: `src/loadGame.c` (`shared_assets_load`/`shared_assets_unload` gain `manFrames[0]`;
+  `arcade_assets_load`/`runner_assets_load` lose their destroy-before-overwrite special case),
+  `src/app.c` (redundant centralized `manFrames[]` destroy loop removed).
+- What was done: confirmed both modes load the byte-for-byte identical file into `manFrames[0]` —
+  the "contested field, different source images" comment written in Pass 4 was factually wrong.
+  Consolidated into the existing shared-assets bucket, same as `mult`/`leaders`/`pause`/`brick`/
+  `death`/`font`.
+- Validation: `make mingw` — 0 errors, 167 warnings. All test suites pass.
+- Rollback: `git revert` the commit.
+- Completion criteria: met — no field is loaded redundantly by both modes' asset groups anymore.
+
+### Phase 34 — Non-interactive frame-pipeline test
+- Files: new `docs/verification/frame_pipeline_test.c`, `Makefile` (`mingw-frametest` target).
+- What was done: 38 checks covering render purity for `doRender()`/`doRender2()` (including with
+  `man.isDead` forced true), the relocated death mutation firing correctly through `runner_frame()`,
+  the double-transition guard (both the normal-fire and already-transitioned cases, both modes),
+  animation-counter wrap-at-11 and idle/off-ledge no-advance behavior for both `process()` and
+  `process2()`, and pause-scene purity across repeated calls.
+- This test surfaced a real interaction worth recording: forcing `man.isDead=1` for the relocation
+  test also triggers `process2()`'s own, separate, already-broken `deathCountdown` mechanism
+  (`runner_session_reset()` sets `deathCountdown=-1`, and `isDead=1` then flips it positive), which
+  decrements `gameLives` a second time in the same frame. Not a Pass 5 regression — a pre-existing,
+  separately documented defect (see `docs/frame-pipeline-map.md`) — the test isolates it by
+  resetting `deathCountdown` to 0 before exercising the mutation being verified, rather than
+  conflating the two.
+- Validation: **runtime-verified**, not static — `frametest.exe` runs and every check is a live
+  assertion. Initial run: 1 failure (the interaction above), diagnosed, test corrected, rebuilt:
+  38/38 pass. `make mingw` — 0 errors, 167 warnings (unchanged, confirmed 0 from the new file).
+- Rollback: delete the test file and Makefile target.
+- Completion criteria: met.
+
+### Phase 21 (continued) — Interactive manual test, Pass 5
+- Files: none; new `docs/verification/manual-test-phase5-main-menu.png`.
+- What was done: launched the real Pass-5 build, confirmed via a live process handle it started
+  and stayed alive, captured its actual rendered Main menu via the same `PrintWindow` technique —
+  renders correctly, no visual regression.
+- What was not attempted again: Pass 3 already established, with concrete evidence, that
+  `SetForegroundWindow` is rejected by Windows' foreground-lock restriction in this automation
+  context and that `PostMessage`-based keypresses don't reach SDL2's input handling. Repeating
+  those known-negative techniques this pass would not have produced new information, so this pass
+  did not re-attempt keyboard injection. No transition beyond the Main menu render was
+  interactively verified this pass either.
+- Rollback: n/a, no code changed.
+
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
-**Phase 5 — `doRender2` state mutation.** Moving `game->gameLives--`/`isDead`/`y` reset from
-`doRender.c:254-256` into `process2()` (to mirror how `process()` already does death-handling
-correctly via `deathCountdown`) changes exactly when in the frame lifecycle a life is deducted.
-Needs a running build to rule out a double-decrement or missed-decrement regression. Ready once
-build/run verification is available.
+**Phase 5 — `doRender2` state mutation. Done in Pass 5** (see below) — the original plan assumed
+merging the mutation into `process2()`'s existing (separately broken) `deathCountdown` mechanism;
+Pass 5's actual fix relocates it to its own small function instead, deliberately not merging with
+that unrelated, still-unfixed mechanism (see `docs/frame-pipeline-map.md`).
 
-**Phase 6 — `collisionDetect.c` self-collision guard.** Zero live payoff today (harmless by
-luck of strict-inequality AABB checks); any fix still touches enemy-vs-enemy collision math.
-Ready once a compiler/runtime is available to screen for subtle AABB-resolution-order changes.
+**Phase 6 — `collisionDetect.c` self-collision guard.** Re-investigated in Pass 5 with a precise
+trace (see `docs/frame-pipeline-map.md`): when the enemy-to-enemy loop's two indices are equal,
+every directional AABB check uses a strict inequality that evaluates false for identical position/
+size values, so no mutation ever occurs for the self-case — confirmed safe-by-construction, not a
+demonstrated defect. Left unchanged per the "only fix demonstrated defects" rule; still flagged as
+fragile if the struct or comparisons ever change.
 
 **Phase 7 — `IMG_Load` ordering.** Confirmed functionally inert (SDL's
 `SDL_CreateTextureFromSurface(renderer, NULL)`/`SDL_FreeSurface(NULL)` are documented-safe
