@@ -32,7 +32,7 @@ int processEvents(SDL_Window *window, GameState *game)
             {
             //return to menu
             case SDLK_ESCAPE:
-                game->menu_status = 0;
+                app_change_scene(game, APP_SCENE_ARCADE_MENU);
 //                game->kills_score = 0;
 //                game->kills_score_multi = 0;
 
@@ -50,7 +50,7 @@ int processEvents(SDL_Window *window, GameState *game)
                 break;
                 //pause
             case SDLK_p:
-                game->menu_status = 5;
+                app_change_scene(game, APP_SCENE_ARCADE_PAUSE);
                 done = 0;
 
                 Mix_VolumeChunk(game->select, 32);
@@ -90,7 +90,7 @@ int processEvents(SDL_Window *window, GameState *game)
             //     goto etc;
             //     break;
             case SDLK_q:
-                game->menu_status = 4;
+                app_change_scene(game, APP_SCENE_MAIN_MENU);
 
                 Mix_FreeChunk(game->select);
                 game->select = NULL;
@@ -519,14 +519,14 @@ int processEvents(SDL_Window *window, GameState *game)
     {
         if (game->man.lives == 0)
         {
-            game->menu_status = 0;
+            app_change_scene(game, APP_SCENE_ARCADE_MENU);
         }
     }
     if (game->multiPlayer)
     {
         if (game->man.lives == 0 && game->secondPlayer.lives == 0)
         {
-            game->menu_status = 0;
+            app_change_scene(game, APP_SCENE_ARCADE_MENU);
             //work with local leaderboards
 
             //        leader = &game->kills_score;
@@ -588,7 +588,7 @@ int processEvents2(SDL_Window *window, GameState *game)
             {
             //return to menu
             case SDLK_ESCAPE:
-                game->menu_status = 0;
+                app_change_scene(game, APP_SCENE_RUNNER_MENU);
 
                 Mix_VolumeChunk(game->select, 32);
                 Mix_PlayChannel(-1, game->select, 0);
@@ -600,7 +600,7 @@ int processEvents2(SDL_Window *window, GameState *game)
                 break;
                 //pause
             case SDLK_p:
-                game->menu_status = 5;
+                app_change_scene(game, APP_SCENE_RUNNER_PAUSE);
                 done = 0;
 
                 Mix_VolumeChunk(game->select, 32);
@@ -619,7 +619,7 @@ int processEvents2(SDL_Window *window, GameState *game)
                 }
                 break;
             case SDLK_q:
-                game->menu_status = 4;
+                app_change_scene(game, APP_SCENE_MAIN_MENU);
 
                 Mix_FreeChunk(game->select);
                 game->select = NULL;
@@ -811,7 +811,7 @@ int processEvents2(SDL_Window *window, GameState *game)
         write(conntent, "\n", 1);
 
         close(conntent);*/
-        game->menu_status = 0;
+        app_change_scene(game, APP_SCENE_RUNNER_MENU);
     }
 
     return done;

@@ -12,34 +12,34 @@ void menu_events(GameState *gameState)
     {
         if (event.type == SDL_KEYDOWN)
         {
+        bool isRunner = (gameState->scene == APP_SCENE_RUNNER_MENU);
         switch (event.key.keysym.sym) {
             case SDLK_SPACE:
-                gameState->menu_status = 0;
-
+                // Already at this menu; no scene change.
                 Mix_PlayChannel(-1, gameState->select, 0);
                 break;
             case SDLK_1:
-                gameState->menu_status = 1;
+                app_change_scene(gameState, isRunner ? APP_SCENE_RUNNER_GAME : APP_SCENE_ARCADE_GAME);
                 gameState->multiPlayer = 0;
 
                 Mix_VolumeChunk(gameState->select, 32);
                 Mix_PlayChannel(-1, gameState->select, 0);
                 break;
             case SDLK_2:
-                gameState->menu_status = 2;
+                app_change_scene(gameState, isRunner ? APP_SCENE_RUNNER_GAME : APP_SCENE_ARCADE_GAME);
                 gameState->multiPlayer = 1;
 
                 Mix_VolumeChunk(gameState->select, 32);
                 Mix_PlayChannel(-1, gameState->select, 0);
                 break;
             case SDLK_3:
-                gameState->menu_status = 3;
+                app_change_scene(gameState, isRunner ? APP_SCENE_RUNNER_LEADERBOARD : APP_SCENE_ARCADE_LEADERBOARD);
 
                 Mix_VolumeChunk(gameState->select, 32);
                 Mix_PlayChannel(-1, gameState->select, 0);
                 break;
             case SDLK_q:
-                gameState->menu_status = 4;
+                app_change_scene(gameState, APP_SCENE_MAIN_MENU);
 
                 Mix_VolumeChunk(gameState->select, 32);
                 Mix_PlayChannel(-1, gameState->select, 0);
@@ -50,7 +50,7 @@ void menu_events(GameState *gameState)
 //                gameState->menu0_status = 0;
 //                break;
             default:
-                gameState->menu_status = 0;
+                // Already at this menu; no scene change.
                 break;
         }
         }
@@ -73,21 +73,21 @@ void menu0_events(GameState *gameState)
         switch (event.key.keysym.sym) {
             case SDLK_b:
             case SDLK_1:
-                gameState->menu0_status = 1;
+                app_change_scene(gameState, APP_SCENE_ARCADE_MENU);
 
                 Mix_VolumeChunk(gameState->select, 16);
                 Mix_PlayChannel(-1, gameState->select, 0);
                 break;
             case SDLK_r:
             case SDLK_2:
-                gameState->menu0_status = 2;
+                app_change_scene(gameState, APP_SCENE_RUNNER_MENU);
 
                 Mix_VolumeChunk(gameState->select, 16);
                 Mix_PlayChannel(-1, gameState->select, 0);
                 break;
             case SDLK_q:
             case SDLK_ESCAPE:
-                gameState->menu0_status = 3;
+                app_change_scene(gameState, APP_SCENE_QUIT);
 
                 Mix_VolumeChunk(gameState->select, 32);
                 Mix_PlayChannel(-1, gameState->select, 0);
@@ -98,7 +98,7 @@ void menu0_events(GameState *gameState)
 //                Mix_PlayChannel(-1, gameState->select, 0);
                 break;
             default:
-                gameState->menu0_status = 0;
+                // Already at the main menu; no scene change.
                 break;
         }
         }

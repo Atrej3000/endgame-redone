@@ -12,9 +12,6 @@ int main()
         return 1;
     }
 
-    int done0 = 0;
-    int done = 0;
-
     gameState->x_score = 0;
     for(gameState->x_i = 0; gameState->x_i < 25; gameState->x_i++) {
         gameState->x_list[gameState->x_i] = 0;
@@ -22,132 +19,67 @@ int main()
     }
 
     load_menu0(gameState);
+    // Bootstrap only -- the one direct assignment to `scene` outside
+    // app_change_scene(), since there is no "previous scene" transition to
+    // run an enter-hook for at program start. calloc already zero-initializes
+    // `scene` to APP_SCENE_MAIN_MENU (its first member); set explicitly here
+    // for clarity rather than relying on that implicitly.
+    gameState->scene = APP_SCENE_MAIN_MENU;
 
-    while(!done0) {
-        switch (gameState->menu0_status) {
-            //___________________________________________________________________________menu0
-            case 0:
+    while (gameState->scene != APP_SCENE_QUIT) {
+        switch (gameState->scene) {
+            case APP_SCENE_MAIN_MENU:
                 menu0_events(gameState);
                 doRender_menu0(renderer, gameState);
                 break;
 
-                //___________________________________________________________________________battle
-            case 1:
-                done = 0;
-                load_menu1(gameState);
-                while (!done) {
-                    switch (gameState->menu_status) {
-                        //menu
-                        case 0:
-                            loadGame(gameState);
-                            menu_events(gameState);
-                            doRender_menu1(renderer, gameState);
-                            break;
-                            //battle game
-                        case 1:
-                            //Check for events
-                            process(gameState);
-                            collisionDetect(gameState);
-                            doRender(renderer, gameState);
-                            processEvents(window, gameState);
-                            break;
-                            //multiplayer
-                        case 2:
-                            process(gameState);
-                            collisionDetect(gameState);
-                            doRender(renderer, gameState);
-                            processEvents(window, gameState);
-                            break;
-                            //leaderboard
-                        case 3:
-                            processEvents(window, gameState);
-                            doRender_leaderboard(renderer, gameState);
-                            //leader_events(&gameState);
-                            break;
-                            //exit
-                        case 4:
-                            done = 1;
-                            break;
-                            //Pause
-                        case 5:
-                            doRender_pause(renderer, gameState);
-                            pause_events(gameState);
-                            break;
-                        default:
-                            gameState->menu_status = 0;
-                            break;
-                    }
-                }
+            case APP_SCENE_ARCADE_MENU:
+                menu_events(gameState);
+                doRender_menu1(renderer, gameState);
                 break;
-                //___________________________________________________________________________runner
-            case 2:
-                done = 0;
-                load_menu2(gameState);
-                while (!done) {
-                    switch (gameState->menu_status) {
-                        //menu
-                        case 0:
-                            loadGame2(gameState);
-                            menu_events(gameState);//___________________no changes
-                            doRender_menu2(renderer, gameState);//_______no changes
-                            break;
-                            //runner
-                        case 1:
-                            //Check for events
-                            process2(gameState);
-                            collisionDetect2(gameState);
-                            doRender2(renderer, gameState);
-                            processEvents2(window, gameState);
-                            break;
-                            //multiplayer
-                        case 2:
-                            process2(gameState);
-                            collisionDetect2(gameState);
-                            doRender2(renderer, gameState);
-                            processEvents2(window, gameState);
-                            break;
-                            //leaderboard
-                        case 3:
-                            //score
-//                            for(int i = 0; i < 10; i++) {
-//                                printf("%d ", gameState.x_list[i]);
-//                            }
-                            processEvents2(window, gameState);
-                            doRender_leaderboard2(renderer, gameState);
-                           /* for(int i = 0; i < 25; i++) {
-                                init_status_x_list(&gameState);
-                                draw_status_x_list(&gameState);
-                            }*/
-                            //leader_events(&gameState);
-                            break;
-                            //exit
-                        case 4:
-                            done = 1;
-                            break;
-                            //Pause
-                        case 5:
-                            doRender_pause(renderer, gameState);
-                            pause_events(gameState);
-                            break;
-                        default:
-                            gameState->menu_status = 0;
-                            break;
-                    }
-                }
+
+            case APP_SCENE_ARCADE_GAME:
+                process(gameState);
+                collisionDetect(gameState);
+                doRender(renderer, gameState);
+                processEvents(window, gameState);
                 break;
-                //___________________________________________________________________________exit
-            case 3:
-                done0 = 1;
-                //done0 = 1;
+
+            case APP_SCENE_ARCADE_LEADERBOARD:
+                processEvents(window, gameState);
+                doRender_leaderboard(renderer, gameState);
                 break;
+
+            case APP_SCENE_ARCADE_PAUSE:
+                doRender_pause(renderer, gameState);
+                pause_events(gameState);
+                break;
+
+            case APP_SCENE_RUNNER_MENU:
+                menu_events(gameState);
+                doRender_menu2(renderer, gameState);
+                break;
+
+            case APP_SCENE_RUNNER_GAME:
+                process2(gameState);
+                collisionDetect2(gameState);
+                doRender2(renderer, gameState);
+                processEvents2(window, gameState);
+                break;
+
+            case APP_SCENE_RUNNER_LEADERBOARD:
+                processEvents2(window, gameState);
+                doRender_leaderboard2(renderer, gameState);
+                break;
+
+            case APP_SCENE_RUNNER_PAUSE:
+                doRender_pause(renderer, gameState);
+                pause_events(gameState);
+                break;
+
             default:
-                done0 = 0;
+                app_change_scene(gameState, APP_SCENE_QUIT);
                 break;
-        }
-        if (done == 1) {
-            //done0 = 1;
-            gameState->menu0_status = 0;
-            done = 0;
         }
     }
 

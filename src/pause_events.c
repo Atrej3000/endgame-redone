@@ -17,10 +17,12 @@ int pause_events(GameState *gameState)
 //                gameState->menu_status = 5;
 //                break;
             case SDLK_q:
-                gameState->menu_status = 4;
+                app_change_scene(gameState, APP_SCENE_MAIN_MENU);
                 break;
             case SDLK_ESCAPE:
-                gameState->menu_status = 1;
+                app_change_scene(gameState, (gameState->scene == APP_SCENE_RUNNER_PAUSE)
+                                                 ? APP_SCENE_RUNNER_GAME
+                                                 : APP_SCENE_ARCADE_GAME);
                 Mix_PlayChannel(-1, gameState->select, 0);
                 Mix_ResumeMusic();
                 break;
