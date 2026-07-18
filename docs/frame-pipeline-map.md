@@ -6,6 +6,14 @@ every source location verified by direct reading (not from memory) immediately b
 document was written. Phase 5's own changes are noted inline as "Phase 5 change" callouts;
 everything else describes pre-existing, unmodified behavior.
 
+**Phase 6 update**: everything below describing Runner's `isDead`/`deathCountdown`/`gameLives`
+mechanism (the `runner_resolve_death()` relocation, `process2()`'s incomplete `deathCountdown`
+decrement, the `collisionDetect2()`/`processEvents.c` `gameLives = 0` shortcuts) describes the
+**pre-Phase-6 state** and is now historical — Phase 6 repaired and wired up this entire mechanism.
+`docs/runner-death-lifecycle.md` is the authoritative, up-to-date source for Runner death-state
+specifics; this file's Runner-death-related findings are left as-is below for the historical
+record of what Phase 5's audit found and deliberately did not fix, not updated in place.
+
 ## Legend
 
 Each scene's row lists, in the exact order the code executes them: event polling, input-state

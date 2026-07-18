@@ -948,3 +948,172 @@ and this documentation commit.
   wasn't re-attempted. **No transition beyond the initial Main-menu render was interactively
   verified this pass** — stated plainly, matching every prior pass's own disclosure.
 - Rollback: n/a (no code changed; the screenshot is documentation evidence only).
+
+## Pass 6 summary — CI + Runner death-lifecycle repair (2026-07-18)
+
+Baseline: commit `3419fc0` (tag `refactor-pass-5-frame-pipeline`, created at the start of this
+pass since it didn't exist yet), working tree clean, `make mingw` 0 errors/167 warnings, all four
+existing test suites passing -- confirmed before any edit. Two independent objectives: repair a
+confirmed severe defect in Runner's death-state mechanism (unreachable today, but a guaranteed
+double-decrement-then-unbounded-drain the instant it's wired up) and wire it into live gameplay
+per a confirmed product decision, and add a GitHub Actions workflow since Phase 5's PR merged with
+no independent CI run at all. Full defect trace and repaired lifecycle in
+`docs/runner-death-lifecycle.md`, written before any code edit. Four commits: `75a6637` (lifecycle
+doc), `30ce209` (the atomic gameplay fix), `d7fcbd4` (death test), `f38a032` (CI workflow), plus
+this documentation commit.
+
+### [2026-07-18] Tag baseline + write docs/runner-death-lifecycle.md
+- Phase: safety gate + pre-edit documentation
+- File(s): git tag `refactor-pass-5-frame-pipeline` on commit `3419fc0`; new
+  `docs/runner-death-lifecycle.md`
+- Action: confirmed working tree clean, current commit hash, and that the Phase 5 rollback tag
+  didn't yet exist before creating it (Phase 5's PR merged via `3419fc0`, no tag was created at
+  merge time); ran `make mingw-clean && make mingw` (0 errors/167 warnings) and all four existing
+  test suites as the safety gate; then traced every read/write of `isDead`/`deathCountdown`/
+  `gameLives`/`man.lives`/`secondPlayer.lives` across `process.c`/`collisionDetect.c`/
+  `processEvents.c`/`frame.c`/`doRender.c`/`loadGame.c`, re-verifying every citation by direct
+  reading immediately before writing -- no code changed in this step.
+- Verification performed: `make mingw` (0 errors/167 warnings), all four existing test suites
+  (PASS) re-confirmed as the safety gate before any edit.
+- Rollback: `git tag -d refactor-pass-5-frame-pipeline`; delete `docs/runner-death-lifecycle.md`.
+
+### [2026-07-18] Make Runner death progression single-shot
+- Phase: Pass 6 (commit `30ce209`)
+- File(s): new `src/runner_death.c`; `inc/header.h`; `src/frame.c`; `src/process.c`;
+  `src/collisionDetect.c`; `src/processEvents.c`; `src/loadGame.c`
+- Before: `process2()` had a broken `deathCountdown` block (`process.c:1140-1156`) -- the decrement
+  of `deathCountdown` itself was commented out, so once `man.isDead` ever became true,
+  `game->gameLives--` fired every frame, forever, independent of `runner_resolve_death()`'s own
+  decrement (added in Phase 5). `collisionDetect2()`'s star-collision checks and
+  `processEvents2()`'s fall-death checks both bypassed this mechanism entirely via a direct
+  `game->gameLives = 0;` -- instant, unconditional game over regardless of lives remaining -- with
+  a commented-out `isDead=1`/`isDead=0` pair sitting directly next to the star-collision shortcut.
+- After: one authoritative death sequence, `src/runner_death.c`:
+  ```c
+  void runner_trigger_death(GameState *game)   // idempotent -- no-op while already dying
+  {
+      if (game->man.isDead) { return; }
+      game->man.isDead = 1;
+      game->deathCountdown = 120;   // existing constant, reused verbatim
+  }
+
+  void runner_update_death(GameState *game)   // called once per frame from runner_frame()
+  {
+      if (!game->man.isDead) { return; }
+      if (game->deathCountdown > 0) { game->deathCountdown--; return; }
+      game->gameLives--;
+      game->man.isDead = 0;
+      game->man.y = 0;
+      game->man.dy = 0;
+      if (game->man.x < 0) { game->man.x = 0; }
+      if (game->multiPlayer)
+      {
+          game->secondPlayer.y = 0;
+          game->secondPlayer.dy = 0;
+          if (game->secondPlayer.x < 0) { game->secondPlayer.x = 0; }
+      }
+      game->deathCountdown = -1;
+  }
+  ```
+  `runner_frame()` calls `runner_update_death()` in place of the deleted `runner_resolve_death()`,
+  same relative position (after `doRender2()`, before `processEvents2()`). `process2()`'s broken
+  block is deleted entirely, in the same commit. Both star-collision sites
+  (`collisionDetect.c`) and both fall-death sites (`processEvents.c`) now call
+  `runner_trigger_death(game)` instead of the direct `gameLives = 0` shortcut. `process2()`'s
+  movement gate changes from `if (!man.isDead || gameLives>0)` to plain `if (!man.isDead)`;
+  `secondPlayer`'s movement (which had no `isDead` gate at all before) gains the same gate,
+  nested inside the existing `if (multiPlayer)` block.
+- Reasoning: confirmed via grep that `man.isDead` is never set to `1` anywhere in the live
+  codebase before this change (only the commented-out line and test harnesses) -- the mechanism
+  was unreachable, but a Plan-mode validation pass traced precisely what would happen the instant
+  it became reachable: a death at `gameLives==1` would decrement twice in one frame (once in the
+  old `process2()` block, once in `runner_resolve_death()`), overshoot past `gameLives==0` to `-1`
+  before the game-over check ever saw exactly `0`, and then keep decrementing forever since
+  `deathCountdown` never returned to a non-positive value -- the game-over transition would never
+  fire again. The user confirmed (product decision) wiring star collision and falling into the
+  repaired trigger for real, rather than fixing the mechanism's correctness while leaving it
+  disconnected -- the commented-out `isDead=1`/`isDead=0` pair, the working `gameLives=3` reset,
+  and the fully-built death-sprite/countdown mechanism together were strong evidence of an
+  abandoned "3 lives, animate, respawn" design.
+- **Critical defect caught during design validation, before any code was written**: an earlier
+  draft of the respawn logic only reset `y`/`dy`, not `x`, and never touched `secondPlayer` at all.
+  Since falling off the left edge (`man.x < 0`) is itself one of the newly-wired triggers, and
+  player movement freezes during the 120-frame countdown, failing to clamp `x` back to a safe
+  value at respawn would leave the exact same `x<0` condition true the instant `isDead` cleared --
+  re-triggering death every ~120 frames, forever, with zero player agency to escape it (movement
+  is frozen), silently draining all 3 lives in ~6 seconds on the single most common way to die in
+  this mode. `secondPlayer` needed identical treatment (no prior `isDead` gate on its movement at
+  all, and no respawn-position reset), or a continuous multiplayer life-drain would result. Fixed
+  before implementation began -- final design clamps `x` to `0` only if negative (preserving
+  forward progress otherwise) and mirrors the same treatment onto `secondPlayer`.
+- Behavior impact: **deliberate, confirmed gameplay change** -- Runner changes from "any star touch
+  or fall is instant, unconditional game over" to "3 lives, each hit triggers a ~2-second death
+  animation (blinking every 10 frames via the existing `time%20<10` pattern, unchanged) and costs
+  exactly one life, respawning at a safe position until the last life is lost." Game-over
+  destination (`APP_SCENE_RUNNER_MENU`) and the score-persist step are unchanged from Phase 5.
+  Arcade's own `isDead`/`deathCountdown` handling in `process()` is untouched.
+- Verification performed: `make mingw` -- 0 errors, 167 warnings (unchanged). All four existing
+  test suites still pass unmodified.
+- Rollback: `git revert 30ce209` (this single commit is deliberately atomic -- a Plan-mode
+  validation pass confirmed splitting the deletion of `process2()`'s broken block from the new
+  trigger's introduction would leave a real double-decrement window in between).
+
+### [2026-07-18] Add non-interactive Runner death-lifecycle test
+- Phase: Pass 6 (commit `d7fcbd4`)
+- File(s): new `docs/verification/runner_death_test.c`, `Makefile` (`mingw-deathtest` target)
+- Action: 39 checks -- single death (trigger, drive to idle, exactly one decrement, one respawn),
+  repeated trigger while active (no extra decrement, countdown not restarted), game over at the
+  last life (driven through the real `runner_frame()` pipeline until the scene actually changes,
+  confirming the transition, no respawn, no repeated transition), pause (death frozen across real
+  `doRender_pause`/`pause_events` calls, resumes from where it left off, not restarted), session
+  reset (clears all death state), scene departure (leaving via the real `menu0_events`/
+  `doRender_menu0` functions causes no further mutation), render purity while dying (extended from
+  Phase 5's version to also check the new `deathCountdown` field), and the left-edge-fall/
+  multiplayer respawn fixes specifically (`x` clamped instead of left negative;
+  `secondPlayer` frozen during the countdown and correctly reset at respawn).
+- Verification performed: **runtime-verified**, not static -- `deathtest.exe` runs and every check
+  is a live assertion against the real functions. All 39 checks passed on the first run (the
+  design's respawn-position fix, already caught and corrected before implementation, meant no
+  test failures needed diagnosing this time, unlike Phase 5's frame-pipeline test). `make mingw` --
+  0 errors, 167 warnings (unchanged, confirmed 0 from the new file). All other test suites still
+  pass.
+- Rollback: delete `docs/verification/runner_death_test.c` and the `mingw-deathtest` target.
+
+### [2026-07-18] Add reproducible MinGW validation workflow
+- Phase: Pass 6 (commit `f38a032`)
+- File(s): new `.github/workflows/mingw-validation.yml`, new `scripts/setup-mingw-sdl2.sh`,
+  `Makefile`, new `.gitattributes`
+- Action: Phase 5's PR merged with no CI run at all. Added a workflow triggered on `pull_request`
+  and `push` to `main`, running on `windows-latest` with `msys2/setup-msys2@v2`
+  (`msystem: MINGW64`, installing `mingw-w64-x86_64-gcc` + `make`), that fetches the four pinned
+  SDL2 MinGW devel packages via a new setup script, then runs `make mingw-clean`/`mingw`/
+  `mingw-smoketest`/`mingw-scenetest`/`mingw-lifecycletest`/`mingw-frametest`/`mingw-deathtest` as
+  separate steps (each `shell: msys2 {0}`, so a failure is attributed to the right target),
+  uploading captured logs as an artifact on failure.
+- **MINGW64, not UCRT64, confirmed required** during design validation: the official SDL2 "mingw"
+  devel packages are built against the legacy MSVCRT runtime matching MINGW64's, not UCRT64's
+  UCRT -- both environments report the identical `x86_64-w64-mingw32` triple via
+  `gcc -dumpmachine`, so the triple alone doesn't decide this; documented explicitly in the
+  workflow's own comments so a future maintainer doesn't "simplify" to UCRT64 on that basis.
+- `Makefile` gained `SDL2_VERSION`/`SDL2_IMAGE_VERSION`/`SDL2_TTF_VERSION`/`SDL2_MIXER_VERSION`
+  variables (replacing the version numbers previously hardcoded directly into `MINGW_INCLUDES`/
+  `MINGW_LIBDIRS`/`mingw-dlls`) plus a `print-mingw-versions` target, so the new setup script
+  reads the version numbers from one place rather than hardcoding a third copy that could drift
+  out of sync -- a version mismatch between script and Makefile would otherwise fail silently in
+  CI with a confusing "file not found" rather than an obvious version error.
+- New `.gitattributes` forces LF line endings on `*.sh` -- without it, a CRLF-mangled shebang would
+  break the setup script under bash on any checkout with `core.autocrlf=true` (confirmed this
+  machine has it set), including GitHub's Windows runners, which commonly default the same way.
+- All four pinned SDL2 MinGW package release URLs confirmed reachable via `curl` HTTP 200 checks,
+  both during design validation and again immediately before this commit.
+- Warning policy: unchanged `MINGW_WARN_FLAGS`, no `-Werror` added, no `-w` added; the workflow
+  greps the build log for `warning:` and logs the count (informational only, matching this pass's
+  explicit instruction not to fail CI on the pre-existing 167).
+- Verification performed: local build/test suite unaffected by the Makefile variable extraction --
+  same 0 errors/167 warnings, all five suites pass. The setup script itself run locally
+  (idempotent-skip path, since this machine's `vendor/` was already populated) and its recreated
+  `compat-include/*.h` shims confirmed byte-identical to the originals. **The workflow's actual
+  first run is reported in the pull request** -- this phase's own requirement is not to merge
+  until it shows green.
+- Rollback: `git revert f38a032`; the Makefile version-variable extraction is safe to keep
+  regardless of whether the workflow itself is kept.
