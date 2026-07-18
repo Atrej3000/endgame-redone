@@ -159,9 +159,28 @@ typedef struct
     SDL_Texture *sheetTextureCloud8;
 }Cloud8;
 
+// Top-level application scene. The single authoritative field driving all
+// screen routing -- see docs/scene-state-map.md for the full transition
+// table. game->scene is written ONLY inside app_change_scene() (src/scene.c);
+// every other file that changes scenes must call app_change_scene(), never
+// assign this field directly.
+typedef enum AppScene
+{
+    APP_SCENE_MAIN_MENU,
+    APP_SCENE_ARCADE_MENU,
+    APP_SCENE_ARCADE_GAME,
+    APP_SCENE_ARCADE_LEADERBOARD,
+    APP_SCENE_ARCADE_PAUSE,
+    APP_SCENE_RUNNER_MENU,
+    APP_SCENE_RUNNER_GAME,
+    APP_SCENE_RUNNER_LEADERBOARD,
+    APP_SCENE_RUNNER_PAUSE,
+    APP_SCENE_QUIT
+} AppScene;
+
 typedef struct
 {
-    // scroll thw world 
+    // scroll thw world
     float scrollX;
     int multiPlayer;
 
@@ -257,6 +276,13 @@ typedef struct
     bool arcadeAssetsLoaded;
     bool runnerAssetsLoaded;
 
+    // Authoritative scene -- write ONLY via app_change_scene() (src/scene.c).
+    AppScene scene;
+
+    // DEPRECATED: superseded by `scene` (AppScene) above. No longer read or
+    // written anywhere in active routing code as of the scene-state refactor;
+    // kept declared (not deleted) per that phase's own scope rules. Safe to
+    // remove entirely in a future phase.
     int menu_status;
     int menu0_status;
     int x_score;
@@ -279,16 +305,6 @@ typedef struct
 //    int leaderboard_list[25] = {0};
 //    int *leader_list = leaderboard_list;clear
 
-//enum for menu prototypes
-enum menu_buttons{
-    MENU,
-    SINGLEPLAYER,
-    MULTIPLAYER,
-    LEADERBOARD,
-    EXIT,
-    RUNNER
-};
-
 // PRototypes
 void loadGame(GameState *game);
 void process(GameState *game);
@@ -309,6 +325,9 @@ int collide2d(float x1, float y1, float x2, float y2, float wt1, float ht1, floa
 void menu_events(GameState *gameState);
 void load_menu1(GameState *game);
 void load_menu2(GameState *game);
+
+// Scene routing (src/scene.c) -- see docs/scene-state-map.md
+void app_change_scene(GameState *game, AppScene next_scene);
 int pause_events(GameState *gameState);
 int leader_events(GameState *gameState);
 void addBullet(GameState *game, float x, float y, float dx);
