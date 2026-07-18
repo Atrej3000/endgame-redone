@@ -340,7 +340,6 @@ void draw_status_lives2(GameState *game);
 void init_status_lives(GameState *game);
 int  doRender_menu1(SDL_Renderer *renderer, GameState *game);
 int  doRender_menu2(SDL_Renderer *renderer, GameState *game);
-void doRender_multiplayer(SDL_Renderer *renderer, GameState *game);
 int doRender_leaderboard(SDL_Renderer *renderer, GameState *game);
 int doRender_pause(SDL_Renderer *renderer, GameState *game);
 void doRender(SDL_Renderer *renderer, GameState *game);
@@ -377,7 +376,6 @@ bool load_texture(SDL_Renderer *renderer, const char *path, SDL_Texture **out_te
 bool load_music(const char *path, Mix_Music **out_music);
 bool load_font(const char *path, int ptsize, TTF_Font **out_font);
 int pause_events(GameState *gameState);
-int leader_events(GameState *gameState);
 void addBullet(GameState *game, float x, float y, float dx);
 void addSecondBullet(GameState *game, float x, float y, float dx);
 void removeSecondBullet(GameState *game, int i);
@@ -398,28 +396,8 @@ void doRender2(SDL_Renderer *renderer, GameState *game);
 void process2(GameState *game);
 int processEvents2(SDL_Window *window, GameState *game);
 int doRender_leaderboard2(SDL_Renderer *renderer, GameState *game);
-void doRender_multiplayer2(SDL_Renderer *renderer, GameState *game);
 
 void removeBullet(GameState *game, int i);
 
 //Leo functions
 int random_sign(int mult, int step);
-void mx_sort_arr_char(char *arr[], int size);
-
-//mx_lib
-char *mx_itoa(int number);
-int mx_strlen(const char *s);
-//void mx_printerr(const char *s);
-char *mx_strcat(char *s1, const char *s2);
-char *mx_strcpy(char *dst, const char *src);
-char *mx_strdup(const char *str);
-char *mx_strjoin(char const *s1, char const *s2);
-char *mx_strnew(const int size);
-char *mx_file_to_str(const char *filename);
-void mx_strdel(char **str);
-int mx_count_words(const char *str, char delimiter);
-char *mx_strncpy(char *dst, const char *src, int len);
-char **mx_strsplit(char const *s, char c);
-int mx_strcmp(const char *s1, const char *s2);
-void mx_sort_arr_int(int *arr, int size);
-int mx_atoi(const char *str);
