@@ -13,7 +13,7 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
 | 1 | Priority-1 correctness fixes (OOB array read, event-union guards, uninitialized ledges, leaderboard bound check, dead-code arithmetic fix) | **Done — Pass 1** |
 | 2 | Deterministic initialization: `GameState` `malloc` → `calloc` | **Done — Pass 1** |
 | 3 | Eliminate per-frame asset reloading (textures/font/music/SFX) via NULL-guarded one-time loads; fix companion free-without-null bug; fix HUD-texture leak | **Done — Pass 1** |
-| 4 | Raw scene-state ints → descriptive enums (`menu_status`, `menu0_status`) | Deferred |
+| 4 | Raw scene-state ints → descriptive enums (`menu_status`, `menu0_status`) | **Done — Pass 3** (`AppScene` enum, `GameState.scene`, `app_change_scene()`) |
 | 5 | `doRender2` gameplay-state mutation moved into `process2()` | Deferred |
 | 6 | `collisionDetect.c` enemy-vs-enemy self-collision guard | Deferred |
 | 7 | `IMG_Load`/NULL-check ordering normalization (~10 sites) | Deferred (residual gap in Phase 3b's asset-lifecycle flags — see Pass 2 notes below) |
@@ -28,6 +28,9 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
 | 16 | Asset-lifecycle sentinel hardening (implicit texture-pointer guards → explicit `bool` flags) | **Done — Pass 2** |
 | 17 | Non-interactive runtime smoke test (`app_init`→asset-guard→`app_shutdown`→idempotency) | **Done — Pass 2**, 3 consecutive passing runs |
 | 18 | New defect found during mandated nested-loop sweep: `process.c:515` OOB write | **Found and fixed — Pass 2** |
+| 19 | Top-level main-loop simplification (two nested loops → one flat loop with scene dispatch) | **Done — Pass 3** |
+| 20 | Non-interactive scene-transition test | **Done — Pass 3**, 16 checks, 3 consecutive passing runs |
+| 21 | `doRender2` gameplay-state mutation (Phase 5, listed above as item 5) | Still deferred — unaffected by Pass 3, which only changed routing, not `doRender2`'s internals |
 
 ## Phases executed in Pass 1
 
@@ -159,13 +162,63 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
 - Rollback: revert `NUM_ENEMIES - 1` to `NUM_ENEMIES` at process.c:515
 - Completion criteria: met
 
-## Deferred phases (reasoning, and what "ready to start" looks like)
+## Phases executed in Pass 3 (scene-state refactor and main-loop simplification)
 
-**Phase 4 — Scene-state enums.** `enum menu_buttons` already exists (`header.h:252-259`) but is
-unused. Replacing raw ints with it touches every routing site in `main.c`, `menu_events.c`,
-`pause_events.c`, `processEvents.c` — a wide, mechanical, but non-trivial-to-verify change
-without being able to run the game. Ready to start once a compiler is available for smoke
-testing.
+### Phase 4 — Scene-state enums (was deferred in Pass 2, now done)
+- Files: `inc/header.h` (new `AppScene` enum + `scene` field, `enum menu_buttons` deleted,
+  `menu_status`/`menu0_status` deprecated in place), new `src/scene.c`
+  (`app_change_scene`/`arcade_menu_enter`/`runner_menu_enter`)
+- Risk: introducing an unused field/type only — no logic runs yet, since nothing calls
+  `app_change_scene()` in this commit
+- Validation: `make mingw` — 0 errors, 168 warnings (unchanged); `make mingw-smoketest` — PASS
+- Rollback: `git revert a83c59d`
+- Completion criteria: met
+
+### Phase 19 — Main-loop simplification and full routing cutover
+- Files: `src/main.c` (flattened to one loop), `src/menu_events.c`, `src/pause_events.c`,
+  `src/processEvents.c` (all nine live `menu_status`/`menu0_status` write sites converted to
+  `app_change_scene()` calls)
+- Risk: the highest-risk commit of this pass — this is the actual routing cutover, and every
+  write site had to convert together (an intermediate state with only some sites converted would
+  break routing). Mitigated by: confirming line-by-line against the pre-refactor file that every
+  scene's per-frame function-call order is unchanged; confirming via grep that zero live
+  `menu_status`/`menu0_status` writes remain anywhere outside the now-inert `load_menu.c` selfresets
+  and the already-dead `leader_events.c`; and the explicit invariant that `game->scene` is
+  assigned nowhere except inside `app_change_scene()` itself (stated in `docs/scene-state-map.md`).
+- Validation: `make mingw` — 0 errors, 168 warnings, confirmed identical warning set to baseline
+  (none on any touched line); `make mingw-smoketest` — PASS, unmodified.
+- Rollback: `git revert 5ccca22`
+- Completion criteria: met — every reachable screen remains reachable, every transition preserved
+  (full table in `docs/scene-state-map.md`), pause resumes the correct originating mode, gameplay
+  reset now occurs only at intended entry points (once per arrival, not every frame), no per-frame
+  resource loading reintroduced.
+
+### Phase 20 — Non-interactive scene transition test
+- Files: new `docs/verification/scene_transition_test.c`, `Makefile` (`mingw-scenetest` target)
+- Risk: none (test-only file, cannot affect the shipped game)
+- Validation: 16 checks, all passing, 3 consecutive runs; `make mingw` — 0 errors, 168 warnings
+  (0 from the new file)
+- Rollback: delete the test file and Makefile target
+- Completion criteria: met for what's automatable here (no input-injection tool available) —
+  covers initial scene, both menu-entry transitions, gameplay→menu (confirming the load-once
+  reset fires correctly on return, not just on first entry), quit, invalid-enum handling, and
+  pause-resume-to-correct-mode for both Arcade and Runner
+
+### Phase 21 — Interactive manual test (partial)
+- Files: none (verification only); new `docs/verification/manual-test-main-menu.png`
+- What was actually done: launched the real `endgame-mingw.exe`, confirmed via `Get-Process` it
+  started and stayed alive with a real window; captured its actual rendered output via the Win32
+  `PrintWindow` API (focus-independent) and visually confirmed the Main menu renders correctly
+  end-to-end in the refactored build.
+- What was not achieved, stated plainly: `SetForegroundWindow` was rejected by Windows'
+  foreground-lock restriction in this automation context (returned `false`, foreground unchanged),
+  and a `PostMessage`-based keypress had no effect (SDL2 on Windows appears to need real OS
+  keyboard focus, not a posted message). No further transition, and none of the requested manual
+  test matrix (Arcade/Runner single/multi/pause/resume/game-over/leaderboard, 5x repeated
+  menu↔mode cycles), was interactively verified this pass.
+- Rollback: n/a, no code changed.
+
+## Deferred phases (reasoning, and what "ready to start" looks like)
 
 **Phase 5 — `doRender2` state mutation.** Moving `game->gameLives--`/`isDead`/`y` reset from
 `doRender.c:254-256` into `process2()` (to mirror how `process()` already does death-handling

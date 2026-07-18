@@ -408,3 +408,180 @@ was attempted but is unavailable in this environment (see its own entry below).
 - Reasoning: this is the closest automatable equivalent to the task's requested "repeated transitions: menu → gameplay → menu, several times, verify no crashes/no duplicated music/no repeated asset loading" — it directly exercises the exact functions Pass 1's leak fixes and this pass's sentinel hardening changed, under the real OS/GPU/audio stack, not a mock.
 - Verification performed: **this is genuine runtime verification**, not static inspection — see the distinction maintained throughout this log and in `docs/refactor-audit.md`. Explicitly not covered: actual keyboard-driven gameplay (movement, shooting, collisions, pause/resume, leaderboard entry) and the `SDLK_ESCAPE`/`SDLK_q` in-game sound-cleanup paths in `processEvents.c`, since those require a live event loop this environment cannot drive automatically.
 - Rollback: delete docs/verification/smoke_init_shutdown.c and the `mingw-smoketest` Makefile target; no shipped code is affected.
+
+## Pass 3 summary — scene-state refactor and main-loop simplification (2026-07-18)
+
+Baseline: commit `ac00c87` (tagged `refactor-pass-2-validated`), working tree clean, `make mingw`
+0 errors/168 warnings, `make mingw-smoketest` PASS — all confirmed before any edit this pass.
+Replaced the two raw `int` routing fields (`menu0_status`/`menu_status`, the latter reused with
+different meaning depending which mode was active) and `main.c`'s two nested `while`/`switch`
+loops with one authoritative `AppScene` enum field, one flat application loop, and an explicit
+`app_change_scene()` transition function (new `src/scene.c`). Every routing write site across
+`menu_events.c`, `pause_events.c`, and `processEvents.c` (both `processEvents`/`processEvents2`)
+was converted to call `app_change_scene()` instead of assigning the legacy fields directly. Full
+before/after transition table, per-scene resource/lifecycle map, and every preserved pre-existing
+quirk are in `docs/scene-state-map.md`, written before any code edit per this phase's own
+requirement. Four commits: `a83c59d` (enums + scene.c), `5ccca22` (main.c flattened + write-site
+conversions), `ff630bc` (scene transition test), and this documentation commit.
+
+### [2026-07-18] Tag baseline + write docs/scene-state-map.md
+- Phase: safety gate + pre-edit documentation
+- File(s): git tag `refactor-pass-2-validated` on commit `ac00c87`; new `docs/scene-state-map.md`
+- Action: confirmed working tree clean, current commit hash, and no existing rollback tag before
+  tagging one; then wrote the complete state-transition map (every reachable screen's numeric
+  representation, entry condition, input/update/render functions, exit transitions, resources
+  loaded, and blocks/pauses/resets behavior) purely from reading the pre-refactor code — no code
+  changed in this step.
+- Verification performed: `git status`/`git log -1`/`git tag -l` reviewed; `make mingw` (0
+  errors/168 warnings) and `make mingw-smoketest` (PASS) re-confirmed as the safety gate before
+  any edit.
+- Rollback: `git tag -d refactor-pass-2-validated`; delete `docs/scene-state-map.md`.
+
+### [2026-07-18] Introduce AppScene enum and GameState.scene field; delete enum menu_buttons
+- Phase: Pass 3 (commit `a83c59d`)
+- File(s): `inc/header.h`
+- Before: routing driven by `int menu_status`/`int menu0_status`; an unused, misleadingly-named
+  `enum menu_buttons` (last member `RUNNER=5` didn't mean "runner mode" — 5 actually meant
+  "pause") sat in the header with zero references anywhere in `src/`.
+- After: new `typedef enum AppScene { APP_SCENE_MAIN_MENU, APP_SCENE_ARCADE_MENU,
+  APP_SCENE_ARCADE_GAME, APP_SCENE_ARCADE_LEADERBOARD, APP_SCENE_ARCADE_PAUSE,
+  APP_SCENE_RUNNER_MENU, APP_SCENE_RUNNER_GAME, APP_SCENE_RUNNER_LEADERBOARD,
+  APP_SCENE_RUNNER_PAUSE, APP_SCENE_QUIT }` placed before the `GameState` struct; new field
+  `AppScene scene;` (commented "write ONLY via app_change_scene()"); `enum menu_buttons` deleted;
+  `menu_status`/`menu0_status` commented `// DEPRECATED` in place, not deleted.
+- Reasoning: one authoritative field, per this phase's core requirement. Leaderboard and pause
+  got separate Arcade/Runner enum values (not one shared value each) specifically so `AppScene`
+  alone is always sufficient to pick the correct render/input function pair and pause-resume
+  target, without needing a second field to disambiguate — validated during planning against a
+  second read of every consuming function. `GameMode` enum (considered per the phase's own
+  example) was deliberately **not** introduced: it would have zero use sites this phase, since
+  `multiPlayer`'s ~15+ existing gameplay-logic read sites are explicitly not being touched — the
+  same "dead enum" problem being fixed by deleting `enum menu_buttons`. `enum menu_buttons`
+  itself was judged safe to delete outright (not just deprecate) since it had zero historical call
+  sites, unlike `menu_status`/`menu0_status` which were live right up until this phase.
+- Verification performed: `make mingw` — 0 errors, 168 warnings (identical to baseline; this
+  commit adds an unused-so-far field and deletes a dead enum, no logic runs yet). `make
+  mingw-smoketest` — PASS (unaffected, doesn't touch scene routing).
+- Rollback: `git revert a83c59d` or restore from tag `refactor-pass-2-validated`.
+
+### [2026-07-18] Implement src/scene.c (app_change_scene, arcade_menu_enter, runner_menu_enter)
+- Phase: Pass 3 (commit `a83c59d`)
+- File(s): new `src/scene.c`
+- Action: `app_change_scene(GameState*, AppScene next_scene)` validates the target is in range
+  (forces `APP_SCENE_QUIT` and logs to stderr otherwise), records `game->scene` as
+  `previous_scene`, assigns the new value, then dispatches to a static enter-hook for
+  `APP_SCENE_ARCADE_MENU`/`APP_SCENE_RUNNER_MENU` only (the only two scenes with real one-time
+  entry work). `arcade_menu_enter()` calls `load_menu1()` **only** when `previous_scene ==
+  APP_SCENE_MAIN_MENU` (matching how often it fired before this refactor — exactly once, on the
+  true Main-menu-to-mode transition), then unconditionally calls `loadGame()` (matching the
+  *observable* effect of its old every-single-frame call site, now firing once per arrival
+  instead — nothing renders or reads gameplay state while sitting on a menu screen, confirmed by
+  reading `doRender_menu0/1/2`, so this is not player-visible). `runner_menu_enter()` mirrors this
+  with `load_menu2()`/`loadGame2()`. No `arcade_leave`/`runner_leave` functions were added: the
+  real "leave" side effects (freeing `Mix_Chunk`/`Mix_Music` on ESCAPE/quit) already happen inline
+  in `processEvents.c`'s key handlers, with no shared/duplicated logic there worth extracting.
+- Reasoning: this is the single highest-risk piece of the whole phase (validated explicitly
+  during planning) — if any write site elsewhere assigned `game->scene` directly instead of
+  calling `app_change_scene()`, the once-per-arrival reset would silently stop firing on
+  "return from gameplay"/"game over" paths, leaving stale gameplay state (position, lives, score,
+  enemies) to carry into the next session. The invariant "`game->scene` is written only inside
+  `app_change_scene()`" is stated explicitly in `docs/scene-state-map.md` and enforced by
+  construction: every other write site converted in this phase calls the function, never assigns
+  the field.
+- Verification performed: `make mingw` — 0 errors, 168 warnings, confirmed 0 warnings from
+  `scene.c` itself. `make mingw-smoketest` — PASS (this commit doesn't wire `app_change_scene`
+  into any caller yet, so no behavior changes; the function compiles and is reachable only from
+  within `scene.c` at this point).
+- Rollback: delete `src/scene.c` and its prototype in `inc/header.h`.
+
+### [2026-07-18] Flatten main.c to one loop; convert every scene-routing write site
+- Phase: Pass 3 (commit `5ccca22`)
+- File(s): `src/main.c`, `src/menu_events.c`, `src/pause_events.c`, `src/processEvents.c`
+- Before: `main.c` had `while(!done0) switch(menu0_status) { case 1: while(!done)
+  switch(menu_status) {...} case 2: while(!done) switch(menu_status) {...} }` — two nested
+  infinite loops, `done`/`done0` locals, and a post-inner-loop block that always reset
+  `menu0_status=0` regardless of why the inner loop ended. Nine live sites across
+  `menu_events.c`/`pause_events.c`/`processEvents.c` assigned `menu_status`/`menu0_status`
+  directly (menu selection, pause enter/resume, quit-to-menu, game-over-to-menu).
+- After: `main.c` is one `while (gameState->scene != APP_SCENE_QUIT) { switch (gameState->scene)
+  {...} }` with ten cases (one per `AppScene` value) plus a `default` that force-quits via
+  `app_change_scene`. Confirmed line-by-line against the pre-refactor file that every scene's
+  function-call order is unchanged. All nine write sites now call `app_change_scene(game,
+  TARGET)`: `menu_events.c`'s shared menu handler checks `game->scene ==
+  APP_SCENE_RUNNER_MENU` to pick `APP_SCENE_RUNNER_GAME`/`_LEADERBOARD` vs the Arcade
+  equivalents (keys `1`/`2`/`3`), and always targets `APP_SCENE_MAIN_MENU` on `q`;
+  `pause_events.c`'s shared pause handler checks `game->scene == APP_SCENE_RUNNER_PAUSE` to
+  resume into the correct mode's gameplay scene, and always targets `APP_SCENE_MAIN_MENU` on `q`;
+  `processEvents()`/`processEvents2()` (each mode-exclusive, no scene check needed) target fixed
+  scenes for ESCAPE/pause/quit/game-over. Per validation feedback, `menu_events.c`'s `SDLK_SPACE`
+  and `default` cases (today's "stay at the same menu" no-ops) call **nothing** rather than a
+  same-scene `app_change_scene`, avoiding a pointless self-transition. `load_menu.c` and
+  `leader_events.c` are untouched — their internal `menu_status`/`menu0_status` writes are now
+  inert (nothing reads those fields anymore) but harmless to leave in place; `leader_events.c`
+  remains confirmed dead/unreachable code, undeleted.
+- Reasoning: this is the actual routing cutover and could not be split into smaller commits
+  without an intermediate broken state (main.c depends on every write site being converted, and
+  vice versa). Preserved exactly: the asymmetry where quitting a mode (`q`) always lands on the
+  Main menu, never ends the program (only the Main menu's own `q`/`ESCAPE` reaches
+  `APP_SCENE_QUIT`); the lack of a distinct game-over scene (death routes to the same in-mode-menu
+  scene as voluntarily pressing ESCAPE); the pre-existing quirk where pausing from the leaderboard
+  resumes into live gameplay, never back to the leaderboard; the pre-existing unwired `SDL_QUIT`
+  (window-close) during gameplay, which still does nothing. All of these are documented explicitly
+  in `docs/scene-state-map.md` as confirmed-preserved, not silently fixed.
+- Verification performed: `make mingw` — 0 errors, 168 warnings, confirmed identical set of
+  warnings to the baseline (none on any line this commit touches — the 12 pre-existing
+  `processEvents.c` warnings are all in movement code at lines untouched by this refactor). `make
+  mingw-smoketest` — PASS, unmodified.
+- Rollback: `git revert 5ccca22`.
+
+### [2026-07-18] Add non-interactive scene transition test
+- Phase: Pass 3 (commit `ff630bc`)
+- File(s): new `docs/verification/scene_transition_test.c`, `Makefile` (`mingw-scenetest` target)
+- Action: 16 checks covering initial scene, Main-menu→Arcade-menu and →Runner-menu transitions
+  (confirming asset-load guards and the load-once leaderboard/music reset fire only on the true
+  Main-menu-origin transition), a gameplay→menu transition confirming that reset does *not*
+  re-fire on return from gameplay while the per-arrival gameplay-state reset still does, the quit
+  transition, out-of-range enum handling (forces safe quit, no crash), and pause resuming to the
+  correct originating mode for both Arcade and Runner (by replicating `pause_events.c`'s exact
+  resume expression against a directly-set precondition scene — the one documented, comment-flagged
+  exception to "never assign `scene` directly," since there's no way to drive a real `SDL_Event`
+  here). All 16 checks pass, 3 consecutive runs.
+- Verification performed: **runtime-verified**, not static — the built `scenetest.exe` actually
+  runs and every check is a live assertion against the real `app_change_scene()`/`loadGame()`/
+  `load_menu1()` etc., not a code-reading exercise. `make mingw` — 0 errors, 168 warnings
+  (confirmed 0 from the new test file). `make mingw-smoketest` — still PASS.
+- Rollback: delete `docs/verification/scene_transition_test.c` and the `mingw-scenetest` target.
+
+### [2026-07-18] Interactive manual test — real window launch, main-menu render confirmed; further transitions not achievable
+- Phase: Pass 3 (manual verification, no commit — evidence only)
+- File(s): none changed; new `docs/verification/manual-test-main-menu.png`
+- Action: launched the actual `build-mingw/endgame-mingw.exe` (not a test harness) as a real
+  process, confirmed via `Get-Process` that it started, created a window titled "Game Window,"
+  and stayed alive (no crash) for 5+ seconds with no input. Captured the window's actual rendered
+  contents using the Win32 `PrintWindow` API (a focus-independent capture method, since
+  `SetForegroundWindow` proved unreliable in this automation context — see below) — the client
+  area measured exactly 1280x720, matching `WIDTH`/`HEIGHT` in `inc/header.h`. The captured image
+  (saved at `docs/verification/manual-test-main-menu.png`) shows the real Main menu rendering
+  correctly: "ARCADE GAME 2 IN 1", "1. MUSHROOM HUSTLE", "2. BRICK RUNNER III", "EXIT" — confirming
+  `APP_SCENE_MAIN_MENU`'s `doRender_menu0` and the underlying `load_menu0()` texture load work
+  end-to-end in this refactored build.
+- **What could not be achieved, stated honestly rather than glossed over**: attempted to send a
+  `1` keypress via `PostMessage(WM_KEYDOWN/WM_KEYUP)` to trigger the Main-menu→Arcade-menu
+  transition and confirm it visually — the screen was unchanged afterward (SDL2 on Windows
+  appears to require real OS-level keyboard focus, not just a posted message, to register key
+  events). Attempted to establish real focus via `SetForegroundWindow`/`BringWindowToTop` — this
+  returned `false` and the OS foreground window did not change, which is Windows' documented
+  foreground-lock restriction preventing a background automation process from stealing focus from
+  the active session. Pursuing further workarounds (thread-input attachment, simulated hardware
+  input) was judged not worth the time given the risk of an unreliable result being
+  misinterpreted as a passing or failing test. **No transition beyond the initial Main-menu render
+  was interactively verified.** The full manual test matrix requested by this phase (Arcade
+  single/multi/pause/resume/game-over/leaderboard, Runner equivalents, 5x repeated menu↔mode
+  cycles) was **not performed** — this is stated plainly rather than claimed.
+- An earlier screenshot attempt in this same session (before switching to `PrintWindow`) captured
+  what appeared to be an unrelated, already-running Arcade gameplay window via unreliable
+  full-screen-capture-plus-focus-stealing — this was almost certainly a stale/leftover window
+  from an earlier, unrelated session, not evidence about this build. It is disregarded; only the
+  `PrintWindow`-based capture (focus-independent, verified against the exact PID launched this
+  session) is treated as real evidence.
+- Rollback: n/a (no code changed; the screenshot is documentation evidence only).
