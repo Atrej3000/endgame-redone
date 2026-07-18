@@ -192,7 +192,16 @@ typedef struct
 {
     // scroll thw world
     float scrollX;
-    int multiPlayer;
+    // Single/multiplayer selection. Written only by arcade_session_reset()/
+    // runner_session_reset() (src/loadGame.c) as of the mode-lifecycle
+    // refactor -- previously also hardcoded by the old loadGame() on every
+    // call, which is the bug that refactor fixed. Field name kept as
+    // "multiPlayer" (not renamed to "mode") to avoid touching its ~26
+    // existing boolean-truth-test read sites across process.c/
+    // processEvents.c/doRender.c/collisionDetect.c/kills_score.c -- their
+    // behavior is unaffected, since GameMode's values (0/1) match the int's
+    // previous values exactly.
+    GameMode multiPlayer;
 
     //Players
     int gameLives;
