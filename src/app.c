@@ -1,6 +1,6 @@
 #include "app.h"
 
-static void destroy_texture(SDL_Texture **tex)
+void destroy_texture(SDL_Texture **tex)
 {
     if (tex && *tex)
     {
@@ -9,7 +9,7 @@ static void destroy_texture(SDL_Texture **tex)
     }
 }
 
-static void free_chunk(Mix_Chunk **chunk)
+void free_chunk(Mix_Chunk **chunk)
 {
     if (chunk && *chunk)
     {
@@ -18,7 +18,7 @@ static void free_chunk(Mix_Chunk **chunk)
     }
 }
 
-static void free_music(Mix_Music **music)
+void free_music(Mix_Music **music)
 {
     if (music && *music)
     {

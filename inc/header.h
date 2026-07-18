@@ -328,6 +328,22 @@ void load_menu2(GameState *game);
 
 // Scene routing (src/scene.c) -- see docs/scene-state-map.md
 void app_change_scene(GameState *game, AppScene next_scene);
+
+// Null-safe destroy/free helpers (src/app.c) -- shared by app_shutdown() and
+// the mode-specific asset unload helpers (src/loadGame.c)
+void destroy_texture(SDL_Texture **tex);
+void free_chunk(Mix_Chunk **chunk);
+void free_music(Mix_Music **music);
+
+// Checked SDL asset-loading helpers (src/asset_loader.c) -- see
+// docs/game-session-lifecycle.md. Each rejects NULL arguments, nulls
+// *out before attempting, refuses to silently overwrite an already-loaded
+// (non-NULL) destination, frees temporary surfaces on every path, reports
+// the failing asset path via stderr, and never calls exit()/SDL_Quit().
+bool load_texture(SDL_Renderer *renderer, const char *path, SDL_Texture **out_texture);
+bool load_music(const char *path, Mix_Music **out_music);
+bool load_chunk(const char *path, Mix_Chunk **out_chunk);
+bool load_font(const char *path, int ptsize, TTF_Font **out_font);
 int pause_events(GameState *gameState);
 int leader_events(GameState *gameState);
 void addBullet(GameState *game, float x, float y, float dx);
