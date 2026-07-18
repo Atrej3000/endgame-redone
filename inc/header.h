@@ -363,6 +363,12 @@ void load_menu2(GameState *game);
 // Scene routing (src/scene.c) -- see docs/scene-state-map.md
 void app_change_scene(GameState *game, AppScene next_scene);
 
+// Per-mode frame pipeline (src/frame.c) -- see docs/frame-pipeline-map.md.
+// Each wraps that mode's existing update/collision/render/events calls in
+// their unchanged order, giving the pipeline a single named entry point.
+void arcade_frame(GameState *game, SDL_Window *window, SDL_Renderer *renderer);
+void runner_frame(GameState *game, SDL_Window *window, SDL_Renderer *renderer);
+
 // Null-safe destroy/free helpers (src/app.c) -- shared by app_shutdown() and
 // the mode-specific asset unload helpers (src/loadGame.c)
 void destroy_texture(SDL_Texture **tex);

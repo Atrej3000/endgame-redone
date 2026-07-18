@@ -39,10 +39,7 @@ int main()
                 break;
 
             case APP_SCENE_ARCADE_GAME:
-                process(gameState);
-                collisionDetect(gameState);
-                doRender(renderer, gameState);
-                processEvents(window, gameState);
+                arcade_frame(gameState, window, renderer);
                 break;
 
             case APP_SCENE_ARCADE_LEADERBOARD:
