@@ -69,14 +69,18 @@ void shared_assets_unload(GameState *game)
 // ---------------------------------------------------------------------------
 bool arcade_assets_load(GameState *game)
 {
-    if (game->arcadeAssetsLoaded)
-    {
-        return true;
-    }
-
+    // Checked before the arcadeAssetsLoaded early-return (not after) so that
+    // if the shared bucket is ever unloaded independently of the Arcade
+    // flag, calling this again still re-establishes it -- arcadeAssetsLoaded
+    // alone does not imply sharedAssetsLoaded is still true.
     if (!shared_assets_load(game))
     {
         return false;
+    }
+
+    if (game->arcadeAssetsLoaded)
+    {
+        return true;
     }
 
     bool ok = true;
@@ -341,14 +345,16 @@ void arcade_session_reset(GameState *game, GameMode mode)
 // ---------------------------------------------------------------------------
 bool runner_assets_load(GameState *game)
 {
-    if (game->runnerAssetsLoaded)
-    {
-        return true;
-    }
-
+    // See arcade_assets_load()'s comment -- checked before the
+    // runnerAssetsLoaded early-return for the same reason.
     if (!shared_assets_load(game))
     {
         return false;
+    }
+
+    if (game->runnerAssetsLoaded)
+    {
+        return true;
     }
 
     bool ok = true;

@@ -142,7 +142,18 @@ mingw-scenetest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/scenetest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/scenetest.exe
 
+# Non-interactive asset/session lifecycle test: exercises
+# arcade_assets_load/unload, runner_assets_load/unload,
+# arcade_session_reset/runner_session_reset, and the pause/new-game
+# transition sequences directly. See docs/verification/lifecycle_test.c
+# and docs/game-session-lifecycle.md.
+mingw-lifecycletest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/lifecycle_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/lifecycletest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/lifecycletest.exe
+
 mingw-clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-clean
