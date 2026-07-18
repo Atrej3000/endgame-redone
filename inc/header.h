@@ -178,6 +178,16 @@ typedef enum AppScene
     APP_SCENE_QUIT
 } AppScene;
 
+// Single/multiplayer selection. Introduced here (ahead of GameState.multiPlayer's
+// eventual retype from int to GameMode) because arcade_session_reset()/
+// runner_session_reset() (src/loadGame.c) take it as a parameter -- see
+// docs/game-session-lifecycle.md.
+typedef enum GameMode
+{
+    GAME_MODE_SINGLE_PLAYER,
+    GAME_MODE_MULTIPLAYER
+} GameMode;
+
 typedef struct
 {
     // scroll thw world
@@ -268,13 +278,15 @@ typedef struct
     //Renderer
     SDL_Renderer *renderer;
 
-    // Explicit asset-group lifecycle flags. Set to true only as the last
-    // statement of loadGame()/loadGame2()'s asset-loading block, once every
-    // load in the group has run -- not tied to any individual texture
-    // pointer, so a single texture happening to be the "first" resource
-    // loaded can no longer make the whole group look loaded prematurely.
+    // Explicit asset-group lifecycle flags. Each is set to true only after
+    // its entire group's loads succeed (see arcade_assets_load/
+    // runner_assets_load/shared_assets_load, src/loadGame.c), and reset to
+    // false by the matching *_assets_unload(). sharedAssetsLoaded covers the
+    // handful of textures/font both modes load identically (mult, leaders,
+    // pause, brick, death, font) -- see docs/game-session-lifecycle.md.
     bool arcadeAssetsLoaded;
     bool runnerAssetsLoaded;
+    bool sharedAssetsLoaded;
 
     // Authoritative scene -- write ONLY via app_change_scene() (src/scene.c).
     AppScene scene;
@@ -306,7 +318,20 @@ typedef struct
 //    int *leader_list = leaderboard_list;clear
 
 // PRototypes
-void loadGame(GameState *game);
+
+// Mode asset/session lifecycle (src/loadGame.c) -- see
+// docs/game-session-lifecycle.md. Replaces the former loadGame()/loadGame2(),
+// which combined asset loading and session reset in one function.
+// (shared_assets_load() is internal to loadGame.c -- shared_assets_unload()
+// is exposed because app_shutdown() calls it.)
+void shared_assets_unload(GameState *game);
+bool arcade_assets_load(GameState *game);
+void arcade_assets_unload(GameState *game);
+void arcade_session_reset(GameState *game, GameMode mode);
+bool runner_assets_load(GameState *game);
+void runner_assets_unload(GameState *game);
+void runner_session_reset(GameState *game, GameMode mode);
+
 void process(GameState *game);
 void collisionDetect(GameState *game);
 int processEvents(SDL_Window *window, GameState *game);
@@ -363,7 +388,6 @@ void draw_status_x_list(GameState *game);
 void load_menu0(GameState *game);
 int  doRender_menu0(SDL_Renderer *renderer, GameState *game);
 void menu0_events(GameState *gameState);
-void loadGame2(GameState *game);
 void collisionDetect2(GameState *game);
 void doRender2(SDL_Renderer *renderer, GameState *game);
 void process2(GameState *game);

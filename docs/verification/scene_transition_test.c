@@ -63,19 +63,29 @@ int main(void)
     CHECK("runner_menu_enter loaded assets (runnerAssetsLoaded)", game->runnerAssetsLoaded == true);
     CHECK("runner_menu_enter from MAIN_MENU reset leaderboard (x_score==0)", game->x_score == 0);
 
-    // 4. Gameplay -> menu transition: load_menu1() must NOT re-fire (leaderboard
-    // untouched) when returning from gameplay, only when arriving from the Main
-    // menu. Test-only direct scene assignment to simulate "currently in
-    // Arcade gameplay" without a real transition (see file header comment).
+    // 4. Gameplay -> menu transition: since Phase 4, arcade_menu_enter() only
+    // loads assets -- it no longer resets the session (that moved to an
+    // explicit arcade_session_reset() call in menu_events.c's new-game
+    // handlers, see docs/game-session-lifecycle.md). So both load_menu1()'s
+    // leaderboard reset AND the gameplay-state reset should stay untouched
+    // merely by returning from gameplay to the menu. Test-only direct scene
+    // assignment to simulate "currently in Arcade gameplay" (see file header).
     app_change_scene(game, APP_SCENE_MAIN_MENU);
     app_change_scene(game, APP_SCENE_ARCADE_MENU); // real entry, resets x_score to 0
     game->x_score = 42;                            // sentinel
-    game->man.lives = 0;                           // sentinel gameplay state, should get reset
+    game->man.lives = 0;                           // sentinel gameplay state
     game->scene = APP_SCENE_ARCADE_GAME;           // test-only: simulate "currently playing"
     app_change_scene(game, APP_SCENE_ARCADE_MENU); // the real transition under test
     CHECK("ARCADE_GAME -> ARCADE_MENU sets scene", game->scene == APP_SCENE_ARCADE_MENU);
     CHECK("returning from gameplay does NOT re-fire load_menu1 (x_score untouched)", game->x_score == 42);
-    CHECK("returning from gameplay DOES reset gameplay state (man.lives back to 3)", game->man.lives == 3);
+    CHECK("returning from gameplay does NOT reset session state either (man.lives untouched)", game->man.lives == 0);
+
+    // 4b. Only an explicit arcade_session_reset() call resets gameplay state
+    // (this is what menu_events.c's SDLK_1/SDLK_2 handlers now do before
+    // transitioning to APP_SCENE_ARCADE_GAME).
+    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    CHECK("arcade_session_reset() resets man.lives to 3", game->man.lives == 3);
+    CHECK("arcade_session_reset() does not touch loaded assets", game->arcadeAssetsLoaded == true);
 
     // 5. Quit transition.
     app_change_scene(game, APP_SCENE_QUIT);

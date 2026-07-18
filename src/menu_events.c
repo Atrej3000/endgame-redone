@@ -19,15 +19,29 @@ void menu_events(GameState *gameState)
                 Mix_PlayChannel(-1, gameState->select, 0);
                 break;
             case SDLK_1:
+                if (isRunner)
+                {
+                    runner_session_reset(gameState, GAME_MODE_SINGLE_PLAYER);
+                }
+                else
+                {
+                    arcade_session_reset(gameState, GAME_MODE_SINGLE_PLAYER);
+                }
                 app_change_scene(gameState, isRunner ? APP_SCENE_RUNNER_GAME : APP_SCENE_ARCADE_GAME);
-                gameState->multiPlayer = 0;
 
                 Mix_VolumeChunk(gameState->select, 32);
                 Mix_PlayChannel(-1, gameState->select, 0);
                 break;
             case SDLK_2:
+                if (isRunner)
+                {
+                    runner_session_reset(gameState, GAME_MODE_MULTIPLAYER);
+                }
+                else
+                {
+                    arcade_session_reset(gameState, GAME_MODE_MULTIPLAYER);
+                }
                 app_change_scene(gameState, isRunner ? APP_SCENE_RUNNER_GAME : APP_SCENE_ARCADE_GAME);
-                gameState->multiPlayer = 1;
 
                 Mix_VolumeChunk(gameState->select, 32);
                 Mix_PlayChannel(-1, gameState->select, 0);

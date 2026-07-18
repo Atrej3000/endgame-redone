@@ -2,17 +2,23 @@
 
 // Entry hook for APP_SCENE_ARCADE_MENU. load_menu1() (texture guard, music
 // restart, x_score/x_list reset) only fires on the true Main-menu -> Arcade
-// transition, matching how often it ran before this refactor. loadGame()'s
-// asset guard + full gameplay-state reset fires on every arrival at this
-// scene, matching the *observable* effect of its old every-frame call site
-// (nothing renders or reads gameplay state while sitting on this menu).
+// transition. arcade_assets_load() is guarded by arcadeAssetsLoaded and so
+// also only does real work once; on failure, falls back to the Main menu
+// rather than showing a scene with missing textures (see
+// docs/game-session-lifecycle.md). Session reset no longer happens here --
+// it's triggered explicitly when a new game is actually selected
+// (src/menu_events.c), not merely by arriving at this menu.
 static void arcade_menu_enter(GameState *game, AppScene previous_scene)
 {
     if (previous_scene == APP_SCENE_MAIN_MENU)
     {
         load_menu1(game);
     }
-    loadGame(game);
+    if (!game->arcadeAssetsLoaded && !arcade_assets_load(game))
+    {
+        fprintf(stderr, "arcade_menu_enter: asset load failed, returning to main menu\n");
+        app_change_scene(game, APP_SCENE_MAIN_MENU);
+    }
 }
 
 // Entry hook for APP_SCENE_RUNNER_MENU -- mirrors arcade_menu_enter.
@@ -22,7 +28,11 @@ static void runner_menu_enter(GameState *game, AppScene previous_scene)
     {
         load_menu2(game);
     }
-    loadGame2(game);
+    if (!game->runnerAssetsLoaded && !runner_assets_load(game))
+    {
+        fprintf(stderr, "runner_menu_enter: asset load failed, returning to main menu\n");
+        app_change_scene(game, APP_SCENE_MAIN_MENU);
+    }
 }
 
 void app_change_scene(GameState *game, AppScene next_scene)

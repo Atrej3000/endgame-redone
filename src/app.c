@@ -44,83 +44,58 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
             removeSecondBullet(game, i);
         }
 
-        // 3. generated (HUD) and static textures
+        // 3. generated (HUD) textures -- not part of any asset group, kept inline
         destroy_texture(&game->label);
         destroy_texture(&game->labelMultiplayer);
 
-        destroy_texture(&game->star);
+        // mode-owned asset groups, delegated (see docs/game-session-lifecycle.md)
+        arcade_assets_unload(game);
+        runner_assets_unload(game);
+        shared_assets_unload(game);
+
+        // manFrames[12] is left centralized here rather than split between
+        // the two mode unload helpers: index 0 is a contested field (both
+        // modes write it with different source images) and indices 1-11 are
+        // already destroyed by runner_assets_unload(); destroying the whole
+        // array in one place after both mode unloads have run avoids a
+        // double-destroy while still guaranteeing every slot is freed.
         for (int i = 0; i < 12; i++)
         {
             destroy_texture(&game->manFrames[i]);
-            destroy_texture(&game->secondPlayerFrames[i]);
         }
+
+        // fields never assigned by either mode's asset-load (see
+        // docs/game-session-lifecycle.md) but kept here for completeness --
+        // null-safe, harmless if always NULL.
         destroy_texture(&game->secondPlayerImage);
-        destroy_texture(&game->brick);
         destroy_texture(&game->menu0);
         destroy_texture(&game->menu1);
         destroy_texture(&game->menu2);
-        destroy_texture(&game->mult);
-        destroy_texture(&game->leaders);
-        destroy_texture(&game->fon);
-        destroy_texture(&game->pause);
-        destroy_texture(&game->death);
         destroy_texture(&game->enemyFrame);
-        destroy_texture(&game->brick_block);
-        destroy_texture(&game->copper_block);
         destroy_texture(&game->background);
-        destroy_texture(&game->bulletTexture);
-        destroy_texture(&game->secondBulletTexture);
         destroy_texture(&game->enemyTexture2);
-        destroy_texture(&game->bossTexture);
-        destroy_texture(&game->sheetTextureBack);
-        destroy_texture(&game->sheetTextureBack2);
-        destroy_texture(&game->sheetTextureSun);
 
         destroy_texture(&game->man.sheetTextureIdle);
-        destroy_texture(&game->man.sheetTextureRun);
         destroy_texture(&game->man.sheetTextureRun2);
-        destroy_texture(&game->man.sheetTextureJump);
         destroy_texture(&game->man.sheetTextureJump2);
         destroy_texture(&game->man.sheetTextureAttack1);
         destroy_texture(&game->man.sheetTextureSkill);
 
         destroy_texture(&game->secondPlayer.sheetTextureIdle);
         destroy_texture(&game->secondPlayer.sheetTextureRun);
-        destroy_texture(&game->secondPlayer.sheetTextureRun2);
         destroy_texture(&game->secondPlayer.sheetTextureJump);
-        destroy_texture(&game->secondPlayer.sheetTextureJump2);
         destroy_texture(&game->secondPlayer.sheetTextureAttack1);
         destroy_texture(&game->secondPlayer.sheetTextureSkill);
 
-        destroy_texture(&game->enemy.sheetTextureRun);
-        destroy_texture(&game->enemy.sheetTextureRun2);
-
-        destroy_texture(&game->train.textureTrain);
-        destroy_texture(&game->cloud1.sheetTextureCloud1);
-        destroy_texture(&game->cloud2.sheetTextureCloud2);
-        destroy_texture(&game->cloud3.sheetTextureCloud3);
-        destroy_texture(&game->cloud4.sheetTextureCloud4);
-        destroy_texture(&game->cloud5.sheetTextureCloud5);
-        destroy_texture(&game->cloud6.sheetTextureCloud6);
-        destroy_texture(&game->cloud7.sheetTextureCloud7);
-        destroy_texture(&game->cloud8.sheetTextureCloud8);
-
-        // 4. font
-        if (game->font)
-        {
-            TTF_CloseFont(game->font);
-            game->font = NULL;
-        }
-
-        // 5. chunks and music
+        // 4. chunks and music not owned by any asset group (loaded lazily
+        // elsewhere -- menu_events.c/pause_events.c/processEvents.c/
+        // process.c/load_menu.c -- out of scope for the asset-group split)
         free_chunk(&game->jumpSound);
         free_chunk(&game->kickSound);
         free_chunk(&game->select);
         free_chunk(&game->shootSound);
         free_chunk(&game->damageSound);
         free_music(&game->menuMus);
-        free_music(&game->battleMus);
-        free_music(&game->runnerMus);
     }
 
     // 6. renderer

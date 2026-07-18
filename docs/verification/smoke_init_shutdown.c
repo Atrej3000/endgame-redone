@@ -36,19 +36,19 @@ int main(void)
            (game->menuMus == menuMusBefore) ? "yes" : "NO (regression)");
 
     // Simulate "main menu -> Arcade -> main menu -> Arcade" a few times:
-    // load_menu1()/loadGame() run every time the mode is (re-)entered in the
-    // real main loop, so call them repeatedly here too.
+    // load_menu1()/arcade_assets_load() run every time the mode is
+    // (re-)entered in the real main loop, so call them repeatedly here too.
     for (int i = 0; i < 3; i++)
     {
         load_menu1(game);
-        loadGame(game);
+        arcade_assets_load(game);
     }
-    printf("SMOKE TEST: repeated load_menu1()+loadGame() x3 ok (bossTexture=%p arcadeAssetsLoaded=%d)\n",
+    printf("SMOKE TEST: repeated load_menu1()+arcade_assets_load() x3 ok (bossTexture=%p arcadeAssetsLoaded=%d)\n",
            (void *)game->bossTexture, game->arcadeAssetsLoaded);
     SDL_Texture *bossBefore = game->bossTexture;
     TTF_Font *fontBefore = game->font;
-    loadGame(game);
-    printf("SMOKE TEST: loadGame() extra call -- bossTexture unchanged=%s, font unchanged=%s\n",
+    arcade_assets_load(game);
+    printf("SMOKE TEST: arcade_assets_load() extra call -- bossTexture unchanged=%s, font unchanged=%s\n",
            (game->bossTexture == bossBefore) ? "yes" : "NO (regression)",
            (game->font == fontBefore) ? "yes" : "NO (regression)");
 
@@ -56,13 +56,13 @@ int main(void)
     for (int i = 0; i < 3; i++)
     {
         load_menu2(game);
-        loadGame2(game);
+        runner_assets_load(game);
     }
-    printf("SMOKE TEST: repeated load_menu2()+loadGame2() x3 ok (star=%p runnerAssetsLoaded=%d)\n",
+    printf("SMOKE TEST: repeated load_menu2()+runner_assets_load() x3 ok (star=%p runnerAssetsLoaded=%d)\n",
            (void *)game->star, game->runnerAssetsLoaded);
     SDL_Texture *starBefore = game->star;
-    loadGame2(game);
-    printf("SMOKE TEST: loadGame2() extra call -- star unchanged=%s\n",
+    runner_assets_load(game);
+    printf("SMOKE TEST: runner_assets_load() extra call -- star unchanged=%s\n",
            (game->star == starBefore) ? "yes" : "NO (regression)");
 
     app_shutdown(&game, &window, &renderer);
