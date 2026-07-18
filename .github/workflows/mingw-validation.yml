@@ -1,0 +1,91 @@
+name: MinGW validation
+
+# Reproduces the same MinGW/Windows validation path documented in README.md
+# and docs/refactor-plan.md, so every PR gets an independent build/test
+# signal before merge (see docs/refactor-log.md's Phase 6 entry -- Phase 5's
+# PR merged with no CI run at all).
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  mingw-build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # MINGW64, not UCRT64: the official SDL2 "mingw" devel packages are
+      # built against the legacy MSVCRT runtime, matching MINGW64's runtime
+      # -- not UCRT64's UCRT. (Both environments report the same
+      # x86_64-w64-mingw32 triple via `gcc -dumpmachine`, so the triple alone
+      # is not what decides this -- don't "simplify" to UCRT64 on that basis.)
+      - name: Set up MSYS2 MINGW64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+            make
+
+      # Runs in the runner's own preinstalled Git Bash (curl/tar already
+      # present), independent of and before the MSYS2 environment is needed
+      # -- only the later build/test steps need MSYS2's gcc/make on PATH.
+      - name: Fetch SDL2 MinGW dependencies
+        shell: bash
+        run: ./scripts/setup-mingw-sdl2.sh
+
+      # Every step from here on must use `shell: msys2 {0}` -- gcc/make are
+      # only on PATH inside the MSYS2-provided shell, matching the
+      # Makefile's bare `CC_MINGW := gcc`. A step written as `shell: bash`
+      # here would silently fall back to the runner's own Git Bash, where
+      # neither gcc nor make exist.
+      - name: Clean
+        shell: msys2 {0}
+        run: make mingw-clean
+
+      - name: Build
+        shell: msys2 {0}
+        run: make mingw 2>&1 | tee build.log
+
+      - name: Report warning count
+        shell: msys2 {0}
+        run: |
+          count=$(grep -c "warning:" build.log || true)
+          echo "Warning count: $count (local baseline as of Phase 6: 167)"
+
+      - name: Smoke test
+        shell: msys2 {0}
+        run: make mingw-smoketest 2>&1 | tee smoketest.log
+
+      - name: Scene test
+        shell: msys2 {0}
+        run: make mingw-scenetest 2>&1 | tee scenetest.log
+
+      - name: Lifecycle test
+        shell: msys2 {0}
+        run: make mingw-lifecycletest 2>&1 | tee lifecycletest.log
+
+      - name: Frame pipeline test
+        shell: msys2 {0}
+        run: make mingw-frametest 2>&1 | tee frametest.log
+
+      - name: Runner death test
+        shell: msys2 {0}
+        run: make mingw-deathtest 2>&1 | tee deathtest.log
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mingw-validation-logs
+          path: |
+            build.log
+            smoketest.log
+            scenetest.log
+            lifecycletest.log
+            frametest.log
+            deathtest.log
+          if-no-files-found: ignore

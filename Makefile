@@ -63,23 +63,32 @@ CC_MINGW := gcc
 MINGW_ROOT := vendor/SDL2-mingw
 MINGW_TRIPLET := x86_64-w64-mingw32
 
+# Pinned SDL2 MinGW "devel" package versions -- the single source of truth for
+# these numbers. scripts/setup-mingw-sdl2.sh reads them back via
+# `make print-mingw-versions` rather than hardcoding a third copy, so the
+# fetch/extract step and these build flags can never drift out of sync.
+SDL2_VERSION := 2.32.10
+SDL2_IMAGE_VERSION := 2.8.12
+SDL2_TTF_VERSION := 2.24.0
+SDL2_MIXER_VERSION := 2.8.2
+
 MINGW_INCLUDES := \
 	-I $(INC) \
 	-I $(MINGW_ROOT)/compat-include \
-	-I $(MINGW_ROOT)/SDL2-2.32.10/$(MINGW_TRIPLET)/include \
-	-I $(MINGW_ROOT)/SDL2-2.32.10/$(MINGW_TRIPLET)/include/SDL2 \
-	-I $(MINGW_ROOT)/SDL2_image-2.8.12/$(MINGW_TRIPLET)/include \
-	-I $(MINGW_ROOT)/SDL2_image-2.8.12/$(MINGW_TRIPLET)/include/SDL2 \
-	-I $(MINGW_ROOT)/SDL2_ttf-2.24.0/$(MINGW_TRIPLET)/include \
-	-I $(MINGW_ROOT)/SDL2_ttf-2.24.0/$(MINGW_TRIPLET)/include/SDL2 \
-	-I $(MINGW_ROOT)/SDL2_mixer-2.8.2/$(MINGW_TRIPLET)/include \
-	-I $(MINGW_ROOT)/SDL2_mixer-2.8.2/$(MINGW_TRIPLET)/include/SDL2
+	-I $(MINGW_ROOT)/SDL2-$(SDL2_VERSION)/$(MINGW_TRIPLET)/include \
+	-I $(MINGW_ROOT)/SDL2-$(SDL2_VERSION)/$(MINGW_TRIPLET)/include/SDL2 \
+	-I $(MINGW_ROOT)/SDL2_image-$(SDL2_IMAGE_VERSION)/$(MINGW_TRIPLET)/include \
+	-I $(MINGW_ROOT)/SDL2_image-$(SDL2_IMAGE_VERSION)/$(MINGW_TRIPLET)/include/SDL2 \
+	-I $(MINGW_ROOT)/SDL2_ttf-$(SDL2_TTF_VERSION)/$(MINGW_TRIPLET)/include \
+	-I $(MINGW_ROOT)/SDL2_ttf-$(SDL2_TTF_VERSION)/$(MINGW_TRIPLET)/include/SDL2 \
+	-I $(MINGW_ROOT)/SDL2_mixer-$(SDL2_MIXER_VERSION)/$(MINGW_TRIPLET)/include \
+	-I $(MINGW_ROOT)/SDL2_mixer-$(SDL2_MIXER_VERSION)/$(MINGW_TRIPLET)/include/SDL2
 
 MINGW_LIBDIRS := \
-	-L $(MINGW_ROOT)/SDL2-2.32.10/$(MINGW_TRIPLET)/lib \
-	-L $(MINGW_ROOT)/SDL2_image-2.8.12/$(MINGW_TRIPLET)/lib \
-	-L $(MINGW_ROOT)/SDL2_ttf-2.24.0/$(MINGW_TRIPLET)/lib \
-	-L $(MINGW_ROOT)/SDL2_mixer-2.8.2/$(MINGW_TRIPLET)/lib
+	-L $(MINGW_ROOT)/SDL2-$(SDL2_VERSION)/$(MINGW_TRIPLET)/lib \
+	-L $(MINGW_ROOT)/SDL2_image-$(SDL2_IMAGE_VERSION)/$(MINGW_TRIPLET)/lib \
+	-L $(MINGW_ROOT)/SDL2_ttf-$(SDL2_TTF_VERSION)/$(MINGW_TRIPLET)/lib \
+	-L $(MINGW_ROOT)/SDL2_mixer-$(SDL2_MIXER_VERSION)/$(MINGW_TRIPLET)/lib
 
 MINGW_LIBS := -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer
 
@@ -98,10 +107,19 @@ $(BUILD_DIR):
 
 # Copy the runtime DLLs next to the built exe so it can actually run.
 mingw-dlls: $(BUILD_DIR)
-	cp $(MINGW_ROOT)/SDL2-2.32.10/$(MINGW_TRIPLET)/bin/SDL2.dll $(BUILD_DIR)/
-	cp $(MINGW_ROOT)/SDL2_image-2.8.12/$(MINGW_TRIPLET)/bin/SDL2_image.dll $(BUILD_DIR)/
-	cp $(MINGW_ROOT)/SDL2_ttf-2.24.0/$(MINGW_TRIPLET)/bin/SDL2_ttf.dll $(BUILD_DIR)/
-	cp $(MINGW_ROOT)/SDL2_mixer-2.8.2/$(MINGW_TRIPLET)/bin/SDL2_mixer.dll $(BUILD_DIR)/
+	cp $(MINGW_ROOT)/SDL2-$(SDL2_VERSION)/$(MINGW_TRIPLET)/bin/SDL2.dll $(BUILD_DIR)/
+	cp $(MINGW_ROOT)/SDL2_image-$(SDL2_IMAGE_VERSION)/$(MINGW_TRIPLET)/bin/SDL2_image.dll $(BUILD_DIR)/
+	cp $(MINGW_ROOT)/SDL2_ttf-$(SDL2_TTF_VERSION)/$(MINGW_TRIPLET)/bin/SDL2_ttf.dll $(BUILD_DIR)/
+	cp $(MINGW_ROOT)/SDL2_mixer-$(SDL2_MIXER_VERSION)/$(MINGW_TRIPLET)/bin/SDL2_mixer.dll $(BUILD_DIR)/
+
+# Machine-readable version dump for scripts/setup-mingw-sdl2.sh to consume,
+# so the fetch/extract logic never has its own hardcoded copy of these
+# numbers -- this Makefile is the single source of truth.
+print-mingw-versions:
+	@echo "SDL2_VERSION=$(SDL2_VERSION)"
+	@echo "SDL2_IMAGE_VERSION=$(SDL2_IMAGE_VERSION)"
+	@echo "SDL2_TTF_VERSION=$(SDL2_TTF_VERSION)"
+	@echo "SDL2_MIXER_VERSION=$(SDL2_MIXER_VERSION)"
 
 mingw: $(BUILD_DIR) mingw-dlls
 	$(CC_MINGW) $(SRCS) $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
@@ -179,4 +197,4 @@ mingw-deathtest: $(BUILD_DIR) mingw-dlls
 mingw-clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest print-mingw-versions mingw-clean

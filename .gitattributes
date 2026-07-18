@@ -1,0 +1,5 @@
+# Shell scripts must keep LF line endings regardless of the checking-out
+# system's core.autocrlf setting -- a CRLF-mangled shebang/script breaks
+# under bash (both locally and on GitHub's Windows runners, whose default
+# Git for Windows installs commonly default core.autocrlf=true).
+*.sh text eol=lf
