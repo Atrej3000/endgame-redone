@@ -519,14 +519,23 @@ int processEvents(SDL_Window *window, GameState *game)
     {
         if (game->man.lives == 0)
         {
-            app_change_scene(game, APP_SCENE_ARCADE_MENU);
+            // Guard against overwriting a transition an earlier handler in
+            // this same call (e.g. SDLK_q) already made -- see
+            // docs/frame-pipeline-map.md's double-transition finding.
+            if (game->scene == APP_SCENE_ARCADE_GAME)
+            {
+                app_change_scene(game, APP_SCENE_ARCADE_MENU);
+            }
         }
     }
     if (game->multiPlayer)
     {
         if (game->man.lives == 0 && game->secondPlayer.lives == 0)
         {
-            app_change_scene(game, APP_SCENE_ARCADE_MENU);
+            if (game->scene == APP_SCENE_ARCADE_GAME)
+            {
+                app_change_scene(game, APP_SCENE_ARCADE_MENU);
+            }
             //work with local leaderboards
 
             //        leader = &game->kills_score;
@@ -811,7 +820,14 @@ int processEvents2(SDL_Window *window, GameState *game)
         write(conntent, "\n", 1);
 
         close(conntent);*/
-        app_change_scene(game, APP_SCENE_RUNNER_MENU);
+        // Score-persist above stays unconditional; only the transition
+        // itself is guarded against overwriting one an earlier handler in
+        // this same call (e.g. SDLK_q) already made -- see
+        // docs/frame-pipeline-map.md's double-transition finding.
+        if (game->scene == APP_SCENE_RUNNER_GAME)
+        {
+            app_change_scene(game, APP_SCENE_RUNNER_MENU);
+        }
     }
 
     return done;

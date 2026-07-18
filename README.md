@@ -23,6 +23,7 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
         make mingw-smoketest     # non-interactive init/asset-guard/shutdown runtime check
         make mingw-scenetest     # non-interactive scene-transition check
         make mingw-lifecycletest # non-interactive asset-load/session-reset lifecycle check
+        make mingw-frametest     # non-interactive frame-order/render-purity/animation check
         make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
     regeneratable, third-party/build artifacts.

@@ -37,7 +37,7 @@ core problem this phase fixes.
 | 91-99 | static asset loading (**shared with Runner**) | `leaders` |
 | 102-110 | static asset loading (**shared with Runner**) | `pause` |
 | 113-119 | unclear/mixed — **dead-end resource leak** | orphaned `IMG_Load` of `spike_head.png`, never turned into a texture nor freed (pre-existing, not fixed this phase — no live field depends on it) |
-| 121-129 | static asset loading (**contested with Runner** — different source image, see §5) | `manFrames[0]` |
+| 121-129 | static asset loading (**shared with Runner as of Phase 5** — identical file, see §5) | `manFrames[0]` |
 | 132-140 | static asset loading | `man.sheetTextureRun` |
 | 143-151 | static asset loading | `man.sheetTextureJump` |
 | 165-167 | static asset loading (**shared with Runner**) | `death` |
@@ -80,7 +80,7 @@ core problem this phase fixes.
 | 620-629 | static asset loading | `fon` (Runner-exclusive) |
 | 630-639 | static asset loading (**shared with Arcade**) | `pause` |
 | 641-650 | static asset loading | `star` (nominally shared field name; Arcade's own load of it is dead/commented, so effectively Runner-exclusive in practice) |
-| 652-771 | static asset loading | `manFrames[0]` (**contested**, see §5) + `manFrames[1..11]` (Runner-exclusive) |
+| 652-771 | static asset loading | `manFrames[0]` (**shared as of Phase 5**, see §5) + `manFrames[1..11]` (Runner-exclusive) |
 | 773-893 | static asset loading | `secondPlayerFrames[0..11]` (Runner-exclusive) |
 | 895-897 | static asset loading (**shared with Arcade**, case-differing filename `Clay_block.png` vs `clay_block.png`) | `brick` |
 | 899-901 | static asset loading (**shared with Arcade**) | `death` |
@@ -122,9 +122,19 @@ test harness — not a production call site.)
 | `brick` | yes (`:316-318`, `clay_block.png`) | yes (`:895-897`, `Clay_block.png`) | yes (same file, case-differing literal — same file on this OS) | Shared bucket |
 | `death` | yes (`:165-167`) | yes (`:899-901`) | yes (same file) | Shared bucket |
 | `font` | yes (`:328-334`) | yes (`:903-909`) | yes (same file/size) | Shared bucket |
-| `manFrames[0]` | yes (`:121-129`, from a run-cycle frame) | yes (`:652-661`, from `V_g(rn)0.png`) | **no — different source images** | **Not** folded into the shared bucket (would silently change which image wins from "whichever mode ran most recently" to "whichever mode ran first," an actual behavior difference). Instead: each mode's own load gets a destroy-before-overwrite guard (`if (game->manFrames[0]) { SDL_DestroyTexture(...); }` before creating the new one) — preserves "most-recently-visited mode's image wins," just without leaking the previous one. Destruction of the whole `manFrames[12]` array stays centralized in `app_shutdown()` (see §6), since indices 1-11 are Runner-exclusive but index 0's ownership is genuinely contested. |
+| `manFrames[0]` | yes (`:121-129`) | yes (`:652-661`) | **yes — corrected in Phase 5, see below** | **Shared bucket** (as of Phase 5) |
 
 No other field is written by both functions.
+
+**Phase 5 correction**: the "different source images" claim above was wrong. Direct re-read of
+both load sites confirmed both use the byte-for-byte identical literal
+`"./resource/images/main_hero/run/V_g(rn)0.png"` — there was never a real content difference to
+preserve. The only reader, `draw_status_lives()` (`src/status.c`), is mode-agnostic. Phase 5 folds
+`manFrames[0]` into `shared_assets_load()`/`shared_assets_unload()` alongside `mult`/`leaders`/
+`pause`/`brick`/`death`/`font`, removing both modes' destroy-before-overwrite special case. The
+`app_shutdown()` centralized `manFrames[]` destroy loop mentioned above is removed entirely (not
+narrowed): index 0 is now owned by `shared_assets_unload()` and indices 1-11 were already owned by
+`runner_assets_unload()`. See `docs/frame-pipeline-map.md` for the full Phase 5 writeup.
 
 ## 6. HUD label (`game->label`) — resolved, not moved
 
@@ -173,7 +183,7 @@ clobber bug and the "two independent writers of one value" risk a prior review p
 | Arcade-exclusive textures (bossTexture, bulletTexture, secondBulletTexture, secondPlayer run/jump, man run/jump, enemy run/run2, 9 background/cloud/train, brick_block, copper_block) | `arcade_assets_load`/`arcade_assets_unload` | First arrival at `APP_SCENE_ARCADE_MENU` | Never (long-lived) | `arcade_assets_unload()` (called from `app_shutdown()`) |
 | Runner-exclusive textures (fon, star, manFrames[1..11], secondPlayerFrames[0..11]) | `runner_assets_load`/`runner_assets_unload` | First arrival at `APP_SCENE_RUNNER_MENU` | Never | `runner_assets_unload()` (from `app_shutdown()`) |
 | Shared textures + font (mult, leaders, pause, brick, death, font) | `shared_assets_load`/`shared_assets_unload` | First arrival at either mode's menu, whichever comes first | Never | `shared_assets_unload()` (from `app_shutdown()`) |
-| `manFrames[0]` (contested) | Whichever mode's `_assets_load` ran most recently | Every arrival at that mode's menu (destroy-before-overwrite) | N/A (not session state) | `app_shutdown()`, centralized (see §5) |
+| `manFrames[0]` (shared as of Phase 5) | `shared_assets_load` | First arrival at either mode's menu, whichever comes first | Never | `shared_assets_unload()` (from `app_shutdown()`) |
 | `battleMus`/`runnerMus` | `arcade_assets_load`/`runner_assets_load` respectively | Same as their mode's textures | Never | Respective `_assets_unload()` |
 | Menu textures (menu0/menu1/menu2), `menuMus` | `load_menu.c` (untouched this phase) | Once per true Main-menu-to-mode transition | Never (texture); music restarts every entry | `app_shutdown()` (inline, unchanged) |
 | SFX chunks (jumpSound/kickSound/select/shootSound/damageSound) | `menu_events.c`/`pause_events.c`/`processEvents.c`/`process.c` (untouched this phase) | Lazily, NULL-guarded, first use | Freed+re-loaded across ESCAPE/quit key handlers (pre-existing pattern, unaffected) | `app_shutdown()` (inline, unchanged) |

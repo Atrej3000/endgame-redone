@@ -221,21 +221,8 @@ void doRender2(SDL_Renderer *renderer, GameState *game)
     {
         SDL_Rect scdPlr = {game->scrollX + game->secondPlayer.x, game->secondPlayer.y, 54, 54};
         SDL_RenderCopyEx(renderer, game->secondPlayerFrames[game->secondPlayer.animFrameSecond], NULL, &scdPlr, 0, NULL, (game->secondPlayer.facingLeft == 1));
-
-        // SDL_Rect rect = {game->scrollX + game->man.x, game->man.y, 54, 54};
-        // SDL_RenderCopyEx(renderer, game->manFrames[game->man.animFrame], NULL, &rect, 0, NULL, (game->man.facingLeft == 1));
-        // if (game->man.isDead)
-        // {
-        //     SDL_Rect rect = {game->scrollX + game->man.x, game->man.y - 10, 38, 83};
-        //     SDL_RenderCopyEx(renderer, game->death, NULL, &rect, 0, NULL, (game->time % 20 < 10));
-
-        //     //_______________________________________________________________________death from stars
-        //     game->gameLives--;
-        //     game->man.isDead = 0;
-        //     game->man.y = 0;
-        // }
     }
-    
+
 
         for (int i = 0; i < 100; i++)
         {
@@ -249,11 +236,6 @@ void doRender2(SDL_Renderer *renderer, GameState *game)
         {
             SDL_Rect rect = {game->scrollX + game->man.x, game->man.y - 10, 38, 83};
             SDL_RenderCopyEx(renderer, game->death, NULL, &rect, 0, NULL, (game->time % 20 < 10));
-
-            //_______________________________________________________________________death from stars
-            game->gameLives--;
-            game->man.isDead = 0;
-            game->man.y = 0;
         }
     }
     //draw the trap image

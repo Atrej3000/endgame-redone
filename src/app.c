@@ -53,16 +53,10 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
         runner_assets_unload(game);
         shared_assets_unload(game);
 
-        // manFrames[12] is left centralized here rather than split between
-        // the two mode unload helpers: index 0 is a contested field (both
-        // modes write it with different source images) and indices 1-11 are
-        // already destroyed by runner_assets_unload(); destroying the whole
-        // array in one place after both mode unloads have run avoids a
-        // double-destroy while still guaranteeing every slot is freed.
-        for (int i = 0; i < 12; i++)
-        {
-            destroy_texture(&game->manFrames[i]);
-        }
+        // manFrames[12] is fully covered by the calls above: index 0 by
+        // shared_assets_unload() (both modes load the identical file, see
+        // docs/game-session-lifecycle.md) and indices 1-11 by
+        // runner_assets_unload() -- no centralized destroy needed here.
 
         // fields never assigned by either mode's asset-load (see
         // docs/game-session-lifecycle.md) but kept here for completeness --

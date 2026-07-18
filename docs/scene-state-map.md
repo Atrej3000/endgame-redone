@@ -16,6 +16,16 @@ scene, not merely by arriving at the menu. This is a further application of the 
 the reset from "every frame" to "every arrival" — Phase 4 moves it one step further, from "every
 arrival" to "new-game-start."
 
+**Phase 5 update**: the Arcade/Runner gameplay rows' "Update fn(s)"/"Render fn(s)" columns below
+describe the pre-Phase-5 direct calls from `main.c`. As of Phase 5, `main.c` calls one named
+function per mode instead (`arcade_frame(game, window, renderer)`/`runner_frame(...)`, new
+`src/frame.c`), which internally calls the exact same functions in the exact same order — a pure
+naming/structural change, not a routing change. See `docs/frame-pipeline-map.md` for the full
+frame-level audit (event/update/collision/render ordering, the fixed double-scene-transition risk
+in `processEvents`/`processEvents2`'s game-over checks, and the relocated `doRender2()` gameplay
+mutation) — that document is now the authoritative source for per-frame behavior; this file
+remains authoritative for scene-to-scene routing.
+
 ## Legend
 
 - **Old representation**: the raw `(menu0_status, menu_status)` pair that identified this screen

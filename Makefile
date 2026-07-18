@@ -153,7 +153,18 @@ mingw-lifecycletest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/lifecycletest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/lifecycletest.exe
 
+# Non-interactive frame-pipeline test: exercises the real doRender/doRender2/
+# process/process2/processEvents/processEvents2/arcade_frame/runner_frame/
+# pause functions directly -- render purity, the relocated death mutation,
+# the double-transition guard, animation wrap/idle, and pause purity. See
+# docs/verification/frame_pipeline_test.c and docs/frame-pipeline-map.md.
+mingw-frametest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/frame_pipeline_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/frametest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/frametest.exe
+
 mingw-clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-clean

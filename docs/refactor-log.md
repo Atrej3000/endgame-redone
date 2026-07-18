@@ -761,3 +761,190 @@ and this documentation commit.
   pass did not repeat them. **No transition beyond the initial Main-menu render was interactively
   verified this pass either** — stated plainly, matching Pass 3's own disclosure.
 - Rollback: n/a (no code changed; the screenshot is documentation evidence only).
+
+## Pass 5 summary — separate gameplay update, collision, and rendering responsibilities (2026-07-18)
+
+Baseline: commit `86dac33` (tag `refactor-pass-4-lifecycle`, created at the start of this pass
+since it didn't exist yet), working tree clean, `make mingw` 0 errors/167 warnings, all three
+existing test suites passing — all confirmed before any edit. Made the per-mode frame pipeline
+explicit and named (`arcade_frame`/`runner_frame`, new `src/frame.c`), removed the one confirmed
+gameplay mutation hiding in a render function (`doRender2()`'s death-handling block, confirmed
+dead code today), fixed a real double-scene-transition risk in `processEvents.c`, and corrected a
+factually-wrong "contested field" comment about `manFrames[0]` by consolidating it into the
+existing shared-assets bucket. Full per-scene pipeline audit and every finding (fixed or
+deliberately left unfixed, with reasoning) in `docs/frame-pipeline-map.md`, written before any
+code edit per this phase's own requirement. Eight commits: `810e511` (pipeline map), `a9f0d37`
+(`arcade_frame`), `45f3000` (`runner_frame`), `1b9483e` (mutation relocation), `ad70fa1`
+(transition guard fix), `1889b96` (`manFrames[0]` consolidation), `1c79d78` (frame pipeline test),
+and this documentation commit.
+
+### [2026-07-18] Tag baseline + write docs/frame-pipeline-map.md
+- Phase: safety gate + pre-edit documentation
+- File(s): git tag `refactor-pass-4-lifecycle` on commit `86dac33`; new `docs/frame-pipeline-map.md`
+- Action: confirmed working tree clean, current commit hash, and that the Phase 4 rollback tag
+  didn't yet exist before creating it; ran `make mingw-clean && make mingw` (0 errors/167 warnings)
+  and all three existing test suites as the safety gate; launched 3 parallel read-only Explore
+  agents to audit `main.c`, `doRender.c`, `process.c`, `collisionDetect.c`, `processEvents.c`, the
+  HUD files, and `loadGame.c`; then wrote the complete per-scene frame-pipeline map, re-verifying
+  every cited file:line directly (not from the agents' summaries alone) before writing — no code
+  changed in this step.
+- Verification performed: `make mingw` (0 errors/167 warnings), `mingw-smoketest`/`mingw-scenetest`/
+  `mingw-lifecycletest` (all PASS) re-confirmed as the safety gate before any edit.
+- Rollback: `git tag -d refactor-pass-4-lifecycle`; delete `docs/frame-pipeline-map.md`.
+
+### [2026-07-18] Introduce explicit arcade_frame() and runner_frame() wrappers
+- Phase: Pass 5 (commits `a9f0d37`, `45f3000`)
+- File(s): new `src/frame.c`, `inc/header.h`, `src/main.c`
+- Before: `main.c`'s `APP_SCENE_ARCADE_GAME`/`APP_SCENE_RUNNER_GAME` cases each inlined 4 calls
+  directly (`process`/`collisionDetect`/`doRender`/`processEvents`, and the Runner equivalents).
+- After: each case calls one named function (`arcade_frame(game, window, renderer)`/
+  `runner_frame(...)`) that wraps the same 4 calls in the same order — a pure structural move with
+  zero logic change, landed as two separate commits (Arcade first, then Runner) specifically so
+  each could be verified independently before Phase 31's actual behavior change in the same file.
+- Reasoning: directly implements this phase's "minimal frame structure, derived from the actual
+  implementation" requirement — a Plan-mode design pass confirmed the real call order is
+  update→collision→render→events (not the conceptual events-first example given in this phase's
+  own brief), so the wrappers preserve that exact order rather than reordering to match the
+  example. Menu/pause/leaderboard scene cases were left as direct inline calls (already 1-2 calls,
+  no hidden mutation concern, confirmed pure) — wrapping them too was judged over-engineering
+  relative to the phase's narrow objective.
+- Verification performed: `make mingw` — 0 errors, 167 warnings (unchanged) after each commit. All
+  three existing test suites still pass after each commit.
+- Rollback: `git revert 45f3000` then `git revert a9f0d37`; restore the 4 inline calls in `main.c`.
+
+### [2026-07-18] Remove gameplay mutation from doRender2()
+- Phase: Pass 5 (commit `1b9483e`)
+- File(s): `src/doRender.c`, `src/frame.c`
+- Before:
+  ```c
+  if (game->man.isDead)
+  {
+      SDL_Rect rect = {game->scrollX + game->man.x, game->man.y - 10, 38, 83};
+      SDL_RenderCopyEx(renderer, game->death, NULL, &rect, 0, NULL, (game->time % 20 < 10));
+
+      game->gameLives--;
+      game->man.isDead = 0;
+      game->man.y = 0;
+  }
+  ```
+  (plus a fully-commented dead duplicate of the same block, deleted outright)
+- After: the draw call stays in `doRender2()`, unchanged, still gated on `if (man.isDead)`; the
+  three mutation lines move into a new `static void runner_resolve_death(GameState *game)` in
+  `src/frame.c`, called from `runner_frame()` immediately *after* `doRender2()` returns.
+- Reasoning: confirmed via grep that `man.isDead` is never set to `1` anywhere in the live
+  codebase (only a commented-out line in `collisionDetect.c` and test harnesses), so this branch
+  is dead code today — relocating it changes zero observable behavior now, but removes a
+  correctness trap for whenever it's reactivated. A Plan-mode validation pass caught that the
+  originally-proposed placement (calling the new function *before* `doRender2()`, between
+  collision and render) was wrong: it would clear `isDead` before `doRender2()`'s own
+  `if (isDead)` guard ever ran, silently preventing the death sprite from ever drawing. Calling it
+  *after* `doRender2()` instead avoids this entirely, and is behaviorally identical to the
+  mutation's old position since nothing between the two points reads `man.isDead`/`gameLives`/
+  `man.y` (`SDL_RenderPresent`, inside `doRender2()`, touches no game state).
+- Behavior impact: none today (dead code); closes a latent bug for whenever `isDead` is ever set.
+- Verification performed: `make mingw` — 0 errors, 167 warnings. All three existing test suites
+  still pass; the new frame-pipeline test (see below) directly verifies both `doRender2()`'s
+  purity (even with `isDead` forced true) and the relocated mutation firing correctly via
+  `runner_frame()`.
+- Rollback: `git revert 1b9483e`; restore the deleted lines in `doRender2()`.
+
+### [2026-07-18] Prevent double scene transition within one event-processing frame
+- Phase: Pass 5 (commit `ad70fa1`)
+- File(s): `src/processEvents.c` (both `processEvents()` and `processEvents2()`)
+- Before: `SDLK_q`'s handler set the scene (e.g. to `APP_SCENE_MAIN_MENU`) with no early return,
+  unlike `SDLK_ESCAPE`'s handler (which returns immediately after its own transition); execution
+  then reached the same call's end-of-function game-over check, which could fire its own
+  unconditional `app_change_scene()` if the relevant lives count also hit zero that same frame,
+  silently overwriting `q`'s chosen destination.
+- After: each game-over transition call is now guarded:
+  ```c
+  if (game->scene == APP_SCENE_ARCADE_GAME)   // or APP_SCENE_RUNNER_GAME
+  {
+      app_change_scene(game, APP_SCENE_ARCADE_MENU);   // or APP_SCENE_RUNNER_MENU
+  }
+  ```
+  Runner's score-persist into `x_list` (which precedes its transition call) stays unconditional.
+- Reasoning: a Plan-mode validation pass considered and rejected a blanket
+  `if (scene != GAME) return;` placed right after the event-poll loop — it would also skip
+  Runner's score-persist bookkeeping on the same rare coincidence (same-frame `q` press and
+  `gameLives` reaching 0), silently dropping a completed run's score. Guarding only the transition
+  call itself avoids that: the redundant transition is skipped, but the score is always saved.
+- Behavior impact: player-invisible in the overwhelmingly common case (nothing renders gameplay
+  state on the destination menu scenes either way); the only observable change is in the specific
+  same-frame-quit-and-death coincidence, where the player now correctly lands on whichever menu
+  they actually chose instead of having it silently overwritten.
+- Verification performed: `make mingw` — 0 errors, 167 warnings. All three existing test suites
+  still pass; the new frame-pipeline test directly exercises both the normal-fire and
+  already-transitioned cases for both modes.
+- Rollback: `git revert ad70fa1`; remove the four added scene-checks, restoring the unconditional
+  transition calls.
+
+### [2026-07-18] Consolidate manFrames[0] into the shared asset bucket
+- Phase: Pass 5 (commit `1889b96`)
+- File(s): `src/loadGame.c`, `src/app.c`
+- Before: `arcade_assets_load()` and `runner_assets_load()` each independently loaded
+  `manFrames[0]` with a destroy-before-overwrite guard, commented "contested field, different
+  source images"; `app_shutdown()` separately destroyed the whole 12-element `manFrames[]` array
+  in a centralized loop "since no single mode exclusively owns it."
+- After: confirmed via direct file read that both load sites use the byte-for-byte identical path
+  (`"./resource/images/main_hero/run/V_g(rn)0.png"`) — the "different source images" comment was
+  factually wrong. Moved the load into `shared_assets_load()`/`shared_assets_unload()` alongside
+  `mult`/`leaders`/`pause`/`brick`/`death`/`font`; removed both modes' destroy-before-overwrite
+  special case and their now-inaccurate comments. `app_shutdown()`'s centralized `manFrames[]`
+  destroy loop is removed entirely (not merely narrowed to start at index 1): index 0 is now
+  covered by `shared_assets_unload()` and indices 1-11 were already covered by
+  `runner_assets_unload()`, leaving nothing for a centralized loop to do.
+- Reasoning: Pass 4's own comment claimed the two modes load different images, which turned out to
+  be false — the only reader (`draw_status_lives()`, `src/status.c`) is mode-agnostic, and both
+  load sites use the identical string literal. This is the "smallest explicit ownership change"
+  this phase calls for when a cross-mode field turns out not to be genuinely contested.
+- Behavior impact: none observable — this is a one-time load-time change, not a per-frame one; the
+  texture ends up loaded exactly once regardless of which mode is visited first, same as before
+  (just via a different, non-redundant code path).
+- Verification performed: `make mingw` — 0 errors, 167 warnings. All three existing test suites
+  still pass (the lifecycle test's asset-load/unload checks cover the shared bucket generally,
+  though it doesn't assert on `manFrames[0]` specifically).
+- Rollback: `git revert 1889b96`.
+
+### [2026-07-18] Add non-interactive frame-pipeline test
+- Phase: Pass 5 (commit `1c79d78`)
+- File(s): new `docs/verification/frame_pipeline_test.c`, `Makefile` (`mingw-frametest` target)
+- Action: 38 checks covering render purity for `doRender()` (already pure) and `doRender2()`
+  (post-fix, including with `man.isDead` forced true to exercise the previously-mutating branch),
+  the relocated death mutation firing correctly end-to-end through `runner_frame()`, the double
+  scene-transition guard (both the normal-fire case and the already-transitioned case, both
+  modes), animation-counter wrap-at-11 and idle/off-ledge no-advance behavior for both `process()`
+  and `process2()`, and pause-scene purity across 5 repeated calls.
+- **This test found a real interaction, not a Pass 5 regression**: forcing `man.isDead = 1` to
+  exercise the relocated mutation also triggers `process2()`'s own, separate, already-documented
+  `deathCountdown` mechanism — `runner_session_reset()` sets `deathCountdown = -1`, and with
+  `isDead = 1` this flips it to `120` and decrements `gameLives` a second time within `process2()`
+  itself, in the same frame. This is the pre-existing bug documented in `docs/frame-pipeline-map.md`
+  (missing `deathCountdown` decrement, distinct from this phase's actual changes) becoming visible
+  for the first time simply because this is the first test to ever force `isDead = 1`. Fixed the
+  test (not the pre-existing bug, which stays deliberately out of scope this phase) by resetting
+  `deathCountdown` to `0` before exercising the relocated-mutation assertion, isolating it from the
+  unrelated mechanism.
+- Verification performed: **runtime-verified**, not static — `frametest.exe` runs and every check
+  is a live assertion against the real functions, not a code-reading exercise. Initial run: 1
+  failure (the interaction above), diagnosed, test corrected, rebuilt: 38/38 pass, 3 consecutive
+  runs. `make mingw` — 0 errors, 167 warnings (unchanged, confirmed 0 from the new file). All
+  other test suites still pass.
+- Rollback: delete `docs/verification/frame_pipeline_test.c` and the `mingw-frametest` target.
+
+### [2026-07-18] Interactive manual test — Pass 5, real launch + Main-menu render re-confirmed
+- Phase: Pass 5 (manual verification, no commit — evidence only)
+- File(s): none changed; new `docs/verification/manual-test-phase5-main-menu.png`
+- Action: launched the real Pass-5 `build-mingw/endgame-mingw.exe`, confirmed via a live process
+  handle that it started and stayed alive (no crash) for 3+ seconds. Captured the window's actual
+  rendered contents via the same focus-independent `PrintWindow` technique used in Passes 3-4 —
+  the Main menu renders correctly ("ARCADE GAME 2 IN 1", "1. MUSHROOM HUSTLE", "2. BRICK RUNNER
+  III", "EXIT"), confirming no visual regression from this pass's changes.
+- What was not attempted again, and why: Pass 3 already established, with concrete evidence, that
+  `SetForegroundWindow` is rejected by Windows' foreground-lock restriction in this automation
+  context and that a `PostMessage`-based keypress has no effect on SDL2's input handling on
+  Windows; Pass 4 confirmed the same limitation still holds and did not re-attempt it either.
+  Repeating either technique this pass would reproduce the same known-negative result, so it
+  wasn't re-attempted. **No transition beyond the initial Main-menu render was interactively
+  verified this pass** — stated plainly, matching every prior pass's own disclosure.
+- Rollback: n/a (no code changed; the screenshot is documentation evidence only).
