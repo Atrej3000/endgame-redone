@@ -46,6 +46,14 @@ jobs:
         shell: bash
         run: ./scripts/setup-mingw-sdl2.sh
 
+      # Dependency-light, stdlib-only Python script -- runs with the
+      # runner's own pre-installed Python, no MSYS2 needed. See
+      # scripts/audit_repository_usage.py and
+      # docs/unused-code-assets-audit.md.
+      - name: Repository usage integrity check
+        shell: bash
+        run: python scripts/audit_repository_usage.py
+
       # Every step from here on must use `shell: msys2 {0}` -- gcc/make are
       # only on PATH inside the MSYS2-provided shell, matching the
       # Makefile's bare `CC_MINGW := gcc`. A step written as `shell: bash`
