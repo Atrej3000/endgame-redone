@@ -13,6 +13,15 @@ on:
 jobs:
   mingw-build-and-test:
     runs-on: windows-latest
+    env:
+      # GitHub-hosted Windows runners have no audio device, so Mix_OpenAudio()
+      # fails via WASAPI ("can't find requested audio endpoint") against the
+      # real default driver -- SDL's "dummy" driver discards audio output
+      # instead of requiring real hardware, which is exactly what a
+      # non-interactive CI build needs. Not a code change: app_init() already
+      # handles Mix_OpenAudio failure correctly (reports it, shuts down
+      # cleanly) -- this fixes the CI environment, not the application.
+      SDL_AUDIODRIVER: dummy
     steps:
       - uses: actions/checkout@v4
 
