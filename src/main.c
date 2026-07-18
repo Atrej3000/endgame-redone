@@ -58,10 +58,7 @@ int main()
                 break;
 
             case APP_SCENE_RUNNER_GAME:
-                process2(gameState);
-                collisionDetect2(gameState);
-                doRender2(renderer, gameState);
-                processEvents2(window, gameState);
+                runner_frame(gameState, window, renderer);
                 break;
 
             case APP_SCENE_RUNNER_LEADERBOARD:
