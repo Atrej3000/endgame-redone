@@ -1,4 +1,6 @@
 # Ucode_Endgame
+![MinGW validation](https://github.com/Atrej3000/endgame-redone/actions/workflows/mingw-validation.yml/badge.svg)
+
 Ucode IT Academy C Marathon: Final team project (Serha/Slipchencko team)
 
 Installation (macOS, primary supported platform):
