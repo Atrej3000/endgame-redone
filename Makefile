@@ -164,7 +164,19 @@ mingw-frametest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/frametest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/frametest.exe
 
+# Non-interactive Runner death-lifecycle test: exercises the real
+# runner_trigger_death/runner_update_death/runner_frame/process2/collisionDetect2/
+# processEvents2/doRender2/runner_session_reset functions directly -- single
+# death, repeated trigger, game over, pause, session reset, scene departure,
+# render purity, and the left-edge/multiplayer respawn fixes. See
+# docs/verification/runner_death_test.c and docs/runner-death-lifecycle.md.
+mingw-deathtest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/runner_death_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/deathtest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/deathtest.exe
+
 mingw-clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-clean
