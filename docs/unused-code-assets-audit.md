@@ -277,3 +277,53 @@ blocks → assets → build references → integrity script → docs) means an e
 require unwinding later, unrelated commits. Full `git reset --hard refactor-pre-unused-cleanup`
 remains available as a last resort but is not expected to be needed given the granularity of the
 commit plan and the fact every item here was independently verified twice before being listed.
+
+## 11. Post-cleanup results
+
+All cleanup landed exactly as planned in §5; every commit was followed by a full clean rebuild and
+all six local test targets (`smoketest`/`scenetest`/`lifecycletest`/`frametest`/`deathtest`, plus
+the new `audit-repo` target once it existed) — every run passed, zero failures at any step.
+
+### Deleted source
+
+| File/symbol | Evidence | Validation |
+|---|---|---|
+| 16 `mx_*.c` files (see §5.1) | Zero live callers anywhere, incl. all 5 test harnesses | Build + all tests pass; 6 pre-existing warnings from inside these files disappeared (167→161), zero new warnings |
+| `leader_events.c` | Zero callers | Build + all tests pass |
+| `doRender_multiplayer.c` (2 fns) | Zero callers | Build + all tests pass |
+| `shutdown_status_x`, `shutdown_status_x_list`, `shutdown_status_kills`, `load_chunk` | Zero callers each | Build + all tests pass |
+| `draw_status_x_list` prototype | Never defined anywhere | Build + all tests pass |
+| 13 `GameState`/`Man` fields, 2 macros (§5.4) | Zero live reads (or, for `shooting`, zero reads at all) | Build + all tests pass; confirmed no memory-layout dependency (single `calloc` in `main.c`) |
+| 2 `processEvents.c` comment blocks (§5.5) | Superseded by live in-memory `x_list` persistence | Build + all tests pass; live guards before/after each block confirmed intact |
+| 2 stale Makefile comment lines | Leftover, unrelated to current glob-based `SRCS` | Build unaffected |
+
+### Deleted assets
+
+| Asset | Evidence | Former purpose | Validation |
+|---|---|---|---|
+| 22 files, ~7.68MB (full list in §5.6) | Zero references via exhaustive string-literal grep (no dynamic path construction exists anywhere in this codebase) | Unused background palette, superseded prototype sprites, dead attack/idle textures, an orphaned terrain tile, an unused sound effect, 2 dead leaderboard data files | All 5 asset-loading test suites (which exercise `arcade_assets_load`/`runner_assets_load` end to end) pass unmodified after deletion, confirming none was ever actually loaded |
+
+### Retained uncertain items
+
+| Item | Why uncertain | Required manual check |
+|---|---|---|
+| `menu_status`/`menu0_status` | 3 live (if inert) writes + 1 live (if discarded) read — fails the zero-reads-and-zero-writes bar | Future phase: decide whether to also change `pause_events()`'s return type and delete the 3 write sites |
+| `docs/verification/mingw-smoketest-final.log` | Not a byte-identical duplicate of any sibling log; not cited by filename in any doc | Confirm whether it documents a real run worth citing, or add the missing citation |
+
+### Repository reduction
+
+| Metric | Before (commit `94d117b`) | After | Change |
+|---|---|---|---|
+| `src/*.c` files | 42 | 24 | −18 |
+| `src/*.c` lines | 4,960 | 4,420 | −540 |
+| Game assets (excl. `resource/frameworks/`) | 88 | 66 | −22 |
+| Asset bytes removed | — | — | ≈7.68 MB |
+| Tracked files (`git ls-files`) | 1,366 | 1,328 | −38 (40 deletions, +2 new files: the audit doc and the integrity script) |
+| Total tracked size (`git ls-tree -r -l`) | 89,211,117 B (≈85.08 MB) | 81,179,466 B (≈77.4 MB) | −8,031,651 B (≈7.66 MB) |
+| Build warnings | 167 | 161 | −6 (all from inside the deleted `mx_*` files; zero new warnings anywhere) |
+
+No exaggeration: the reduction is modest relative to the repository's total size, since the bulk of
+tracked content (`resource/frameworks/`, ~1,205 files) was explicitly out of scope (§8) and
+untouched. The reduction that did happen is precisely the set of items independently proven
+unused by two research passes, personal re-verification, and a dedicated validation pass — nothing
+more, nothing less.

@@ -28,14 +28,15 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
         make mingw-frametest     # non-interactive frame-order/render-purity/animation check
         make mingw-deathtest     # non-interactive Runner death/respawn/game-over lifecycle check
         make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
+        make audit-repo          # repository usage integrity check (asset paths + prototypes)
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
     regeneratable, third-party/build artifacts.
 
 Continuous Integration:
-    `.github/workflows/mingw-validation.yml` runs the same build and all five non-interactive
-    test targets above on every pull request and every push to `main`, on a Windows runner
-    (MSYS2 MINGW64 toolchain) -- see `docs/refactor-plan.md`'s Phase 6/Pass 6 notes for the
-    full design and reasoning.
+    `.github/workflows/mingw-validation.yml` runs the same build, all five non-interactive test
+    targets, and the repository usage integrity check above on every pull request and every push
+    to `main`, on a Windows runner (MSYS2 MINGW64 toolchain) -- see `docs/refactor-plan.md`'s
+    Phase 6/Pass 6 and Phase 41-45/Pass 7 notes for the full design and reasoning.
 
 Known platform limitations:
     - The default build targets macOS only (bundled `.framework`s under `resource/frameworks`,
