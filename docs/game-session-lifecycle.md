@@ -176,6 +176,18 @@ zero arithmetic, never assigned anything but literal `0`/`1` anywhere. Retyped `
 mode)`'s first statement, `game->multiPlayer = mode;` — eliminating both the `loadGame.c:407`
 clobber bug and the "two independent writers of one value" risk a prior review pass flagged.
 
+## 8b. Runner life ownership — resolved (Phase 6)
+
+`gameLives` and `man.lives`/`secondPlayer.lives` looked like they might be redundant/overlapping
+life counters. Confirmed via grep this is not the case: `man.lives`/`secondPlayer.lives` are
+Arcade-exclusive (set by `arcade_session_reset()`, read only by Arcade's `processEvents()`) —
+Runner's `process2()`/`collisionDetect2()`/`processEvents2()`/`runner_session_reset()` never
+reference either field. `status.c`'s one HUD text generator (`"Lifes %d"`, read by both modes'
+render paths) displays `gameLives` — confirming `gameLives` is Runner's sole authoritative
+counter. No synchronization code was needed; these are two independent, non-overlapping life
+systems by design, not two writers of one value. See `docs/runner-death-lifecycle.md` for the full
+trace and the death lifecycle this counter now drives correctly.
+
 ## 9. Ownership table
 
 | Resource/state | Owner | Loaded/initialized when | Reset when | Destroyed when |

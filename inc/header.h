@@ -369,6 +369,10 @@ void app_change_scene(GameState *game, AppScene next_scene);
 void arcade_frame(GameState *game, SDL_Window *window, SDL_Renderer *renderer);
 void runner_frame(GameState *game, SDL_Window *window, SDL_Renderer *renderer);
 
+// Runner death lifecycle (src/runner_death.c) -- see docs/runner-death-lifecycle.md.
+void runner_trigger_death(GameState *game);
+void runner_update_death(GameState *game);
+
 // Null-safe destroy/free helpers (src/app.c) -- shared by app_shutdown() and
 // the mode-specific asset unload helpers (src/loadGame.c)
 void destroy_texture(SDL_Texture **tex);

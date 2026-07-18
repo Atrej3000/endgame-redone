@@ -1000,7 +1000,7 @@ void process2(GameState *game)
 
     if (game->statusState == STATUS_STATE_GAME)
     {
-        if (!game->man.isDead || game->gameLives > 0)
+        if (!game->man.isDead)
         {
             // Man MOVEMENT
             Man *man = &game->man;
@@ -1027,24 +1027,30 @@ void process2(GameState *game)
         // SECOND PLAYER _________________________________________________________________________________________________________________________
         if (game->multiPlayer)
         {
-            game->secondPlayer.x += game->secondPlayer.dx;
-            game->secondPlayer.y += game->secondPlayer.dy;
-
-            if (game->secondPlayer.dx != 0 && game->secondPlayer.onLedge && !game->secondPlayer.slowingDown)
+            // Gated on the same shared death flag as `man` -- see
+            // docs/runner-death-lifecycle.md: death is a shared, "pause the
+            // world" event for both players in Runner (one gameLives pool).
+            if (!game->man.isDead)
             {
-                if (game->time % 3 == 0)
+                game->secondPlayer.x += game->secondPlayer.dx;
+                game->secondPlayer.y += game->secondPlayer.dy;
+
+                if (game->secondPlayer.dx != 0 && game->secondPlayer.onLedge && !game->secondPlayer.slowingDown)
                 {
-                    if (game->secondPlayer.animFrameSecond < 11)
+                    if (game->time % 3 == 0)
                     {
-                        game->secondPlayer.animFrameSecond++;
-                    }
-                    else
-                    {
-                        game->secondPlayer.animFrameSecond = 0;
+                        if (game->secondPlayer.animFrameSecond < 11)
+                        {
+                            game->secondPlayer.animFrameSecond++;
+                        }
+                        else
+                        {
+                            game->secondPlayer.animFrameSecond = 0;
+                        }
                     }
                 }
+                game->secondPlayer.dy += GRAVITY;
             }
-            game->secondPlayer.dy += GRAVITY;
         }
 
         //moving traps
@@ -1136,24 +1142,11 @@ void process2(GameState *game)
         //infinity field
 
         //_____________________________________________________________________________
-
-        if (game->man.isDead && game->deathCountdown < 0)
-        {
-            game->deathCountdown = 120;
-        }
-        if (game->deathCountdown > 0)
-        {
-            //            game->man.x +=25;
-            //            game->man.y -=25;
-            game->gameLives--;
-
-            //            if (game->deathCountdown < 0)
-            //            {
-            //                // init_game_over(game);
-            //                // game->statusState = STATUS_STATE_GAMEOVER;
-            //                init_status_lives(game);
-            //            }
-        }
+        // Death-countdown progression itself is owned by runner_update_death()
+        // (src/runner_death.c), called once per frame from runner_frame() --
+        // see docs/runner-death-lifecycle.md. This used to also decrement
+        // gameLives here, unboundedly (deathCountdown was never decremented),
+        // independent of runner_resolve_death()'s own decrement; removed.
     }
     if (game->multiPlayer)
     {
