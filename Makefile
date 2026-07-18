@@ -17,8 +17,6 @@ HDRS := inc/header.h \
 
 # add source files here
 SRCS := src/*.c
-		#src/main.c \
-		#src/status.c
 
 # generate names of object files
 # OBJS := $(SRCS:.c=.o)
