@@ -133,7 +133,16 @@ mingw-smoketest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/smoketest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/smoketest.exe
 
+# Non-interactive scene-transition test: exercises app_change_scene() and its
+# enter-hooks without needing keyboard/window input injection. See
+# docs/verification/scene_transition_test.c and docs/scene-state-map.md.
+mingw-scenetest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/scene_transition_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/scenetest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/scenetest.exe
+
 mingw-clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-clean
