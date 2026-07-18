@@ -164,13 +164,6 @@ void doRender(SDL_Renderer *renderer, GameState *game)
             }
         }
 
-        // if (game->man.visible0 && game->man.onLedge && game->man.attack)
-        // {
-        //     SDL_Rect srcRect = {128 * game->man.currentSpriteAttack1, 0, 128, 32};
-        //     SDL_Rect rect = {game->man.x, game->man.y, 225, 55};
-        //     SDL_RenderCopyEx(renderer, game->man.sheetTextureAttack1, &srcRect, &rect, 0, NULL, (game->man.facingLeft == 1));
-        // }
-
         if (game->man.isDead)
         {
             SDL_Rect rect = {game->man.x, game->man.y - 10, 38, 83};

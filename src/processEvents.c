@@ -252,7 +252,6 @@ int processEvents(SDL_Window *window, GameState *game)
         }
         game->man.facingLeft = 1;
         game->man.slowingDown = 0;
-        // game->man.attack = 0; //ATTENTION!
 
         if (game->time % 6 == 0)
         {
@@ -269,7 +268,6 @@ int processEvents(SDL_Window *window, GameState *game)
         }
         game->man.facingLeft = 0;
         game->man.slowingDown = 0;
-        // game->man.attack = 0; //ATTENTION!
 
         if (game->time % 6 == 0)
         {
@@ -305,12 +303,6 @@ int processEvents(SDL_Window *window, GameState *game)
                 game->shotCount++;
             }
         }
-
-        //     game->man.shooting = 1;
-        // }
-        // else
-        // {
-        //     game->man.shooting = 0;
     }
     if (game->time % 23 == 0)
     {
@@ -341,7 +333,6 @@ int processEvents(SDL_Window *window, GameState *game)
             }
             game->secondPlayer.facingLeft = 1;
             game->secondPlayer.slowingDown = 0;
-            // game->man.attack = 0; //ATTENTION!
 
             if (game->time % 6 == 0)
             {
@@ -358,7 +349,6 @@ int processEvents(SDL_Window *window, GameState *game)
             }
             game->secondPlayer.facingLeft = 0;
             game->secondPlayer.slowingDown = 0;
-            // game->man.attack = 0; //ATTENTION!
 
             if (game->time % 6 == 0)
             {
@@ -393,12 +383,6 @@ int processEvents(SDL_Window *window, GameState *game)
                     game->shotCountMultiplayer++;
                 }
             }
-
-            //     game->man.shooting = 1;
-            // }
-            // else
-            // {
-            //     game->man.shooting = 0;
         }
         if (game->time % 23 == 0)
         {

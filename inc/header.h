@@ -43,7 +43,6 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 
 #define STATUS_STATE_LIVES 0
 #define STATUS_STATE_GAME 1
-#define STATUS_STATE_GAMEOVER 2
 #define WIDTH 1280
 #define HEIGHT 720
 #define GRAVITY 0.5f
@@ -52,7 +51,6 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define NUM_STARS 100
 #define NUM_ENEMIES 101
 #define NUM_SMART_ENEMIES 10
-#define LEADERBOARD_TXT "./resource/text/Fonts/leaderboard"
 
 typedef struct 
 {
@@ -77,13 +75,13 @@ typedef struct
     float dx, dy;
     short lives;
     char *name;
-    int onLedge, isDead, shooting;//, isdead, visible, countShots;
+    int onLedge, isDead;//, isdead, visible, countShots;
 
     int animFrame, animFrameSecond, currentSpriteIdle, currentSpriteRun, currentSpriteRun2,
-        currentSpriteJump, currentSpriteJump2, currentSpriteAttack1, currentSpriteSkill,
-        facingLeft, slowingDown, visible0, visible2, attack;
+        currentSpriteJump, currentSpriteJump2,
+        facingLeft, slowingDown, visible0;
     SDL_Texture *sheetTextureIdle, *sheetTextureRun,
-            *sheetTextureRun2, *sheetTextureJump, *sheetTextureJump2, *sheetTextureAttack1, *sheetTextureSkill;
+            *sheetTextureRun2, *sheetTextureJump, *sheetTextureJump2;
 } Man;
 
 typedef struct
@@ -247,7 +245,6 @@ typedef struct
     SDL_Texture *star;
     SDL_Texture *manFrames[12];
     SDL_Texture *secondPlayerFrames[12];
-    SDL_Texture *secondPlayerImage;
     SDL_Texture *brick;
     SDL_Texture *menu0;
     SDL_Texture *menu1;
@@ -259,13 +256,10 @@ typedef struct
     SDL_Texture *label;
     SDL_Texture *labelMultiplayer;
     SDL_Texture *death;
-    SDL_Texture *enemyFrame;
     SDL_Texture *brick_block;
     SDL_Texture *copper_block;
-    SDL_Texture *background;
     SDL_Texture *bulletTexture;
     SDL_Texture *secondBulletTexture;
-    SDL_Texture *enemyTexture2;
     SDL_Texture *bossTexture;
     int labelW, labelH;
 
@@ -276,11 +270,7 @@ typedef struct
     // Fonts
     TTF_Font *font;
 
-    // FOR WAVES
-    int countWaves;
-
     //SOUNDS
-    int musicChannel;
     Mix_Music *menuMus, *battleMus, *runnerMus;
     Mix_Chunk *jumpSound, *kickSound, *select, *shootSound, *damageSound;
 
@@ -311,7 +301,6 @@ typedef struct
     //char *x_names[20];
     int x_i;
     int kills_score;
-    int kills_list[25];
     int kills_score_multi;
     int time, deathCountdown;
     int statusState;
@@ -401,7 +390,6 @@ void init_status_x(GameState *game);
 void draw_status_x(GameState *game);
 void shutdown_status_kills (GameState *game);
 void init_status_x_list(GameState *game);
-void draw_status_x_list(GameState *game);
 
 //for two mods game
 void load_menu0(GameState *game);

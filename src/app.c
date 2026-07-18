@@ -58,28 +58,20 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
         // docs/game-session-lifecycle.md) and indices 1-11 by
         // runner_assets_unload() -- no centralized destroy needed here.
 
-        // fields never assigned by either mode's asset-load (see
+        // menu0/1/2 are never assigned by either mode's asset-load (see
         // docs/game-session-lifecycle.md) but kept here for completeness --
         // null-safe, harmless if always NULL.
-        destroy_texture(&game->secondPlayerImage);
         destroy_texture(&game->menu0);
         destroy_texture(&game->menu1);
         destroy_texture(&game->menu2);
-        destroy_texture(&game->enemyFrame);
-        destroy_texture(&game->background);
-        destroy_texture(&game->enemyTexture2);
 
         destroy_texture(&game->man.sheetTextureIdle);
         destroy_texture(&game->man.sheetTextureRun2);
         destroy_texture(&game->man.sheetTextureJump2);
-        destroy_texture(&game->man.sheetTextureAttack1);
-        destroy_texture(&game->man.sheetTextureSkill);
 
         destroy_texture(&game->secondPlayer.sheetTextureIdle);
         destroy_texture(&game->secondPlayer.sheetTextureRun);
         destroy_texture(&game->secondPlayer.sheetTextureJump);
-        destroy_texture(&game->secondPlayer.sheetTextureAttack1);
-        destroy_texture(&game->secondPlayer.sheetTextureSkill);
 
         // 4. chunks and music not owned by any asset group (loaded lazily
         // elsewhere -- menu_events.c/pause_events.c/processEvents.c/

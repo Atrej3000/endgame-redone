@@ -178,7 +178,6 @@ void arcade_session_reset(GameState *game, GameMode mode)
     game->man.visible0 = 1;
     game->man.isDead = 0;
     game->statusState = STATUS_STATE_LIVES;
-    game->man.shooting = 0;
 
     game->train.x = 0;
     game->train.y = 440;
@@ -219,7 +218,6 @@ void arcade_session_reset(GameState *game, GameMode mode)
         game->secondPlayer.visible0 = 1;
         game->secondPlayer.isDead = 0;
         game->statusState = STATUS_STATE_LIVES;
-        game->secondPlayer.shooting = 0;
     }
 
     for (int i = 0; i < NUM_ENEMIES; i++)
