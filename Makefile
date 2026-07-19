@@ -207,4 +207,49 @@ audit-repo:
 mingw-clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest print-mingw-versions audit-repo mingw-clean
+# ---------------------------------------------------------------------------
+# Additive Linux validation build (does not affect the macOS build above or
+# the Windows/MinGW build below). Requires the SDL2/SDL2_image/SDL2_ttf/
+# SDL2_mixer development packages installed via the system package manager
+# (e.g. `apt-get install libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev
+# libsdl2-mixer-dev`), discovered via pkg-config -- no vendoring needed,
+# unlike the Windows/MinGW path, since Linux distributions package SDL2
+# system-wide. LINUX_COMPAT_INCLUDE optionally points at a directory with
+# SDL2_image/SDL_image.h-style forwarding headers -- this project's headers
+# use that macOS-framework-style include path, and most Linux distributions
+# are expected to ship the flat SDL2/SDL_image.h layout instead (the same
+# mismatch already solved for MinGW; see scripts/setup-mingw-sdl2.sh). Empty
+# by default; not needed on a system whose SDL2 packages happen to already
+# provide the SDL2_image/-style layout.
+# ---------------------------------------------------------------------------
+CC_LINUX := gcc
+LINUX_WARN_FLAGS := -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion \
+	-Wsign-conversion -Wformat=2 -Wnull-dereference -Wdouble-promotion
+LINUX_PKGS := sdl2 SDL2_image SDL2_ttf SDL2_mixer
+LINUX_COMPAT_INCLUDE :=
+LINUX_INCLUDES := -I $(INC) $(if $(LINUX_COMPAT_INCLUDE),-I $(LINUX_COMPAT_INCLUDE)) $(shell pkg-config --cflags $(LINUX_PKGS) 2>/dev/null)
+LINUX_LIBS := $(shell pkg-config --libs $(LINUX_PKGS) 2>/dev/null)
+
+LINUX_BUILD_DIR := build-linux
+LINUX_EXEC := $(LINUX_BUILD_DIR)/endgame-linux
+
+$(LINUX_BUILD_DIR):
+	mkdir -p $(LINUX_BUILD_DIR)
+
+linux: $(LINUX_BUILD_DIR)
+	$(CC_LINUX) $(SRCS) $(LINUX_WARN_FLAGS) $(LINUX_INCLUDES) \
+		-o $(LINUX_EXEC) $(LINUX_LIBS)
+
+# Non-interactive smoke test on Linux -- reuses the exact same test source
+# as the MinGW smoke test (MINGW_SRCS_NO_MAIN is just a source-file list,
+# not MinGW-specific). See docs/verification/smoke_init_shutdown.c.
+linux-smoketest: $(LINUX_BUILD_DIR)
+	$(CC_LINUX) $(MINGW_SRCS_NO_MAIN) docs/verification/smoke_init_shutdown.c \
+		$(LINUX_WARN_FLAGS) $(LINUX_INCLUDES) \
+		-o $(LINUX_BUILD_DIR)/smoketest $(LINUX_LIBS)
+	./$(LINUX_BUILD_DIR)/smoketest
+
+linux-clean:
+	rm -rf $(LINUX_BUILD_DIR)
+
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean
