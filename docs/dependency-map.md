@@ -82,12 +82,21 @@ keeping them at the same low level as `asset_loader.c`.
 `load_menu.c -> asset_loader.c (load_texture)`, matching every other texture-load call site in the
 codebase (closing the one DIP inconsistency documented in the audit's §5.5/§7.4).
 
-**Header dependency change**: `scene.c`, `frame.c`, and `main.c` now include the new focused
-`inc/scene.h`/`inc/frame.h` for those specific declarations, in addition to `header.h` for
-everything else they still need (no file's total dependency surface increases; `header.h` is
-trimmed by exactly the declarations that moved). No other file's includes change. No circular
-include was introduced — verified: neither `scene.h` nor `frame.h` includes the other, and neither
-`entity_spawn.h` nor `input_command.h` includes `scene.h`/`frame.h`/`app.h`.
+**Header dependency change**: `frame.c` and `main.c` now include the new `inc/frame.h`, and
+`inc/header.h` is trimmed of the `arcade_frame`/`runner_frame` prototypes (verified: those two
+functions have exactly one definer and one caller in the whole codebase, so removing them from
+the compatibility header breaks nothing). `scene.c` and `main.c` additionally include the new
+`inc/scene.h` for `app_change_scene()` — but that prototype is **kept** in `inc/header.h` too
+(legal duplicate declaration), because `app_change_scene()` has 5 real call sites
+(`scene.c`, `main.c`, `menu_events.c`, `pause_events.c`, `processEvents.c`); the task's own
+"migrate gradually, don't replace every include in one commit" guidance applies directly here —
+the 3 unrelated call sites keep compiling unchanged via `header.h`; `scene.h` is available as a
+real, standalone-sufficient header for whichever module cares about scene routing specifically.
+`AppScene`'s enum definition stays in `header.h` (see `docs/solid-gof-audit.md` §7.3 for why it
+cannot move without a circular include, given `GameState.scene`'s own dependency on it). No other
+file's includes change. No circular include was introduced — verified: neither `scene.h` nor
+`frame.h` includes the other, and neither `entity_spawn.h` nor `input_command.h` includes
+`scene.h`/`frame.h`/`app.h`.
 
 ## Layers not enforced this phase
 

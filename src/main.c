@@ -1,5 +1,7 @@
 #include "header.h"
 #include "app.h"
+#include "scene.h"
+#include "frame.h"
 
 int main()
 {

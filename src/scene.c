@@ -1,4 +1,5 @@
 #include "header.h"
+#include "scene.h"
 
 // Entry hook for APP_SCENE_ARCADE_MENU. load_menu1() (texture guard, music
 // restart, x_score/x_list reset) only fires on the true Main-menu -> Arcade

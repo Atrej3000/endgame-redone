@@ -278,12 +278,35 @@ the test asserting no `GAME_COMMAND_MOVE_*` value exists in the enum at all. Mod
 where they genuinely differ — Arcade and Runner are not forced into one shared handler.
 
 ### 7.3 ISP — `inc/scene.h`, `inc/frame.h`
-Mirrors the existing `inc/app.h` pattern exactly: `inc/scene.h` declares `AppScene` and
-`app_change_scene()`; `inc/frame.h` declares `arcade_frame()`/`runner_frame()`. `src/scene.c`,
-`src/frame.c`, and `src/main.c` are updated to include the new focused headers for those specific
-declarations; `inc/header.h` is trimmed of exactly those declarations and remains the
-compatibility header for everything else — no other file's `#include` changes, no circular
-includes introduced (verified: neither new header depends on the other).
+Mirrors the existing `inc/app.h` pattern (`#include "header.h"` + narrow prototypes on top).
+**Asymmetry discovered during implementation, handled differently per the task's own "leave
+unresolved declarations in the compatibility header, migrate gradually" guidance:**
+- `arcade_frame`/`runner_frame` are called from exactly one place in production code
+  (`main.c`'s scene-dispatch switch) and defined in exactly one file (`frame.c`) — verified by
+  grep. Safe to **fully remove** from `inc/header.h` and live only in the new `inc/frame.h`;
+  `frame.c` and `main.c` both add the new include. Two test harnesses
+  (`docs/verification/frame_pipeline_test.c`, `docs/verification/runner_death_test.c`) also call
+  these functions directly and needed the same `#include "frame.h"` addition — caught immediately
+  by a failed build, not silently missed.
+- `app_change_scene()` is called from **5 files** (`scene.c`, `main.c`, `menu_events.c`,
+  `pause_events.c`, `processEvents.c`) — verified by grep, more callers than `arcade_frame`/
+  `runner_frame`. Forcing all 5 to adopt a new header in this same commit would be exactly the
+  "one-commit replacement of every include" the task explicitly says not to do. Its prototype is
+  therefore **declared in both** `inc/header.h` (unchanged, so the 4 unrelated call sites need no
+  edit) **and** the new `inc/scene.h` (a real, standalone-usable header for `scene.c`'s own public
+  surface) — a duplicate `extern`-style prototype declaration is legal C, not a redefinition.
+  `scene.c` and `main.c` adopt the new header now; `menu_events.c`/`pause_events.c`/
+  `processEvents.c` are left on `header.h` as documented, gradual-migration debt (§9).
+- **`AppScene`'s enum definition cannot move out of `header.h` at all** without a deeper
+  restructuring than this phase's scope: `GameState`'s own `scene` field is typed `AppScene`, so
+  `header.h` must see the enum before `GameState`'s definition — if `AppScene` moved to `scene.h`,
+  `header.h` would need to include `scene.h`, but `scene.h` already needs `GameState` (via
+  `header.h`) for `app_change_scene`'s signature, which is a circular include. `AppScene` stays
+  defined in `header.h`, visible to `scene.h`'s consumers transitively through `scene.h`'s own
+  `#include "header.h"` — `scene.h` is still a genuine, correct, standalone-sufficient header for
+  a new consumer, just not a literal relocation of the enum.
+
+No circular includes introduced (verified: neither `scene.h` nor `frame.h` includes the other).
 
 ### 7.4 DIP consistency fix (not a new abstraction) — `src/load_menu.c`
 The three raw `IMG_Load()` calls (`load_menu.c:12,34,62`) are replaced with calls to the existing
