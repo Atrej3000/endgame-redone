@@ -55,6 +55,11 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
 | 43 | Remove 13 dead `GameState`/`Man` struct fields, 2 dead macros, 1 orphaned prototype, 2 obsolete commented-out implementation blocks | **Found and fixed — Pass 7** |
 | 44 | Remove 22 zero-reference asset files (~7.68MB) | **Found and fixed — Pass 7** |
 | 45 | Repository usage integrity check (`scripts/audit_repository_usage.py`) — asset-path-with-case + dangling-prototype checks, wired into CI | **Done — Pass 7** |
+| 46 | Case-sensitive asset path mismatch map (`docs/asset-path-portability.md`) | **Done — Pass 8** |
+| 47 | Fix confirmed case-mismatch defects (`Sunset_front.png`/`brick_block.png`/`copper_block.png`, Phase 7 item 8) | **Found and fixed — Pass 8** |
+| 48 | Strengthen `audit_repository_usage.py` (tiered errors/known-exceptions/informational output, regular-file check, case-colliding-sibling check, backslash check, duplicate-alias detection) | **Done — Pass 8** |
+| 49 | Case-sensitive Linux CI job (`linux-asset-validation`) | **Done — Pass 8** |
+| 50 | Additive Linux build target (`make linux`/`linux-smoketest`, best-effort, not locally verified) | Attempted — Pass 8, CI result is the deciding signal |
 
 ## Phases executed in Pass 1
 
@@ -595,6 +600,82 @@ would fail to compile).
   runner's own pre-installed Python (no MSYS2 dependency, since the script only reads files).
 - Rollback: delete the script, Makefile target, and CI step.
 - Completion criteria: met.
+
+## Phases executed in Pass 8 (case-sensitive asset path fix + cross-platform validation)
+
+Full mismatch map in `docs/asset-path-portability.md`, written before any Pass 8 code edit.
+Baseline: commit `8634928` (tag `refactor-pass-7-unused-cleanup`, created at the start of this
+pass), `make mingw` 0 errors/161 warnings, all eight existing local targets passing (including
+`audit-repo`, whose allowlist was masking the three known defects) — confirmed before any edit.
+
+### Phase 46 — Case-sensitive asset path mismatch map
+- Files: new `docs/asset-path-portability.md`.
+- What was done: re-verified all three of Phase 7's confirmed case-mismatch findings directly
+  against the current tree (not relied on from the prior summary); resolved the canonical-naming
+  question per directory via sibling-file convention (git history is uninformative — the whole
+  asset tree was bulk-committed once at repo init); confirmed via a repo-wide search across
+  `src/*.c`, headers, test harnesses, the Makefile, the setup script, the CI workflow, and docs
+  that no additional mismatch of any kind exists.
+- Rollback: delete the file; no code affected.
+
+### Phase 47 — Fix confirmed case-mismatch defects
+- Files: `src/loadGame.c`.
+- What was done: corrected the three literals to match their already-existing, unmodified
+  tracked files — `Sunset_front.png`→`sunset_front.png`, `brick_block.png`→`Brick_block.png`,
+  `copper_block.png`→`Copper_block.png`. Zero file renames; the two terrain files' PascalCase
+  convention (matching the already-correct `Clay_block.png`) and the background directory's
+  majority lowercase convention (10 of 12 files) each independently pointed at "fix the literal,"
+  not "rename the file."
+- Behavior impact: none — the corrected literals point at content-identical, unmodified files;
+  confirmed via the full local test suite, which exercises the real production asset-loading
+  path end to end.
+- Validation: `make mingw` — 0 errors, 161 warnings (unchanged). All eight local targets pass.
+- Rollback: `git revert`.
+
+### Phase 48 — Strengthen the repository asset-path audit
+- Files: `scripts/audit_repository_usage.py`, `docs/verification/lifecycle_test.c`.
+- What was done: restructured findings into three explicit tiers (errors / known exceptions /
+  informational) instead of a flat count. New checks: the resolved path must be a regular file;
+  no ambiguous case-colliding sibling may exist in the same directory; a raw literal must not
+  contain a Windows-only backslash separator; two or more literals resolving to the same
+  canonical file are now reported informationally (never as an error) — this surfaced 4
+  legitimate lazy-load-guard duplicates (`jump.wav`, `select.wav`, `shoot.wav`, `menuMus.mp3`)
+  that were previously invisible. Removed the three `ALLOWLIST_ASSET_PATHS` entries fixed in
+  Phase 47 — the script now reports a clean `Result: PASS` with 0 known exceptions rather than
+  silently masking them. Added three named assertions to `lifecycle_test.c`
+  (`sheetTextureBack2`/`brick_block`/`copper_block` all non-NULL after `arcade_assets_load()`) so
+  a future regression on any one of these three specific fields fails with an unambiguous
+  assertion, not just the existing blanket "load succeeded" check.
+- Validation: **runtime-verified**, not static — the script actually runs and reports real
+  findings (0 errors, 4 legitimate informational notices), not a code-reading exercise. `make
+  mingw` — 0 errors, 161 warnings. All eight local targets pass.
+- Rollback: `git revert`.
+
+### Phase 49-50 — Case-sensitive Linux CI job + additive Linux build attempt
+- Files: `.github/workflows/mingw-validation.yml` (new `linux-asset-validation` job), `Makefile`
+  (new `linux`/`linux-smoketest`/`linux-clean` targets, entirely separate variable family from
+  `all`/`mingw*`, zero changes to either).
+- What was done: Windows CI, however thorough, cannot prove case-sensitive path correctness — its
+  filesystem silently accepts a wrong-case request. The new job's mandatory step runs the real
+  `audit_repository_usage.py` against Linux's genuinely case-sensitive filesystem — the actual
+  proof the Phase 47 corrections are right, not just statically plausible. A second, best-effort
+  part (every step `continue-on-error: true`) attempts a full additive Linux build + headless
+  smoke test: installs SDL2 dev packages via `apt-get`, generates the same kind of
+  `SDL2_image`/`SDL2_ttf`/`SDL2_mixer` compat-include header shim already proven necessary for the
+  Windows/MinGW build (most Linux distributions are expected to ship the same flat `SDL2/` header
+  layout that required it there), and runs the smoke test with SDL's dummy audio/video drivers
+  (GitHub-hosted Linux runners have neither an audio device nor a display server).
+- Reasoning: this best-effort part was authored **without access to a Linux toolchain to verify
+  against** in this environment — its success is not assumed. `continue-on-error` ensures an
+  unverified assumption about apt package names, header layout, or headless driver behavior
+  cannot block the job or the PR; only the mandatory case-sensitivity check can. The actual CI
+  run on the PR is the deciding, honest signal for this part, reported plainly rather than
+  claimed in advance.
+- Validation: local build/test suite unaffected by the Makefile additions (confirmed `make -n
+  linux` produces syntactically valid, correctly-flagged commands; same 0 errors/161 warnings,
+  all eight targets pass). **The workflow's actual run is reported in the pull request.**
+- Rollback: `git revert`; the Makefile Linux targets are safe to keep regardless of whether the
+  CI job's best-effort steps ever succeed.
 
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
