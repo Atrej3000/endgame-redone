@@ -348,14 +348,16 @@ void menu_events(GameState *gameState);
 void load_menu1(GameState *game);
 void load_menu2(GameState *game);
 
-// Scene routing (src/scene.c) -- see docs/scene-state-map.md
+// Scene routing (src/scene.c) -- see docs/scene-state-map.md. Also declared in
+// the focused inc/scene.h (legal duplicate prototype) -- kept here too since
+// menu_events.c/pause_events.c/processEvents.c call this and are not migrated
+// to the focused header this phase; see docs/solid-gof-audit.md section 7.3.
 void app_change_scene(GameState *game, AppScene next_scene);
 
-// Per-mode frame pipeline (src/frame.c) -- see docs/frame-pipeline-map.md.
-// Each wraps that mode's existing update/collision/render/events calls in
-// their unchanged order, giving the pipeline a single named entry point.
-void arcade_frame(GameState *game, SDL_Window *window, SDL_Renderer *renderer);
-void runner_frame(GameState *game, SDL_Window *window, SDL_Renderer *renderer);
+// Per-mode frame pipeline (src/frame.c) -- see docs/frame-pipeline-map.md and
+// inc/frame.h. Moved fully to inc/frame.h: arcade_frame()/runner_frame() have
+// exactly one definer (src/frame.c) and one caller (src/main.c), so no other
+// file needs this declaration from header.h.
 
 // Runner death lifecycle (src/runner_death.c) -- see docs/runner-death-lifecycle.md.
 void runner_trigger_death(GameState *game);

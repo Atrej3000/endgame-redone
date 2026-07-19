@@ -192,6 +192,31 @@ mingw-deathtest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/deathtest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/deathtest.exe
 
+# Non-interactive Factory Method test: verifies enemy_spawn/smart_enemy_spawn/
+# boss_spawn (src/entity_spawn.c) reproduce every one of the original 10
+# duplicated inline call sites' exact field values, and that an out-of-range
+# index is rejected without mutating anything -- a correctness guarantee the
+# original inline code never had. See docs/verification/entity_spawn_test.c
+# and docs/solid-gof-audit.md section 7.1.
+mingw-entityspawntest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/entity_spawn_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/entityspawntest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/entityspawntest.exe
+
+# Non-interactive Command-translation test: verifies translate_arcade_command/
+# translate_runner_command/translate_menu_command (src/input_command.c) map
+# every documented key to its documented GameCommand, including the
+# dual-keycode menu pairs and the runner-only SDLK_0 cheat code exclusion.
+# Pure functions -- no SDL subsystem init needed. See
+# docs/verification/command_translation_test.c and
+# docs/solid-gof-audit.md section 7.2.
+mingw-commandtest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/command_translation_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/commandtest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/commandtest.exe
+
 # Dependency-light (stdlib-only) Python script. Override PYTHON on the
 # command line if python3 isn't on PATH (e.g. `make PYTHON="py -3" audit-repo`
 # on some Windows setups).
@@ -256,4 +281,4 @@ linux-smoketest: $(LINUX_BUILD_DIR)
 linux-clean:
 	rm -rf $(LINUX_BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-entityspawntest mingw-commandtest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean

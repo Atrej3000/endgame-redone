@@ -1,4 +1,5 @@
 #include "header.h"
+#include "input_command.h"
 
 int processEvents(SDL_Window *window, GameState *game)
 {
@@ -28,10 +29,10 @@ int processEvents(SDL_Window *window, GameState *game)
         break;
         case SDL_KEYDOWN:
         {
-            switch (event.key.keysym.sym)
+            switch (translate_arcade_command(event.key.keysym.sym))
             {
             //return to menu
-            case SDLK_ESCAPE:
+            case GAME_COMMAND_QUIT_TO_MODE_MENU:
                 app_change_scene(game, APP_SCENE_ARCADE_MENU);
 //                game->kills_score = 0;
 //                game->kills_score_multi = 0;
@@ -49,7 +50,7 @@ int processEvents(SDL_Window *window, GameState *game)
                 return done;
                 break;
                 //pause
-            case SDLK_p:
+            case GAME_COMMAND_PAUSE:
                 app_change_scene(game, APP_SCENE_ARCADE_PAUSE);
                 done = 0;
 
@@ -58,7 +59,7 @@ int processEvents(SDL_Window *window, GameState *game)
                 Mix_PauseMusic();
                 break;
 
-            case SDLK_w:
+            case GAME_COMMAND_JUMP_PLAYER1:
                 if (game->man.onLedge)
                 {
                     game->man.dy = -10;
@@ -68,7 +69,7 @@ int processEvents(SDL_Window *window, GameState *game)
                     Mix_PlayChannel(-1, game->jumpSound, 0);
                 }
                 break;
-            case SDLK_UP:
+            case GAME_COMMAND_JUMP_PLAYER2:
                 if (game->secondPlayer.onLedge)
                 {
                     game->secondPlayer.dy = -10;
@@ -89,7 +90,7 @@ int processEvents(SDL_Window *window, GameState *game)
             //     }
             //     goto etc;
             //     break;
-            case SDLK_q:
+            case GAME_COMMAND_QUIT_TO_MAIN_MENU:
                 app_change_scene(game, APP_SCENE_MAIN_MENU);
 
                 Mix_FreeChunk(game->select);
@@ -104,6 +105,8 @@ int processEvents(SDL_Window *window, GameState *game)
                 game->kickSound = NULL;
                 Mix_FreeMusic(game->battleMus);
                 game->battleMus = NULL;
+                break;
+            default:
                 break;
             }
         }
@@ -556,10 +559,21 @@ int processEvents2(SDL_Window *window, GameState *game)
         break;
         case SDL_KEYDOWN:
         {
-            switch (event.key.keysym.sym)
+            // Cheat code -- SDLK_0 is not represented in GameCommand (not
+            // duplicated anywhere else, so routing it through the
+            // translation boundary would add indirection with no benefit).
+            // Mutually exclusive with the mapped commands below, same as the
+            // original single raw-keycode switch.
+            if (event.key.keysym.sym == SDLK_0)
+            {
+                game->man.x += 14400;
+                game->gameLives += 30;
+            }
+
+            switch (translate_runner_command(event.key.keysym.sym))
             {
             //return to menu
-            case SDLK_ESCAPE:
+            case GAME_COMMAND_QUIT_TO_MODE_MENU:
                 app_change_scene(game, APP_SCENE_RUNNER_MENU);
 
                 Mix_VolumeChunk(game->select, 32);
@@ -571,7 +585,7 @@ int processEvents2(SDL_Window *window, GameState *game)
                 return done;
                 break;
                 //pause
-            case SDLK_p:
+            case GAME_COMMAND_PAUSE:
                 app_change_scene(game, APP_SCENE_RUNNER_PAUSE);
                 done = 0;
 
@@ -580,7 +594,7 @@ int processEvents2(SDL_Window *window, GameState *game)
                 Mix_PauseMusic();
                 break;
 
-            case SDLK_w:
+            case GAME_COMMAND_JUMP_PLAYER1:
                 if (game->man.onLedge)
                 {
                     game->man.dy = -10;
@@ -590,7 +604,7 @@ int processEvents2(SDL_Window *window, GameState *game)
                     Mix_PlayChannel(-1, game->jumpSound, 0);
                 }
                 break;
-            case SDLK_q:
+            case GAME_COMMAND_QUIT_TO_MAIN_MENU:
                 app_change_scene(game, APP_SCENE_MAIN_MENU);
 
                 Mix_FreeChunk(game->select);
@@ -604,7 +618,7 @@ int processEvents2(SDL_Window *window, GameState *game)
                 Mix_FreeMusic(game->runnerMus);
                 game->runnerMus = NULL;
                 break;
-            case SDLK_UP:
+            case GAME_COMMAND_JUMP_PLAYER2:
                 if (game->secondPlayer.onLedge)
                 {
                     game->secondPlayer.dy = -10;
@@ -614,11 +628,7 @@ int processEvents2(SDL_Window *window, GameState *game)
                     Mix_PlayChannel(-1, game->jumpSound, 0);
                 }
                 break;
-
-                //cheating move
-            case SDLK_0:
-                game->man.x += 14400;
-                game->gameLives += 30;
+            default:
                 break;
             }
         }

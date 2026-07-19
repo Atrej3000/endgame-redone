@@ -1,4 +1,5 @@
 #include "header.h"
+#include "frame.h"
 
 void arcade_frame(GameState *game, SDL_Window *window, SDL_Renderer *renderer)
 {
