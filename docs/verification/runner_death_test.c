@@ -119,7 +119,7 @@ int main(void)
     // once the scene is no longer APP_SCENE_RUNNER_GAME).
     for (int i = 0; i < 200 && game->app.scene == APP_SCENE_RUNNER_GAME; i++)
     {
-        runner_frame(game, window, renderer);
+        runner_frame(game, window, renderer, PHYSICS_DT);
     }
 
     CHECK("game over: gameLives reached exactly 0", game->gameLives == 0);
@@ -262,7 +262,7 @@ int main(void)
     // Mid-countdown: process2() must not move secondPlayer (frozen).
     for (int i = 0; i < 10; i++)
     {
-        process2(game);
+        process2(game, PHYSICS_DT);
     }
     CHECK("multiplayer: secondPlayer.x frozen during countdown", (int)game->secondPlayer.x == secondPlayerXBefore);
     CHECK("multiplayer: secondPlayer.y frozen during countdown", (int)game->secondPlayer.y == 500);
