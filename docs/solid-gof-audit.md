@@ -173,10 +173,16 @@ would be a 4th abstraction and is left for a future phase.
 
 ## 6. GoF candidate-pattern matrix
 
+**Terminology note (corrected in Phase 10)**: the two rows below originally said "Factory Method."
+Neither is a GoF Factory Method — that pattern requires a creator hierarchy where subclasses
+override which concrete product gets built polymorphically; there is no such hierarchy here, and
+none should be added. Both are ordinary, focused C creation functions (informally, "Simple
+Factory"-style helpers), corrected below. See `docs/design-patterns.md` for the full explanation.
+
 | Problem | Evidence | SOLID principle | Candidate pattern | Simpler alternative | Decision |
 |---|---|---|---|---|---|
-| 10-site duplicated inline `Enemies` init | `process.c` x9, `loadGame.c` x1 (§5.2) | SRP, OCP | Factory Method | A single non-bounds-checked helper function (rejected — a genuine bounds check is worth the small formal step) | **Required** |
-| Bullet creation | `addBullet`/`addSecondBullet` (`process.c:3,40`) | SRP | Factory Method | — | **Already present**, no change needed |
+| 10-site duplicated inline `Enemies` init | `process.c` x9, `loadGame.c` x1 (§5.2) | SRP, OCP | Simple Factory-style creation function (not GoF Factory Method) | A single non-bounds-checked helper function (rejected — a genuine bounds check is worth the small formal step); a formal Factory Method hierarchy (rejected — no polymorphic product selection to justify it) | **Required** |
+| Bullet creation | `addBullet`/`addSecondBullet` (`process.c:3,40`) | SRP | Simple Factory-style creation function (not GoF Factory Method) | — | **Already present**, no change needed |
 | `processEvents()`/`processEvents2()` duplicate the same 5-key mapping; `menu0_events()` already hand-rolls multi-key-to-one-action | `processEvents.c` (§5.2) | SRP, OCP | Command (translation boundary, not queued objects) | Per-file helper function duplicated across processEvents/processEvents2 (rejected — doesn't remove the keycode-mapping duplication itself) | **Required** (scoped to `processEvents`/`processEvents2`/`menu0_events`; `menu_events.c`/`pause_events.c` deferred, §9) |
 | Scene routing | `AppScene` + `app_change_scene()` + 2 entry hooks (§4) | — | State | Formal per-scene state objects | **Already present, informally** — only 2/10 scenes need entry side effects; formal objects would be pure overhead |
 | App/session/frame entry points | `app_init/app_shutdown`, `arcade_frame/runner_frame`, `*_assets_load/unload` | — | Facade | Another wrapper layer | **Already present, informally** — documented, not re-wrapped |
@@ -209,21 +215,29 @@ Every abstraction below is checked against the task's own four questions (demons
 why the simpler implementation is insufficient / why this pattern over a helper function / how
 it's tested) before being included.
 
-### 7.1 Factory Method — `src/entity_spawn.c` + `inc/entity_spawn.h`
+### 7.1 Simple Factory-style creation functions (not GoF Factory Method) — `src/entity_spawn.c` + `inc/entity_spawn.h`
 ```c
 bool enemy_spawn(GameState *game, int index, float x, float y, float dx, float dy);
 bool smart_enemy_spawn(GameState *game, int index, float x, float y, float dx, float dy);
 bool boss_spawn(GameState *game, int index, float x, float y, float dx, float dy);
 ```
+**Terminology (corrected in Phase 10)**: these are ordinary C creation functions, not a GoF Factory
+Method hierarchy — there is no creator interface, no subclassing, and no polymorphic choice of
+which concrete product to build (each function always builds exactly one kind of `Enemies`
+entry). The simpler C approach was deliberately chosen over emulating Factory Method's creator
+hierarchy, which this codebase has no use for.
+
 1. **Problem**: identical 5-6-field struct init duplicated at 10 call sites (§5.2).
 2. **Why insufficient today**: no bounds-check exists anywhere in the 10 sites — an off-by-one in
    any of the hand-written loop bounds would silently corrupt adjacent memory; there is no single
    place to add or adjust a spawn invariant.
-3. **Why a factory function beats a bare helper**: it centralizes the *bounds check* (a genuine new
-   correctness guarantee, not just deduplication) alongside the field-set invariant, and gives each
-   entity kind (`Enemies` used as enemy vs. smart-enemy vs. boss) a distinct, named creation entry
-   point matching how the task's own Factory Method section describes "centralizing required
-   initial values, bounds checks, ownership, failure handling."
+3. **Why a focused creation function beats a bare helper (and beats a formal Factory Method
+   hierarchy)**: it centralizes the *bounds check* (a genuine new correctness guarantee, not just
+   deduplication) alongside the field-set invariant, and gives each entity kind (`Enemies` used as
+   enemy vs. smart-enemy vs. boss) a distinct, named creation entry point — "centralizing required
+   initial values, bounds checks, ownership, failure handling" without the polymorphic machinery
+   Factory Method would require and that this codebase has no need for (only one concrete product
+   per entity kind exists; nothing selects among alternatives at runtime).
 4. **Tested by**: `docs/verification/entity_spawn_test.c` — see §10.
 
 Each function sets exactly the fields the matching call sites set (`visible=1`, `countShots=0`
@@ -385,7 +399,8 @@ for this phase.
 
 ## 11. Rollback strategy
 
-Each of the 6 planned commits (docs → Factory Method → header split → Command → DIP fix → docs)
+Each of the 6 planned commits (docs → entity-spawn creation functions → header split → Command →
+DIP fix → docs)
 is independently revertible with `git revert <sha>` — the sequence deliberately keeps unrelated
 concerns in separate commits (per the task's own instruction not to combine header decomposition,
 input translation, and entity-factory work in one commit). The tag `refactor-pre-solid-gof`
