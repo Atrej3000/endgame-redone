@@ -113,6 +113,10 @@ jobs:
         shell: msys2 {0}
         run: make mingw-physicstest 2>&1 | tee physicstest.log
 
+      - name: Input state test
+        shell: msys2 {0}
+        run: make mingw-inputtest 2>&1 | tee inputtest.log
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -130,6 +134,7 @@ jobs:
             headertest.log
             groupingtest.log
             physicstest.log
+            inputtest.log
           if-no-files-found: ignore
 
   # Windows CI, however thorough, cannot prove case-sensitive path
