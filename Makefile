@@ -232,6 +232,19 @@ mingw-headertest: $(BUILD_DIR)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_input_command.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	@echo "HEADER SELF-CONTAINMENT TEST: ALL PASS"
 
+# Non-interactive GameState nested-struct grouping test: verifies
+# AppContext (game->app.renderer/game->app.scene) and AssetLifecycleFlags
+# (game->assetFlags.*) are correctly zero-initialized via calloc, explicitly
+# writable through the real production functions, reset/cleaned-up
+# correctly, and that unrelated GameState fields remain untouched. See
+# docs/verification/gamestate_grouping_test.c and
+# docs/gamestate-decomposition.md.
+mingw-groupingtest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/gamestate_grouping_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/groupingtest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/groupingtest.exe
+
 # Dependency-light (stdlib-only) Python script. Override PYTHON on the
 # command line if python3 isn't on PATH (e.g. `make PYTHON="py -3" audit-repo`
 # on some Windows setups).
