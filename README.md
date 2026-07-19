@@ -32,6 +32,7 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
         make mingw-headertest    # confirms each focused public header compiles standalone
         make mingw-groupingtest  # non-interactive GameState nested-struct lifecycle check
         make mingw-physicstest   # non-interactive fixed-timestep player-physics check
+        make mingw-inputtest     # non-interactive edge-triggered jump-request check
         make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
         make audit-repo          # repository usage integrity check (asset paths + prototypes)
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
@@ -70,6 +71,13 @@ Architecture:
     constants are expressed in explicit per-second units rather than per-frame ones -- gameplay
     physics for the player is no longer tied to display refresh rate. Enemies, bosses, bullets,
     background/decor scroll, and moving traps remain frame-count-based (deliberately deferred).
+    `docs/input-simulation-separation-map.md` documents the follow-on input/simulation separation:
+    jump requests are edge-triggered `bool` flags (`game->input.jumpRequestedPlayer1/2`) set by
+    `processEvents()`/`processEvents2()` and consumed exactly once, at the fixed physics tick rate,
+    by `consume_arcade_jump_requests()`/`consume_runner_jump_requests()` -- one input edge produces
+    exactly one jump regardless of how many physics ticks a real frame produces. Also documents a
+    regression this pass found and fixed: Runner's jump impulse had been left unconverted (a bare
+    `-10`, 60x too weak at the fixed-timestep integration) since the previous pass.
 
 Known platform limitations:
     - The default build targets macOS only (bundled `.framework`s under `resource/frameworks`,

@@ -3,6 +3,7 @@
 
 void arcade_simulate(GameState *game, float dt)
 {
+    consume_arcade_jump_requests(game);
     apply_arcade_player_forces(game, dt);
     process(game, dt);
     collisionDetect(game);
@@ -10,6 +11,7 @@ void arcade_simulate(GameState *game, float dt)
 
 void runner_simulate(GameState *game, float dt)
 {
+    consume_runner_jump_requests(game);
     apply_runner_player_forces(game, dt);
     process2(game, dt);
     collisionDetect2(game);

@@ -974,6 +974,80 @@ buffering, variable jump height), and collision-order/corner-case issues were al
 exploration and documented, none fixed this pass. Ready to start once a future phase is scoped
 specifically for one of these.
 
+## Phases executed in Pass 12 (input/simulation separation)
+
+Full evidence in `docs/input-simulation-separation-map.md`, written before any Pass 12 code edit.
+Baseline: commit `8410b18` (tag `refactor-pre-input-simulation-separation`, `main` after Phase
+11's PR #7 merge), `make mingw` 0 errors/145 warnings, all 10 existing local targets passing.
+Implements the physics assessment's own "Phase 2 — separate input and simulation (`InputState`
+struct, edge-triggered de-duplication)", the recommended next step after Pass 11's fixed timestep.
+
+### Phase 70 — Input/simulation separation map
+- Files: new `docs/input-simulation-separation-map.md`.
+- What was done: confirmed Pass 11 fixed the continuous-force half (held-key accel/jump-hold/
+  friction, running at the fixed tick via `apply_*_player_forces`) but left discrete jump-trigger
+  handling inside `processEvents()`/`processEvents2()`, called once per real frame rather than at
+  the fixed tick rate — the exact gap the assessment's "Phase 2" names. Also found and documented a
+  regression: Runner's two jump-impulse sites were never converted off the bare frame-tuned `-10`
+  during Pass 11's timestep conversion (Arcade's equivalent sites were correctly converted),
+  producing a jump 60× weaker than intended since Pass 11 merged. Designed the `InputState` struct
+  and edge-triggered consumption approach, and the deferred-items list.
+- Rollback: delete the file.
+
+### Phase 71 — InputState struct and jump-request consumption
+- Files: `inc/header.h`, `src/process.c`, `src/frame.c`.
+- What was done: added `InputState` (`jumpRequestedPlayer1`/`jumpRequestedPlayer2`, `GameState`
+  field `input`) following Phase 61's `AppContext`/`AssetLifecycleFlags` nested-struct pattern; new
+  `consume_arcade_jump_requests`/`consume_runner_jump_requests` (`src/process.c`), wired into
+  `arcade_simulate`/`runner_simulate` (`src/frame.c`) before `apply_*_player_forces`, matching the
+  original relative ordering (a keydown-triggered jump impulse could stack with jump-hold thrust in
+  the same real frame before, so consumption runs first, preserving that). No producer sets the
+  flags yet — no observable behavior change in this commit.
+- Validation: `make mingw` — 0 errors, 145 warnings (unchanged). All 10 local targets pass.
+- Rollback: `git revert`.
+
+### Phase 72 — Route jump input through InputState
+- Files: `src/processEvents.c`, `src/loadGame.c`.
+- What was done: `GAME_COMMAND_JUMP_PLAYER1`/`_PLAYER2` case bodies in both
+  `processEvents()`/`processEvents2()` shrink to a single flag-set
+  (`game->input.jumpRequestedPlayer1 = true;`) — the `onLedge` check, `dy` assignment, and SFX
+  playback move to the consumption functions added in Phase 71, which now run at the fixed physics
+  tick rate instead of once per real frame. This is also where Phase 70's discovered regression is
+  fixed: both Arcade and Runner now route through the same `consume_*_jump_requests` functions,
+  which use `JUMP_SPEED_PER_SEC` uniformly — Runner's jump impulse is corrected as a direct
+  consequence of the relocation, not a separate patch. `arcade_session_reset`/`runner_session_reset`
+  (`src/loadGame.c`) also clear the new request flags, so a request left pending from a previous
+  session (e.g. quit mid-air just after a keydown) can't fire an unwanted instant jump at the start
+  of the next one.
+- Behavior impact: Arcade jump feel unchanged (its impulse was already correct); Runner jump height
+  corrected (previously 60× too weak due to the Phase 11 regression). Everything else (pause, quit,
+  scene transitions, SFX loads, cheat code, decor scroll, death triggers) untouched.
+- Validation: `make mingw` — 0 errors, 145 warnings (unchanged). All 10 local targets pass.
+- Rollback: `git revert`.
+
+### Phase 73 — Input/simulation separation validation test
+- Files: new `docs/verification/input_state_test.c`, `Makefile` (new `mingw-inputtest` target),
+  `.github/workflows/mingw-validation.yml` (step + log-upload path, both added in this same commit).
+- What was done: (1) edge-triggered single consumption — a grounded request fires the jump exactly
+  once and clears itself, a second consume call in the same real frame does not re-fire even if
+  re-grounded in between; (2) an airborne request is dropped, not buffered, matching the original's
+  silent-drop semantics; (3) Runner's jump impulse uses `JUMP_SPEED_PER_SEC`, not the never-
+  converted bare `-10` (direct regression-fix proof); (4) the player-2 path for both modes; (5) one
+  real `arcade_simulate`/`runner_simulate` call confirms the consumption wires correctly into the
+  existing fixed-tick order (`dy` after one tick equals the jump impulse plus one tick's gravity).
+- Validation: `make mingw` — 0 errors, 145 warnings. All 11 local targets pass.
+- Rollback: `git revert`.
+
+**Pass 12 deferred items** (full reasoning in `docs/input-simulation-separation-map.md` section
+4): pause/quit/scene-transition commands (true one-shot, no fixed-tick-owned gating state);
+collision-derived scene transitions and the Runner fall-death trigger inside
+`processEvents`/`processEvents2` (same *shape* of "reads tick-owned state once per real frame"
+issue as jump, but for collision/death consequences — the assessment's own Phase 3, not Phase 2);
+shooting (`SDL_SCANCODE_SPACE`/`KP_0` held-check + `shotCount` re-arm timer — needs bullet-pool/
+projectile-ownership decisions, the assessment's own Phase 4); the Runner `SDLK_0` cheat code and
+menu/pause raw event handling (not gameplay-physics input). Ready to start once a future phase is
+scoped specifically for one of these.
+
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
 **Pass 9 deferred items** (full reasoning in `docs/solid-gof-audit.md` section 9 and
