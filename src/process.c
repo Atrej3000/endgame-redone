@@ -74,9 +74,18 @@ void removeSecondBullet(GameState *game, int i)
 // (src/frame.c) before process(), which previously re-ran this same
 // movement up to 113 times per tick (once per enemy/smart-enemy/boss
 // collision-loop iteration). Captures prevX before moving, for the swept
-// collision test in process()'s own collision loops. The clamp bound
-// (BULLET_SPEED_PER_TICK) is scaled to preserve the legacy steady-state
-// speed across the fix -- see the constant's own comment in inc/header.h.
+// collision test in process()'s own collision loops.
+//
+// Normalizes dx to +-BULLET_SPEED_PER_TICK by sign, not a max-clamp: the
+// legacy per-application clamp (0.1) was smaller than the spawn dx (+-3),
+// so it always shrank toward the bound regardless of direction; the new
+// bound (11.3, chosen to preserve the legacy steady-state speed -- see the
+// constant's own comment in inc/header.h) is *larger* than the spawn dx, so
+// a max-clamp would never fire and the bullet would silently move at the
+// spawn speed (3/tick) instead of the intended, speed-preserving one.
+// Normalizing by sign reproduces the old code's actual effect (spawn
+// direction, fixed magnitude every tick) regardless of which bound is
+// bigger.
 void move_arcade_bullets(GameState *game)
 {
     for (int i = 0; i < MAX_BULLETS; i++)
@@ -84,14 +93,7 @@ void move_arcade_bullets(GameState *game)
         if (game->bullets[i].active)
         {
             game->bullets[i].prevX = game->bullets[i].x;
-            if (game->bullets[i].dx > BULLET_SPEED_PER_TICK)
-            {
-                game->bullets[i].dx = BULLET_SPEED_PER_TICK;
-            }
-            if (game->bullets[i].dx < -BULLET_SPEED_PER_TICK)
-            {
-                game->bullets[i].dx = -BULLET_SPEED_PER_TICK;
-            }
+            game->bullets[i].dx = (game->bullets[i].dx >= 0) ? BULLET_SPEED_PER_TICK : -BULLET_SPEED_PER_TICK;
             game->bullets[i].x += game->bullets[i].dx;
             if ((game->bullets[i].x < 0) || (game->bullets[i].x > 1280))
             {
@@ -107,14 +109,7 @@ void move_arcade_bullets(GameState *game)
             if (game->secondBullets[i].active)
             {
                 game->secondBullets[i].prevX = game->secondBullets[i].x;
-                if (game->secondBullets[i].dx > BULLET_SPEED_PER_TICK)
-                {
-                    game->secondBullets[i].dx = BULLET_SPEED_PER_TICK;
-                }
-                if (game->secondBullets[i].dx < -BULLET_SPEED_PER_TICK)
-                {
-                    game->secondBullets[i].dx = -BULLET_SPEED_PER_TICK;
-                }
+                game->secondBullets[i].dx = (game->secondBullets[i].dx >= 0) ? BULLET_SPEED_PER_TICK : -BULLET_SPEED_PER_TICK;
                 game->secondBullets[i].x += game->secondBullets[i].dx;
                 if ((game->secondBullets[i].x < 0) || (game->secondBullets[i].x > 1280))
                 {
