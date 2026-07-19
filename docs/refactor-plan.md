@@ -1122,6 +1122,88 @@ deduplication" item); star-collision (`30×30`) and enemy/boss `collide2d()` hit
 crossing-based (no persistent state to reaffirm there, unlike landing). Ready to start once a
 future phase is scoped specifically for one of these.
 
+## Phases executed in Pass 14 (projectile correctness, Arcade-only)
+
+Full evidence in `docs/projectile-correctness-map.md`, written before any Pass 14 code edit.
+Baseline: commit `c9ff171` (tag `refactor-pre-projectile-correctness`, `main` after Phase 13's
+PR #9 merge), `make mingw` 0 errors/145 warnings, all 12 existing local targets passing.
+Implements the physics assessment's own "Phase 4 — correct projectiles: move bullets once per
+step, swept collision, projectile pool." Bullets are entirely Arcade-only; confirmed zero
+involvement in `process2()`/`processEvents2()`/`runner_session_reset()`/`doRender2()`.
+
+### Phase 78 — Projectile correctness map
+- Files: new `docs/projectile-correctness-map.md`.
+- What was done: corrected the magnitude of the already-documented bullet triple-movement bug —
+  three collision loops (vs. `enemyValues[101]`, `smartEnemies[10]`, `boss[2]`) each re-move the
+  bullet inside their own loop body, so the real per-tick multiplier is `101+10+2=113`, not "3"
+  (prior docs named the loop kinds correctly but never counted total executions). Derived the
+  steady-state legacy speed (`0.1 × 113 = 11.3 px/tick`) this phase would need to preserve. Traced
+  `unvisible`'s full lifecycle and confirmed it's redundant with an explicit `active` flag (a hit
+  was always followed by an immediate, same-iteration free, never a delayed-despawn signal).
+  Designed the pool conversion, the speed-preserving `BULLET_SPEED_PER_TICK` constant, and the
+  `prevX`-based swept collision test (mirroring Phase 13's own `prevY` design for player landing).
+- Rollback: delete the file.
+
+### Phase 79 — Convert bullets to a fixed pool
+- Files: `inc/header.h`, `src/process.c`, `src/doRender.c`, `docs/verification/lifecycle_test.c`.
+- What was done: `Bullet` gains `prevX`/`active`, loses `unvisible`; `GameState.bullets`/
+  `secondBullets` change from `Bullet*[MAX_BULLETS]` (individually `malloc`'d per shot) to
+  `Bullet[MAX_BULLETS]` (value arrays). `addBullet`/`addSecondBullet` claim the first inactive
+  slot in place; `removeBullet`/`removeSecondBullet` set `active = false` — no `malloc`/`free`
+  anywhere in the hot path. The existing `arcade_session_reset`/`app_shutdown` loops that call
+  `removeBullet` in a `for` loop need no changes — the new body is a drop-in replacement for the
+  old one. Storage representation only: bullets still move up to 113× per tick in this commit,
+  documented plainly as an intentional intermediate step. The one existing bullet-touching test
+  (`lifecycle_test.c`) gets its two assertions updated for the value-type comparison.
+- Validation: `make mingw` — 0 errors, 145 warnings (unchanged). All 12 local targets pass.
+- Rollback: `git revert`.
+
+### Phase 80 — Move bullets once per step with swept collision
+- Files: `inc/header.h`, `src/process.c`, `src/frame.c`.
+- What was done: new `move_arcade_bullets`, called from `arcade_simulate` before `process` — the
+  only place bullets now move or get clamped. The 6 collision loops (3 single-player + 3
+  multiplayer mirror) drop their movement/clamp/off-screen-despawn code and their point-based hit
+  test becomes a segment-vs-rect swept test using the bullet's `prevX`. Hit-response logic
+  (score/kill thresholds, despawn-on-hit) unchanged.
+- Bug caught before the test was written, not by it: the initial `move_arcade_bullets` reused the
+  legacy clamp's *shape* (a max-clamp), which only shrinks `dx` when already larger than the
+  bound — correct for the old bound (`0.1`, smaller than spawn `dx=±3`) but silently inert for the
+  new bound (`11.3`, larger than spawn `dx`), which would have left bullets moving at the spawn
+  speed instead of the intended speed-preserving one. Fixed in its own commit by normalizing `dx`
+  to `±BULLET_SPEED_PER_TICK` by sign instead of clamping a magnitude.
+- Warning count: 145 → 121 (a decrease, not a suppression). Removing the 12 bare-double-literal
+  clamp blocks (`0.1`/`-0.1` against `float` fields, 2 warnings each = 24) in favor of the
+  float-suffixed `BULLET_SPEED_PER_TICK` eliminates the `-Wdouble-promotion`/`-Wfloat-conversion`
+  pairs those triggered.
+- Validation: `make mingw` — 0 errors, 121 warnings. All 12 local targets pass.
+- Rollback: `git revert` (two commits: the movement/swept-collision change, then the
+  clamp-direction fix).
+
+### Phase 81 — Projectile correctness validation test
+- Files: new `docs/verification/projectile_correctness_test.c`, `Makefile` (new
+  `mingw-projectiletest` target), `.github/workflows/mingw-validation.yml` (step + log-upload
+  path, both added in this same commit).
+- What was done: (1) pool spawn/despawn — `addBullet` claims the first inactive slot with `prevX`
+  initialized to the spawn position, `removeBullet` deactivates without disturbing other slots;
+  (2) move-once-per-step — one `move_arcade_bullets` call moves a bullet by exactly
+  `BULLET_SPEED_PER_TICK` in the spawned direction, a second call moves it the same fixed distance
+  again; (3) swept collision — a bullet whose `prevX → x` span crosses a target's rect registers
+  a hit even though its end-of-tick position alone (already past the target) would miss under the
+  old point-only test; (4) an end-to-end `process()` regression check confirms a bullet crossing
+  an enemy via the real move+collision pipeline still kills it and increments `kills_score`.
+- Validation: `make mingw` — 0 errors, 121 warnings. All 13 local targets pass.
+- Rollback: `git revert`.
+
+**Pass 14 deferred items** (full reasoning in `docs/projectile-correctness-map.md` section 7):
+enemy/boss AI, movement, and collision-response thresholds (unchanged); the shooting-input
+mechanism (`shotCount`/`SDL_SCANCODE_SPACE`/`KP_0`, still real-frame-rate — this phase fixes the
+projectiles, not what triggers them); converting bullet speed to real px/s units; extracting
+bullet/projectile code into its own module (`docs/solid-gof-audit.md` already names and defers
+this SRP item); the render-time direction-flip quirk (a bullet's sprite flips using the player's
+*current* facing, not its facing at spawn); target-side swept collision (scoped to the bullet's
+own fast movement only). Ready to start once a future phase is scoped specifically for one of
+these.
+
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
 **Pass 9 deferred items** (full reasoning in `docs/solid-gof-audit.md` section 9 and

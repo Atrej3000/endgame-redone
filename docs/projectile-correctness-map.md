@@ -111,10 +111,25 @@ slowdown nobody asked for and no player would recognize as "the same game." That
 a tuned design value, but it *is* the speed already experienced. Matching Phase 11's own precedent
 (preserving observable behavior across an architectural fix via a derived, documented conversion
 factor), this phase introduces `BULLET_SPEED_PER_TICK = 11.3f` (`= 0.1 × 113`, both legacy values,
-documented derivation above) as the new single-application clamp bound. Bullets remain expressed
-in px/tick, not converted to px/s — a well-defined unit given the fixed 60Hz tick already in
-place, and not something the assessment's Phase 4 wording asks for; a trivial future option
-(multiply by `PHYSICS_HZ`), not done here.
+documented derivation above). Bullets remain expressed in px/tick, not converted to px/s — a
+well-defined unit given the fixed 60Hz tick already in place, and not something the assessment's
+Phase 4 wording asks for; a trivial future option (multiply by `PHYSICS_HZ`), not done here.
+
+**A bug caught before the test was written, not by it**: the first version of
+`move_arcade_bullets` reused the legacy code's *shape* — `if (dx > BULLET_SPEED_PER_TICK) dx =
+BULLET_SPEED_PER_TICK;` (and the mirrored `<` branch) — a max-clamp. That only shrinks `dx` when
+it's already larger than the bound. The legacy per-application clamp (`0.1`) was *smaller* than
+the spawn `dx` (`±3`), so it always fired, shrinking toward `0.1` every time. The new bound
+(`11.3`) is *larger* than the spawn `dx`, so a max-clamp of the same shape never fires — the
+bullet would have silently kept moving at the spawn speed (`3`/tick) instead of the intended,
+speed-preserving `11.3`/tick, defeating the whole point of the constant. Fixed by normalizing
+`dx` to `±BULLET_SPEED_PER_TICK` by sign instead of clamping a magnitude:
+```c
+game->bullets[i].dx = (game->bullets[i].dx >= 0) ? BULLET_SPEED_PER_TICK : -BULLET_SPEED_PER_TICK;
+```
+This reproduces the old code's actual effect (spawn direction, fixed magnitude every tick)
+regardless of which bound happens to be larger — corrected in its own commit before the
+validation test was written.
 
 **Swept collision**: the point test becomes a segment-vs-rect test using `prevX`:
 ```c
