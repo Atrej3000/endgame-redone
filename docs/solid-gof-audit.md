@@ -114,9 +114,13 @@ further would exceed the 3-abstraction ceiling and is recorded as deferred debt 
 
 ### 5.2 Open/Closed — violated, concretely
 The exact same 5-6-field `Enemies` initialization pattern (`x, y, dy, dx, visible[, countShots]`)
-is hand-written inline at **10 separate call sites** (9 in `process.c`'s wave triggers, 1 in
-`loadGame.c`'s `arcade_session_reset`). Adding or adjusting one spawn invariant today means
-editing up to 10 places by hand. Four files independently implement "quit to main menu" with
+is hand-written inline at **8 wave-trigger blocks in `process.c`** (`time==120`,
+`tempScore==10,31,72,133,224,345,366`) plus **2 of the 3 reset loops in `loadGame.c`'s
+`arcade_session_reset`** (the `smartEnemies`/`boss` reset loops match the pattern exactly; the
+third, `enemyValues`' own reset loop, sets only `x,y,dy,dx` and deliberately never touches
+`visible`/`countShots` — a genuinely different contract from every other site, verified by direct
+read, see §7.1 for why it is intentionally *not* converted). Adding or adjusting one spawn
+invariant today still means editing up to 10 places by hand. Four files independently implement "quit to main menu" with
 divergent side-effect bodies for the same `SDLK_q` trigger; two files duplicate "pause"; two
 functions duplicate "jump."
 
@@ -213,7 +217,7 @@ bool boss_spawn(GameState *game, int index, float x, float y, float dx, float dy
 ```
 1. **Problem**: identical 5-6-field struct init duplicated at 10 call sites (§5.2).
 2. **Why insufficient today**: no bounds-check exists anywhere in the 10 sites — an off-by-one in
-   any of the 9 hand-written loop bounds would silently corrupt adjacent memory; there is no single
+   any of the hand-written loop bounds would silently corrupt adjacent memory; there is no single
    place to add or adjust a spawn invariant.
 3. **Why a factory function beats a bare helper**: it centralizes the *bounds check* (a genuine new
    correctness guarantee, not just deduplication) alongside the field-set invariant, and gives each
@@ -222,11 +226,17 @@ bool boss_spawn(GameState *game, int index, float x, float y, float dx, float dy
    initial values, bounds checks, ownership, failure handling."
 4. **Tested by**: `docs/verification/entity_spawn_test.c` — see §10.
 
-Each function sets exactly the fields the current call sites set (`visible=1`, `countShots=0`
+Each function sets exactly the fields the matching call sites set (`visible=1`, `countShots=0`
 where applicable, `dx`/`dy` as given, `x`/`y` as given) and returns `false` without mutating
-anything when `index` is out of range for that array. All 10 call sites are converted to pass the
+anything when `index` is out of range for that array. All 8 `process.c` wave-trigger blocks plus
+the 2 fully-matching `loadGame.c` reset loops (`smartEnemies`, `boss`) are converted to pass the
 same literal values they use today — no change to spawn timing, positions, velocities, or visible
-behavior.
+behavior. **`loadGame.c`'s `enemyValues` reset loop is deliberately left inline**: it sets only
+`x,y,dy,dx` and never touches `visible`/`countShots`, a genuinely different contract from every
+other site (verified by direct read) — forcing it through `enemy_spawn` would either silently set
+`visible=1` on every session reset (a real behavior change) or require a parameter no other caller
+needs. Converting only what actually shares the same contract, and documenting why one site
+doesn't, is the correct application of LSP here, not an oversight.
 
 ### 7.2 Command — `src/input_command.c` + `inc/input_command.h`
 ```c

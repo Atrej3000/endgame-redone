@@ -1,4 +1,5 @@
 #include "header.h"
+#include "entity_spawn.h"
 
 void addBullet(GameState *game, float x, float y, float dx)
 {
@@ -306,16 +307,8 @@ void process(GameState *game)
         //1st example of assimetric with random
         for (int i = 0; i < 10; i += 2)
         {
-            game->enemyValues[i].x = 620;
-            game->enemyValues[i].y = (i) * -200; // - random() % 100;
-            game->enemyValues[i].dy = 0;
-            game->enemyValues[i].dx = 0;
-            game->enemyValues[i].visible = 1;
-            game->enemyValues[i + 1].x = 580;
-            game->enemyValues[i + 1].y = (i) * -200; //- random() % 50;
-            game->enemyValues[i + 1].dy = 0;
-            game->enemyValues[i + 1].dx = 0;
-            game->enemyValues[i + 1].visible = 1;
+            enemy_spawn(game, i, 620, (i) * -200, 0, 0);         // - random() % 100;
+            enemy_spawn(game, i + 1, 580, (i) * -200, 0, 0);     //- random() % 50;
         }
     }
 
@@ -324,16 +317,8 @@ void process(GameState *game)
         //2nd example of assimetric with random
         for (int j = 0; j < 20; j += 2)
         {
-            game->enemyValues[j].x = 620;
-            game->enemyValues[j].y = (j) * -200;
-            game->enemyValues[j].dy = 0; //- random() % 80;
-            game->enemyValues[j].dx = 0;
-            game->enemyValues[j].visible = 1;
-            game->enemyValues[j + 1].x = 580;
-            game->enemyValues[j + 1].y = (j) * -200;
-            game->enemyValues[j + 1].dy = 0; //- random() % 40;
-            game->enemyValues[j + 1].dx = 0;
-            game->enemyValues[j + 1].visible = 1;
+            enemy_spawn(game, j, 620, (j) * -200, 0, 0);         //- random() % 80;
+            enemy_spawn(game, j + 1, 580, (j) * -200, 0, 0);     //- random() % 40;
         }
         game->tempScore++;
     }
@@ -343,31 +328,12 @@ void process(GameState *game)
         //3rd example of assimetric with random
         for (int j = 0; j < 30; j += 2)
         {
-            game->enemyValues[j].x = 620;
-            game->enemyValues[j].y = (j) * -200; // - random() % 100;
-            game->enemyValues[j].dy = 0;         //- random() % 40;
-            game->enemyValues[j].dx = 0;
-            game->enemyValues[j].visible = 1;
-            game->enemyValues[j + 1].x = 580;
-            game->enemyValues[j + 1].y = (j) * -200; // - random() % 50;
-            game->enemyValues[j + 1].dy = 0;         //- random() % 80;
-            game->enemyValues[j + 1].dx = 0;
-            game->enemyValues[j + 1].visible = 1;
+            enemy_spawn(game, j, 620, (j) * -200, 0, 0);         // - random() % 100; //- random() % 40;
+            enemy_spawn(game, j + 1, 580, (j) * -200, 0, 0);     // - random() % 50; //- random() % 80;
         }
 
-        game->smartEnemies[0].x = 1000;
-        game->smartEnemies[0].y = 200;
-        game->smartEnemies[0].dy = 0;
-        game->smartEnemies[0].dx = 0;
-        game->smartEnemies[0].visible = 1;
-        game->smartEnemies[0].countShots = 0;
-
-        game->smartEnemies[1].x = 200;
-        game->smartEnemies[1].y = 200;
-        game->smartEnemies[1].dy = 0;
-        game->smartEnemies[1].dx = 0;
-        game->smartEnemies[1].visible = 1;
-        game->smartEnemies[1].countShots = 0;
+        smart_enemy_spawn(game, 0, 1000, 200, 0, 0);
+        smart_enemy_spawn(game, 1, 200, 200, 0, 0);
 
         game->tempScore++;
     }
@@ -375,30 +341,11 @@ void process(GameState *game)
     {
         for (int j = 0; j < 50; j += 2)
         {
-            game->enemyValues[j].x = 620;
-            game->enemyValues[j].y = (j) * -100;
-            game->enemyValues[j].dy = 0;
-            game->enemyValues[j].dx = 0;
-            game->enemyValues[j].visible = 1;
-            game->enemyValues[j + 1].x = 580;
-            game->enemyValues[j + 1].y = (j) * -100;
-            game->enemyValues[j + 1].dy = 0;
-            game->enemyValues[j + 1].dx = 0;
-            game->enemyValues[j + 1].visible = 1;
+            enemy_spawn(game, j, 620, (j) * -100, 0, 0);
+            enemy_spawn(game, j + 1, 580, (j) * -100, 0, 0);
         }
-        game->smartEnemies[2].x = 1000;
-        game->smartEnemies[2].y = 200;
-        game->smartEnemies[2].dy = 0;
-        game->smartEnemies[2].dx = 0;
-        game->smartEnemies[2].visible = 1;
-        game->smartEnemies[2].countShots = 0;
-
-        game->smartEnemies[3].x = 200;
-        game->smartEnemies[3].y = 200;
-        game->smartEnemies[3].dy = 0;
-        game->smartEnemies[3].dx = 0;
-        game->smartEnemies[3].visible = 1;
-        game->smartEnemies[3].countShots = 0;
+        smart_enemy_spawn(game, 2, 1000, 200, 0, 0);
+        smart_enemy_spawn(game, 3, 200, 200, 0, 0);
 
         game->tempScore++;
     }
@@ -407,44 +354,13 @@ void process(GameState *game)
     {
         for (int j = 0; j < 70; j += 2)
         {
-            game->enemyValues[j].x = 620;
-            game->enemyValues[j].y = (j) * -100;
-            game->enemyValues[j].dy = 0;
-            game->enemyValues[j].dx = 0;
-            game->enemyValues[j].visible = 1;
-            game->enemyValues[j + 1].x = 580;
-            game->enemyValues[j + 1].y = (j) * -100;
-            game->enemyValues[j + 1].dy = 0;
-            game->enemyValues[j + 1].dx = 0;
-            game->enemyValues[j + 1].visible = 1;
+            enemy_spawn(game, j, 620, (j) * -100, 0, 0);
+            enemy_spawn(game, j + 1, 580, (j) * -100, 0, 0);
         }
-        game->smartEnemies[4].x = 1000;
-        game->smartEnemies[4].y = 200;
-        game->smartEnemies[4].dy = 0;
-        game->smartEnemies[4].dx = 0;
-        game->smartEnemies[4].visible = 1;
-        game->smartEnemies[4].countShots = 0;
-
-        game->smartEnemies[5].x = 200;
-        game->smartEnemies[5].y = 200;
-        game->smartEnemies[5].dy = 0;
-        game->smartEnemies[5].dx = 0;
-        game->smartEnemies[5].visible = 1;
-        game->smartEnemies[5].countShots = 0;
-
-        game->smartEnemies[6].x = 1000;
-        game->smartEnemies[6].y = 500;
-        game->smartEnemies[6].dy = 0;
-        game->smartEnemies[6].dx = 0;
-        game->smartEnemies[6].visible = 1;
-        game->smartEnemies[6].countShots = 0;
-
-        game->smartEnemies[7].x = 200;
-        game->smartEnemies[7].y = 500;
-        game->smartEnemies[7].dy = 0;
-        game->smartEnemies[7].dx = 0;
-        game->smartEnemies[7].visible = 1;
-        game->smartEnemies[7].countShots = 0;
+        smart_enemy_spawn(game, 4, 1000, 200, 0, 0);
+        smart_enemy_spawn(game, 5, 200, 200, 0, 0);
+        smart_enemy_spawn(game, 6, 1000, 500, 0, 0);
+        smart_enemy_spawn(game, 7, 200, 500, 0, 0);
 
         game->tempScore++;
     }
@@ -452,60 +368,19 @@ void process(GameState *game)
     {
         for (int j = 0; j < 100; j += 2)
         {
-            game->enemyValues[j].x = 620;
-            game->enemyValues[j].y = (j) * -100;
-            game->enemyValues[j].dy = 0;
-            game->enemyValues[j].dx = 0;
-            game->enemyValues[j].visible = 1;
-            game->enemyValues[j + 1].x = 580;
-            game->enemyValues[j + 1].y = (j) * -100;
-            game->enemyValues[j + 1].dy = 0;
-            game->enemyValues[j + 1].dx = 0;
-            game->enemyValues[j + 1].visible = 1;
+            enemy_spawn(game, j, 620, (j) * -100, 0, 0);
+            enemy_spawn(game, j + 1, 580, (j) * -100, 0, 0);
         }
-        game->smartEnemies[0].x = 1000;
-        game->smartEnemies[0].y = 200;
-        game->smartEnemies[0].dy = 0;
-        game->smartEnemies[0].dx = 0;
-        game->smartEnemies[0].visible = 1;
-        game->smartEnemies[0].countShots = 0;
-
-        game->smartEnemies[1].x = 200;
-        game->smartEnemies[1].y = 200;
-        game->smartEnemies[1].dy = 0;
-        game->smartEnemies[1].dx = 0;
-        game->smartEnemies[1].visible = 1;
-        game->smartEnemies[1].countShots = 0;
-
-        game->smartEnemies[2].x = 1000;
-        game->smartEnemies[2].y = 500;
-        game->smartEnemies[2].dy = 0;
-        game->smartEnemies[2].dx = 0;
-        game->smartEnemies[2].visible = 1;
-        game->smartEnemies[2].countShots = 0;
-
-        game->smartEnemies[3].x = 200;
-        game->smartEnemies[3].y = 500;
-        game->smartEnemies[3].dy = 0;
-        game->smartEnemies[3].dx = 0;
-        game->smartEnemies[3].visible = 1;
-        game->smartEnemies[3].countShots = 0;
+        smart_enemy_spawn(game, 0, 1000, 200, 0, 0);
+        smart_enemy_spawn(game, 1, 200, 200, 0, 0);
+        smart_enemy_spawn(game, 2, 1000, 500, 0, 0);
+        smart_enemy_spawn(game, 3, 200, 500, 0, 0);
         game->tempScore++;
     }
     if (game->tempScore == 345)
     {
-        game->boss[0].x = 1100;
-        game->boss[0].y = 0;
-        game->boss[0].dy = 0;
-        game->boss[0].dx = 0;
-        game->boss[0].countShots = 0;
-        game->boss[0].visible = 1;
-        game->boss[1].x = 100;
-        game->boss[1].y = 0;
-        game->boss[1].dy = 0;
-        game->boss[1].dx = 0;
-        game->boss[1].countShots = 0;
-        game->boss[1].visible = 1;
+        boss_spawn(game, 0, 1100, 0, 0, 0);
+        boss_spawn(game, 1, 100, 0, 0, 0);
 
         game->tempScore++;
     }
@@ -514,57 +389,16 @@ void process(GameState *game)
     {
         for (int i = 0; i < NUM_ENEMIES - 1; i += 2)
         {
-            game->enemyValues[i].x = 620;
-            game->enemyValues[i].y = i * (-100);
-            game->enemyValues[i].dy = 0;
-            game->enemyValues[i].dx = 0;
-            game->enemyValues[i].visible = 1;
-            game->enemyValues[i + 1].x = 580;
-            game->enemyValues[i + 1].y = i * (-100);
-            game->enemyValues[i + 1].dy = 0;
-            game->enemyValues[i + 1].dx = 0;
-            game->enemyValues[i + 1].visible = 1;
+            enemy_spawn(game, i, 620, i * (-100), 0, 0);
+            enemy_spawn(game, i + 1, 580, i * (-100), 0, 0);
         }
-        game->boss[0].x = 1100;
-        game->boss[0].y = 0;
-        game->boss[0].dy = 0;
-        game->boss[0].dx = 0;
-        game->boss[0].countShots = 0;
-        game->boss[0].visible = 1;
-        game->boss[1].x = 100;
-        game->boss[1].y = 0;
-        game->boss[1].dy = 0;
-        game->boss[1].dx = 0;
-        game->boss[1].countShots = 0;
-        game->boss[1].visible = 1;
+        boss_spawn(game, 0, 1100, 0, 0, 0);
+        boss_spawn(game, 1, 100, 0, 0, 0);
 
-        game->smartEnemies[0].x = 1000;
-        game->smartEnemies[0].y = 200;
-        game->smartEnemies[0].dy = 0;
-        game->smartEnemies[0].dx = 0;
-        game->smartEnemies[0].visible = 1;
-        game->smartEnemies[0].countShots = 0;
-
-        game->smartEnemies[1].x = 200;
-        game->smartEnemies[1].y = 200;
-        game->smartEnemies[1].dy = 0;
-        game->smartEnemies[1].dx = 0;
-        game->smartEnemies[1].visible = 1;
-        game->smartEnemies[1].countShots = 0;
-
-        game->smartEnemies[2].x = 1000;
-        game->smartEnemies[2].y = 500;
-        game->smartEnemies[2].dy = 0;
-        game->smartEnemies[2].dx = 0;
-        game->smartEnemies[2].visible = 1;
-        game->smartEnemies[2].countShots = 0;
-
-        game->smartEnemies[3].x = 200;
-        game->smartEnemies[3].y = 500;
-        game->smartEnemies[3].dy = 0;
-        game->smartEnemies[3].dx = 0;
-        game->smartEnemies[3].visible = 1;
-        game->smartEnemies[3].countShots = 0;
+        smart_enemy_spawn(game, 0, 1000, 200, 0, 0);
+        smart_enemy_spawn(game, 1, 200, 200, 0, 0);
+        smart_enemy_spawn(game, 2, 1000, 500, 0, 0);
+        smart_enemy_spawn(game, 3, 200, 500, 0, 0);
 
         game->tempScore++;
     }

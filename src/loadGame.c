@@ -1,4 +1,5 @@
 #include "header.h"
+#include "entity_spawn.h"
 
 // ---------------------------------------------------------------------------
 // Shared assets: textures/font whose content is identical regardless of which
@@ -220,6 +221,11 @@ void arcade_session_reset(GameState *game, GameMode mode)
         game->statusState = STATUS_STATE_LIVES;
     }
 
+    // enemyValues is deliberately NOT converted to enemy_spawn() here: unlike
+    // every wave-spawn site in process.c, this reset loop leaves `visible`
+    // untouched (a different contract) -- see docs/solid-gof-audit.md
+    // section 7.1 for why forcing it through enemy_spawn would silently
+    // change behavior.
     for (int i = 0; i < NUM_ENEMIES; i++)
     {
         game->enemyValues[i].x = 640;
@@ -229,21 +235,11 @@ void arcade_session_reset(GameState *game, GameMode mode)
     }
     for (int i = 0; i < NUM_SMART_ENEMIES; i++)
     {
-        game->smartEnemies[i].x = 640;
-        game->smartEnemies[i].y = 1000;
-        game->smartEnemies[i].dy = 0;
-        game->smartEnemies[i].dx = 0;
-        game->smartEnemies[i].visible = 1;
-        game->smartEnemies[i].countShots = 0;
+        smart_enemy_spawn(game, i, 640, 1000, 0, 0);
     }
     for (int i = 0; i < 2; i++)
     {
-        game->boss[i].x = 1100;
-        game->boss[i].y = 1000;
-        game->boss[i].dy = 0;
-        game->boss[i].dx = 0;
-        game->boss[i].countShots = 0;
-        game->boss[i].visible = 1;
+        boss_spawn(game, i, 1100, 1000, 0, 0);
     }
 
     // removeBullet/removeSecondBullet free() any still-live bullet before
