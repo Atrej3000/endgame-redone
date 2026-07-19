@@ -8,12 +8,7 @@ void load_menu0(GameState *game) {
     game->menu0_status = 0;
     //меню0_________________________________________________________________________
     if (game->menu0 == NULL) {
-        SDL_Surface *surface = NULL;
-        surface = IMG_Load("./resource/images/backgrounds/menu0.png");
-        game->menu0 = SDL_CreateTextureFromSurface(game->renderer, surface);
-        SDL_FreeSurface(surface);
-
-        if (surface == NULL) {
+        if (!load_texture(game->renderer, "./resource/images/backgrounds/menu0.png", &game->menu0)) {
             printf("Cannot find menu0.png\n");
             SDL_Quit();
             exit(1);
@@ -30,12 +25,7 @@ void load_menu1(GameState *game) {
     game->menu_status = 0;
     //меню_________________________________________________________________________
     if (game->menu1 == NULL) {
-        SDL_Surface *surface = NULL;
-        surface = IMG_Load("./resource/images/backgrounds/menu1.png");
-        game->menu1 = SDL_CreateTextureFromSurface(game->renderer, surface);
-        SDL_FreeSurface(surface);
-
-        if (surface == NULL) {
+        if (!load_texture(game->renderer, "./resource/images/backgrounds/menu1.png", &game->menu1)) {
             printf("Cannot find menu1.png");
             SDL_Quit();
             exit(1);
@@ -58,12 +48,7 @@ void load_menu2(GameState *game) {
     game->menu_status = 0;
     //меню_________________________________________________________________________
     if (game->menu2 == NULL) {
-        SDL_Surface *surface = NULL;
-        surface = IMG_Load("./resource/images/backgrounds/menu2.png");
-        game->menu2 = SDL_CreateTextureFromSurface(game->renderer, surface);
-        SDL_FreeSurface(surface);
-
-        if (surface == NULL) {
+        if (!load_texture(game->renderer, "./resource/images/backgrounds/menu2.png", &game->menu2)) {
             printf("Cannot find menu2.png");
             SDL_Quit();
             exit(1);
