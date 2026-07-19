@@ -1,5 +1,17 @@
 #include "header.h"
 
+// Captures each player's y at the start of this tick, before
+// consume_*_jump_requests/apply_*_player_forces/process(2) move it -- see
+// docs/collision-correctness-map.md (Phase 13). Called as the first line of
+// arcade_simulate()/runner_simulate() (src/frame.c), every tick,
+// unconditionally, so prevY is always correct relative to the tick that
+// reads it, including the first tick after a session reset.
+void capture_player_prev_y(GameState *game)
+{
+    game->man.prevY = game->man.y;
+    game->secondPlayer.prevY = game->secondPlayer.y;
+}
+
 void collisionDetect(GameState *game)
 {
 
