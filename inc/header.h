@@ -95,10 +95,17 @@ typedef struct
     SDL_Texture *sheetTextureRun, *sheetTextureRun2;
 } Enemies;
 
-typedef struct 
+// Pool slot (Phase 14, see docs/projectile-correctness-map.md): `active`
+// replaces the old NULL-pointer-means-empty convention; `prevX` is captured
+// once per tick, before this tick's move, for the swept-collision test.
+// No `unvisible` field -- traced fully and confirmed redundant with
+// `active` (a hit always deactivated the same tick it was detected, never
+// a delayed-despawn signal).
+typedef struct
 {
     float x, y, dx;
-    int unvisible;
+    float prevX;
+    bool active;
 } Bullet;
 
 
@@ -303,8 +310,10 @@ typedef struct
     Cloud7 cloud7;
     Cloud8 cloud8;
 
-    Bullet *bullets[MAX_BULLETS];
-    Bullet *secondBullets[MAX_BULLETS];
+    // Fixed pool (Phase 14) -- value arrays, not pointer arrays; see the
+    // Bullet struct comment above and docs/projectile-correctness-map.md.
+    Bullet bullets[MAX_BULLETS];
+    Bullet secondBullets[MAX_BULLETS];
 
     //Stars
     Star stars[100];

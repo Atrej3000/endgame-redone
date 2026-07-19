@@ -1,6 +1,8 @@
 #include "header.h"
 #include "entity_spawn.h"
 
+// Fixed pool (Phase 14, see docs/projectile-correctness-map.md): no
+// malloc/free -- a shot claims the first inactive slot in place.
 void addBullet(GameState *game, float x, float y, float dx)
 {
 
@@ -11,7 +13,7 @@ void addBullet(GameState *game, float x, float y, float dx)
     int found = -1;
     for (int i = 0; i < MAX_BULLETS; i++)
     {
-        if (game->bullets[i] == NULL)
+        if (!game->bullets[i].active)
         {
             found = i;
             Mix_VolumeChunk(game->shootSound, 32);
@@ -22,20 +24,17 @@ void addBullet(GameState *game, float x, float y, float dx)
     if (found >= 0)
     {
         int i = found;
-        game->bullets[i] = malloc(sizeof(Bullet));
-        game->bullets[i]->x = x;
-        game->bullets[i]->y = y;
-        game->bullets[i]->dx = dx;
+        game->bullets[i].x = x;
+        game->bullets[i].y = y;
+        game->bullets[i].dx = dx;
+        game->bullets[i].prevX = x;
+        game->bullets[i].active = true;
     }
 }
 
 void removeBullet(GameState *game, int i)
 {
-    if (game->bullets[i])
-    {
-        free(game->bullets[i]);
-        game->bullets[i] = NULL;
-    }
+    game->bullets[i].active = false;
 }
 
 void addSecondBullet(GameState *game, float x, float y, float dx)
@@ -46,7 +45,7 @@ void addSecondBullet(GameState *game, float x, float y, float dx)
     int found = -1;
     for (int i = 0; i < MAX_BULLETS; i++)
     {
-        if (game->secondBullets[i] == NULL)
+        if (!game->secondBullets[i].active)
         {
             found = i;
             Mix_VolumeChunk(game->shootSound, 32);
@@ -57,20 +56,17 @@ void addSecondBullet(GameState *game, float x, float y, float dx)
     if (found >= 0)
     {
         int i = found;
-        game->secondBullets[i] = malloc(sizeof(Bullet));
-        game->secondBullets[i]->x = x;
-        game->secondBullets[i]->y = y;
-        game->secondBullets[i]->dx = dx;
+        game->secondBullets[i].x = x;
+        game->secondBullets[i].y = y;
+        game->secondBullets[i].dx = dx;
+        game->secondBullets[i].prevX = x;
+        game->secondBullets[i].active = true;
     }
 }
 
 void removeSecondBullet(GameState *game, int i)
 {
-    if (game->secondBullets[i])
-    {
-        free(game->secondBullets[i]);
-        game->secondBullets[i] = NULL;
-    }
+    game->secondBullets[i].active = false;
 }
 
 // Consumes the edge-triggered jump-request flags (Phase 12, see
@@ -260,20 +256,19 @@ void process(GameState *game, float dt)
     for (int j = 0; j < NUM_ENEMIES; j++)
     {
         for (int i = 0; i < MAX_BULLETS; i++)
-            if (game->bullets[i])
+            if (game->bullets[i].active)
             {
-                game->bullets[i]->unvisible = 0;
-                game->bullets[i]->x += game->bullets[i]->dx;
-                if (game->bullets[i]->dx > 0.1)
+                game->bullets[i].x += game->bullets[i].dx;
+                if (game->bullets[i].dx > 0.1)
                 {
-                    game->bullets[i]->dx = 0.1;
+                    game->bullets[i].dx = 0.1;
                 }
-                if (game->bullets[i]->dx < -0.1)
+                if (game->bullets[i].dx < -0.1)
                 {
-                    game->bullets[i]->dx = -0.1;
+                    game->bullets[i].dx = -0.1;
                 }
-                if (game->bullets[i]->x > game->enemyValues[j].x && game->bullets[i]->x < game->enemyValues[j].x + 40 &&
-                    game->bullets[i]->y > game->enemyValues[j].y && game->bullets[i]->y < game->enemyValues[j].y + 50)
+                if (game->bullets[i].x > game->enemyValues[j].x && game->bullets[i].x < game->enemyValues[j].x + 40 &&
+                    game->bullets[i].y > game->enemyValues[j].y && game->bullets[i].y < game->enemyValues[j].y + 50)
                 {
                     Mix_PlayChannel(-1, game->damageSound, 0);
 
@@ -281,9 +276,9 @@ void process(GameState *game, float dt)
                     game->enemyValues[j].visible = 0;
                     game->kills_score++;
                     game->tempScore++;
-                    game->bullets[i]->unvisible = 1;
+                    removeBullet(game, i);
                 }
-                if ((game->bullets[i]->x < 0) || (game->bullets[i]->x > 1280) || game->bullets[i]->unvisible)
+                if ((game->bullets[i].x < 0) || (game->bullets[i].x > 1280))
                     removeBullet(game, i);
             }
     }
@@ -291,21 +286,20 @@ void process(GameState *game, float dt)
     for (int j = 0; j < NUM_SMART_ENEMIES; j++)
     {
         for (int i = 0; i < MAX_BULLETS; i++)
-            if (game->bullets[i])
+            if (game->bullets[i].active)
             {
                 {
-                    game->bullets[i]->unvisible = 0;
-                    game->bullets[i]->x += game->bullets[i]->dx;
-                    if (game->bullets[i]->dx > 0.1)
+                    game->bullets[i].x += game->bullets[i].dx;
+                    if (game->bullets[i].dx > 0.1)
                     {
-                        game->bullets[i]->dx = 0.1;
+                        game->bullets[i].dx = 0.1;
                     }
-                    if (game->bullets[i]->dx < -0.1)
+                    if (game->bullets[i].dx < -0.1)
                     {
-                        game->bullets[i]->dx = -0.1;
+                        game->bullets[i].dx = -0.1;
                     }
-                    if (game->bullets[i]->x > game->smartEnemies[j].x && game->bullets[i]->x < game->smartEnemies[j].x + 40 &&
-                        game->bullets[i]->y > game->smartEnemies[j].y && game->bullets[i]->y < game->smartEnemies[j].y + 50)
+                    if (game->bullets[i].x > game->smartEnemies[j].x && game->bullets[i].x < game->smartEnemies[j].x + 40 &&
+                        game->bullets[i].y > game->smartEnemies[j].y && game->bullets[i].y < game->smartEnemies[j].y + 50)
                     {
                         game->smartEnemies[j].countShots++;
                         if (game->smartEnemies[j].countShots > 5)
@@ -320,9 +314,9 @@ void process(GameState *game, float dt)
                             game->tempScore += 5;
                             game->kills_score += 5;
                         }
-                        game->bullets[i]->unvisible = 1;
+                        removeBullet(game, i);
                     }
-                    if ((game->bullets[i]->x < 0) || (game->bullets[i]->x > 1280) || game->bullets[i]->unvisible)
+                    if ((game->bullets[i].x < 0) || (game->bullets[i].x > 1280))
                         removeBullet(game, i);
                 }
             }
@@ -331,21 +325,20 @@ void process(GameState *game, float dt)
     for (int j = 0; j < 2; j++)
     {
         for (int i = 0; i < MAX_BULLETS; i++)
-            if (game->bullets[i])
+            if (game->bullets[i].active)
             {
                 {
-                    game->bullets[i]->unvisible = 0;
-                    game->bullets[i]->x += game->bullets[i]->dx;
-                    if (game->bullets[i]->dx > 0.1)
+                    game->bullets[i].x += game->bullets[i].dx;
+                    if (game->bullets[i].dx > 0.1)
                     {
-                        game->bullets[i]->dx = 0.1;
+                        game->bullets[i].dx = 0.1;
                     }
-                    if (game->bullets[i]->dx < -0.1)
+                    if (game->bullets[i].dx < -0.1)
                     {
-                        game->bullets[i]->dx = -0.1;
+                        game->bullets[i].dx = -0.1;
                     }
-                    if (game->bullets[i]->x > game->boss[j].x && game->bullets[i]->x < game->boss[j].x + 40 &&
-                        game->bullets[i]->y > game->boss[j].y && game->bullets[i]->y < game->boss[j].y + 50)
+                    if (game->bullets[i].x > game->boss[j].x && game->bullets[i].x < game->boss[j].x + 40 &&
+                        game->bullets[i].y > game->boss[j].y && game->bullets[i].y < game->boss[j].y + 50)
                     {
                         game->boss[j].countShots++;
                         if (game->boss[j].countShots > 30)
@@ -356,9 +349,9 @@ void process(GameState *game, float dt)
                             game->tempScore += 10;
                             game->kills_score += 10;
                         }
-                        game->bullets[i]->unvisible = 1;
+                        removeBullet(game, i);
                     }
-                    if ((game->bullets[i]->x < 0) || (game->bullets[i]->x > 1280) || game->bullets[i]->unvisible)
+                    if ((game->bullets[i].x < 0) || (game->bullets[i].x > 1280))
                         removeBullet(game, i);
                 }
             }
@@ -372,29 +365,28 @@ void process(GameState *game, float dt)
         {
             for (int i = 0; i < MAX_BULLETS; i++)
             {
-                if (game->secondBullets[i])
+                if (game->secondBullets[i].active)
                 {
-                    game->secondBullets[i]->unvisible = 0;
-                    game->secondBullets[i]->x += game->secondBullets[i]->dx;
-                    if (game->secondBullets[i]->dx > 0.1)
+                    game->secondBullets[i].x += game->secondBullets[i].dx;
+                    if (game->secondBullets[i].dx > 0.1)
                     {
-                        game->secondBullets[i]->dx = 0.1;
+                        game->secondBullets[i].dx = 0.1;
                     }
-                    if (game->secondBullets[i]->dx < -0.1)
+                    if (game->secondBullets[i].dx < -0.1)
                     {
-                        game->secondBullets[i]->dx = -0.1;
+                        game->secondBullets[i].dx = -0.1;
                     }
-                    if (game->secondBullets[i]->x > game->enemyValues[j].x && game->secondBullets[i]->x < game->enemyValues[j].x + 40 &&
-                        game->secondBullets[i]->y > game->enemyValues[j].y && game->secondBullets[i]->y < game->enemyValues[j].y + 50)
+                    if (game->secondBullets[i].x > game->enemyValues[j].x && game->secondBullets[i].x < game->enemyValues[j].x + 40 &&
+                        game->secondBullets[i].y > game->enemyValues[j].y && game->secondBullets[i].y < game->enemyValues[j].y + 50)
                     {
                         Mix_PlayChannel(-1, game->damageSound, 0);
                         game->enemyValues[j].y = 1000;
                         game->enemyValues[j].visible = 0;
                         game->kills_score_multi++;
                         game->tempScore++;
-                        game->secondBullets[i]->unvisible = 1;
+                        removeSecondBullet(game, i);
                     }
-                    if ((game->secondBullets[i]->x < 0) || (game->secondBullets[i]->x > 1280) || game->secondBullets[i]->unvisible)
+                    if ((game->secondBullets[i].x < 0) || (game->secondBullets[i].x > 1280))
                         removeSecondBullet(game, i);
                 }
             }
@@ -403,21 +395,20 @@ void process(GameState *game, float dt)
         for (int j = 0; j < NUM_SMART_ENEMIES; j++)
         {
             for (int i = 0; i < MAX_BULLETS; i++)
-                if (game->secondBullets[i])
+                if (game->secondBullets[i].active)
                 {
                     {
-                        game->secondBullets[i]->unvisible = 0;
-                        game->secondBullets[i]->x += game->secondBullets[i]->dx;
-                        if (game->secondBullets[i]->dx > 0.1)
+                        game->secondBullets[i].x += game->secondBullets[i].dx;
+                        if (game->secondBullets[i].dx > 0.1)
                         {
-                            game->secondBullets[i]->dx = 0.1;
+                            game->secondBullets[i].dx = 0.1;
                         }
-                        if (game->secondBullets[i]->dx < -0.1)
+                        if (game->secondBullets[i].dx < -0.1)
                         {
-                            game->secondBullets[i]->dx = -0.1;
+                            game->secondBullets[i].dx = -0.1;
                         }
-                        if (game->secondBullets[i]->x > game->smartEnemies[j].x && game->secondBullets[i]->x < game->smartEnemies[j].x + 40 &&
-                            game->secondBullets[i]->y > game->smartEnemies[j].y && game->secondBullets[i]->y < game->smartEnemies[j].y + 50)
+                        if (game->secondBullets[i].x > game->smartEnemies[j].x && game->secondBullets[i].x < game->smartEnemies[j].x + 40 &&
+                            game->secondBullets[i].y > game->smartEnemies[j].y && game->secondBullets[i].y < game->smartEnemies[j].y + 50)
                         {
                             game->smartEnemies[j].countShots++;
                             if (game->smartEnemies[j].countShots > 5)
@@ -428,9 +419,9 @@ void process(GameState *game, float dt)
                                 game->kills_score_multi += 5;
                                 game->tempScore += 5;
                             }
-                            game->secondBullets[i]->unvisible = 1;
+                            removeSecondBullet(game, i);
                         }
-                        if ((game->secondBullets[i]->x < 0) || (game->secondBullets[i]->x > 1280) || game->secondBullets[i]->unvisible)
+                        if ((game->secondBullets[i].x < 0) || (game->secondBullets[i].x > 1280))
                             removeSecondBullet(game, i);
                     }
                 }
@@ -438,21 +429,20 @@ void process(GameState *game, float dt)
         for (int j = 0; j < 2; j++)
         {
             for (int i = 0; i < MAX_BULLETS; i++)
-                if (game->secondBullets[i])
+                if (game->secondBullets[i].active)
                 {
                     {
-                        game->secondBullets[i]->unvisible = 0;
-                        game->secondBullets[i]->x += game->secondBullets[i]->dx;
-                        if (game->secondBullets[i]->dx > 0.1)
+                        game->secondBullets[i].x += game->secondBullets[i].dx;
+                        if (game->secondBullets[i].dx > 0.1)
                         {
-                            game->secondBullets[i]->dx = 0.1;
+                            game->secondBullets[i].dx = 0.1;
                         }
-                        if (game->secondBullets[i]->dx < -0.1)
+                        if (game->secondBullets[i].dx < -0.1)
                         {
-                            game->secondBullets[i]->dx = -0.1;
+                            game->secondBullets[i].dx = -0.1;
                         }
-                        if (game->secondBullets[i]->x > game->boss[j].x && game->secondBullets[i]->x < game->boss[j].x + 40 &&
-                            game->secondBullets[i]->y > game->boss[j].y && game->secondBullets[i]->y < game->boss[j].y + 50)
+                        if (game->secondBullets[i].x > game->boss[j].x && game->secondBullets[i].x < game->boss[j].x + 40 &&
+                            game->secondBullets[i].y > game->boss[j].y && game->secondBullets[i].y < game->boss[j].y + 50)
                         {
                             game->boss[j].countShots++;
                             if (game->boss[j].countShots > 30)
@@ -463,9 +453,9 @@ void process(GameState *game, float dt)
                                 game->kills_score_multi += 10;
                                 game->tempScore += 10;
                             }
-                            game->secondBullets[i]->unvisible = 1;
+                            removeSecondBullet(game, i);
                         }
-                        if ((game->secondBullets[i]->x < 0) || (game->secondBullets[i]->x > 1280) || game->secondBullets[i]->unvisible)
+                        if ((game->secondBullets[i].x < 0) || (game->secondBullets[i].x > 1280))
                             removeSecondBullet(game, i);
                     }
                 }
