@@ -1577,3 +1577,126 @@ errors/161 warnings, all 8 existing local targets passing. Full evidence in
 - Verification performed: `make mingw` — 0 errors, 161 warnings. All 10 local targets pass (13/13
   new assertions pass).
 - Rollback: `git revert e29eb20`.
+
+## Pass 11 summary — fixed-timestep player physics (2026-07-19)
+
+Triggered by an external technical assessment of the custom kinematic physics system, which
+identified frame-dependent physics (no fixed timestep — a 144Hz display runs physics ~2.4x faster
+than 60Hz) as the core correctness defect. This pass implements the assessment's own "Phase 1 —
+Stabilize time" scope only: a fixed 60Hz accumulator drives `main()`'s two gameplay scenes, and
+player (man/secondPlayer) gravity/velocity/acceleration/friction/jump constants are converted to
+explicit per-second units. Enemies, bosses, bullets, background/decor scroll, and moving traps are
+explicitly not touched this pass. Baseline confirmed before any edit: commit `a58268f` (tag
+`refactor-pre-fixed-timestep`, `main` after Phase 10's PR #6 merge), `make mingw` 0 errors/161
+warnings, all 10 existing local targets passing. Full evidence in `docs/physics-timestep-map.md`.
+
+### [2026-07-19] Map fixed-timestep physics conversion
+- Phase: Pass 11 (commit `5828ace`)
+- File(s): new `docs/physics-timestep-map.md`
+- Action: confirmed zero existing timing infrastructure anywhere in the tree (no `SDL_GetTicks`/
+  `SDL_GetPerformanceCounter`/delta-time variable); full inventory of every frame-dependent player
+  constant with exact file:line citations; mathematically derived and verified the frame-to-
+  per-second conversion factors (velocity ×60, acceleration ×3600) against the exact old per-frame
+  numeric behavior at a fixed 60Hz tick; documented the planned `processEvents`/`processEvents2` →
+  fixed-tick relocation; listed everything found but deliberately deferred (enemy/boss/bullet/
+  decor/trap timing, the Runner ceiling `onLedge` bug, the bullet triple-movement bug,
+  jump-hold-thrust redesign, collision-order issues).
+- Behavior impact: none (documentation only).
+- Verification performed: manual re-derivation of every claim directly from the current tree.
+- Rollback: delete the file.
+
+### [2026-07-19] Add fixed-timestep constants and simulate functions
+- Phase: Pass 11 (commit `41940a0`)
+- File(s): `inc/header.h`, `inc/frame.h`, `src/frame.c`
+- Action: added `PHYSICS_HZ`/`PHYSICS_DT`/`MAX_FRAME_TIME`/`MAX_PHYSICS_STEPS_PER_FRAME` and the 8
+  player per-second constants; removed the old frame-tuned `GRAVITY` macro; introduced
+  `arcade_simulate`/`runner_simulate` as the new fixed-tick entry points (`process`/`process2` +
+  `collisionDetect`/`collisionDetect2`); gave `arcade_frame`/`runner_frame`/`process`/`process2` an
+  explicit `float dt` parameter.
+- Behavior impact: none yet (constants unused until the next commit).
+- Rollback: `git revert 41940a0`.
+
+### [2026-07-19] Convert player physics to fixed-timestep per-second units
+- Phase: Pass 11 (commit `41940a0`)
+- File(s): `src/process.c`, `src/processEvents.c`
+- Action: converted the 4 gravity sites and 4 man/secondPlayer position-integration sites in
+  `process()`/`process2()` to use `dt` and the new per-second constants; converted the 4
+  jump-impulse sites in `processEvents.c`; relocated the held-key continuous-force blocks
+  (horizontal accel/clamp, jump-hold thrust, friction/snap) out of `processEvents()`/
+  `processEvents2()` directly into `process()`/`process2()` as originally planned.
+- Behavior impact: at the fixed `dt=1/60` used everywhere in this pass, numerically identical to
+  the old per-frame behavior (verified in `docs/physics-timestep-map.md` section 3); the
+  *character* of the behavior becomes frame-rate-independent, which was the point.
+- Verification performed: 4 test-harness assertions failed at this point
+  (`FRAME TEST: FAIL - process(): animFrame advances when moving, on-ledge, time%3==0` and 3
+  similar) — root cause: `process()`/`process2()` now called `SDL_GetKeyboardState(NULL)`
+  internally, which in the headless test environment always reports "no keys pressed," silently
+  overwriting the tests' manually-set `dx`/`slowingDown` preconditions. Fixed in the next commit by
+  extraction rather than by weakening the tests.
+- Rollback: `git revert 41940a0`.
+
+### [2026-07-19] Drive the game loop with a fixed-timestep accumulator
+- Phase: Pass 11 (commit `3ea1ae2`)
+- File(s): `src/main.c`
+- Action: added a real-time accumulator (`SDL_GetPerformanceCounter`/
+  `SDL_GetPerformanceFrequency`, real frame time capped at `MAX_FRAME_TIME`). The two gameplay
+  scene cases each run a bounded `while (accumulator >= PHYSICS_DT && steps <
+  MAX_PHYSICS_STEPS_PER_FRAME)` loop calling `arcade_simulate`/`runner_simulate`, then render/
+  process-events once, exactly as before. The other 7 scene cases are unchanged and never accrue
+  the accumulator. `runner_update_death()` deliberately kept outside `runner_simulate()`, called
+  once per real frame after `doRender2()` exactly as before, preserving Phase 5/6's deliberate
+  render-before-resolve ordering for the Runner death sequence.
+- Behavior impact: `process`/`process2` (and everything they call, including still-unconverted
+  enemy/boss/bullet/decor/trap code) now execute at a fixed real-world rate rather than once per
+  rendered frame — the intended fix.
+- Rollback: `git revert 3ea1ae2`.
+
+### [2026-07-19] Extract held-key force application from process()/process2()
+- Phase: Pass 11 (commit `78c6fde`)
+- File(s): `inc/header.h`, `inc/frame.h`, `src/frame.c`, `src/process.c`
+- Action: design refinement made during implementation, not in the original plan text. Extracted
+  the held-key continuous-force code (previously relocated directly into `process()`/`process2()`
+  by the earlier commit) into two new standalone functions, `apply_arcade_player_forces`/
+  `apply_runner_player_forces` (`src/process.c`), called by `arcade_simulate`/`runner_simulate`
+  immediately before `process`/`process2`. This restores `process()`/`process2()` to being free of
+  any real-keyboard dependency, fixing the 4 test failures from the previous commit without
+  weakening any assertion. Also caught and corrected during this same commit: an initial draft of
+  `apply_runner_player_forces` had incorrectly copied Arcade's `game->time % 6 == 0`
+  animation-frame gating onto Runner's blocks — re-verified against the exact original
+  `processEvents2()` content confirmed Runner has no such gating, and the erroneous blocks were
+  removed before finalizing.
+- Behavior impact: none relative to the previous commit's intended behavior — this is a pure
+  internal restructuring that fixes testability, not a functional change to the converted physics.
+- Verification performed: `make mingw` — 0 errors, 145 warnings (down from 161; explained in
+  `docs/physics-timestep-map.md` — 8 relocated held-key lines previously used bare `double`
+  literals against `float` fields, triggering `-Wdouble-promotion`/`-Wfloat-conversion` twice each;
+  the new code uses explicit `float`-suffixed constants, eliminating the mismatch). All 9
+  pre-existing local targets pass.
+- Rollback: `git revert 78c6fde`.
+
+### [2026-07-19] Update existing test harnesses for explicit dt
+- Phase: Pass 11 (commit `8e46a7d`)
+- File(s): `docs/verification/frame_pipeline_test.c`, `docs/verification/runner_death_test.c`
+- Action: mechanical update — every direct call to `process`/`process2`/`arcade_frame`/
+  `runner_frame` now passes an explicit `PHYSICS_DT` argument. No assertion values changed.
+- Behavior impact: none (test-only).
+- Verification performed: `make mingw-frametest`/`make mingw-deathtest` — both `ALL PASS`.
+- Rollback: `git revert 8e46a7d`.
+
+### [2026-07-19] Validate fixed-timestep physics
+- Phase: Pass 11 (commit `15d5111`)
+- File(s): new `docs/verification/physics_timestep_test.c`, `Makefile` (new `mingw-physicstest`
+  target), `.github/workflows/mingw-validation.yml` (step + log-upload path added in the same
+  commit — both halves of the CI wiring done together this time, after Phases 9 and 10 each
+  forgot the CI-wiring half of a new local test target and had to fix it in a follow-up commit)
+- Action: (1) regression-equivalence — one fixed tick from rest reproduces the old per-frame
+  code's exact numeric behavior bit-for-bit; (2) refresh-rate independence — the same total
+  simulated time, chunked into a fast-display pattern (240 small real-time steps) vs. a
+  slow-display pattern (30 large real-time steps), produces the same tick count and identical
+  final `man.x`/`y`/`dx`/`dy`. One assertion was loosened during implementation from an exact
+  `ticksA == 60` check to `ticksA == ticksB` plus a `59..60` range check, since double-precision
+  summation doesn't guarantee landing on exactly `1.0` — the real invariant is that both chunking
+  patterns agree with each other.
+- Verification performed: `make mingw` — 0 errors, 145 warnings. All 10 local targets pass
+  (10/10 new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert 15d5111`.

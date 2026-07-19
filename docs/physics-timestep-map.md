@@ -79,7 +79,7 @@ powf(0.8f, (1/60)*60) = powf(0.8f, 1.0f) = 0.8f` exactly — identical to today'
 This identity holds at every tick, not just the first, since `dt` never varies (fixed-timestep,
 no interpolation). **`docs/verification/physics_timestep_test.c` asserts this numerically.**
 
-## 4. Architectural relocation: `processEvents`/`processEvents2` → `process`/`process2`
+## 4. Architectural relocation: `processEvents`/`processEvents2` → `apply_*_player_forces`
 
 The held-key continuous-force blocks (horizontal accel/clamp, jump-hold thrust, friction/snap)
 currently live in `processEvents()`/`processEvents2()` — a **different function** from
@@ -92,16 +92,31 @@ keep running once per real frame, **gravity/integration becomes frame-rate-indep
 acceleration/friction/jump-hold does not** — the described bug would only be half-fixed. This
 phase therefore **relocates only the continuous, held-key force-application code** (not the
 `SDL_PollEvent` discrete-event loop, not jump-impulse-on-keydown, not scene transitions, not lazy
-SFX loads, not background/decor scroll, not animation-frame gates) from `processEvents()`/
-`processEvents2()` into `process()`/`process2()`, which will run at the fixed tick rate. This is
-not the assessment's own "Phase 2 — separate input and simulation" (no `InputState` struct, no
-`input_poll()` function, no edge-triggered de-duplication across ticks is introduced) — it is the
-minimum relocation required for this phase's own stated goal (frame-rate-independent player
-physics) to actually hold for every constant in §2, not just gravity.
+SFX loads, not background/decor scroll, not animation-frame gates) out of `processEvents()`/
+`processEvents2()`, so it runs at the fixed tick rate. This is not the assessment's own "Phase 2 —
+separate input and simulation" (no `InputState` struct, no `input_poll()` function, no
+edge-triggered de-duplication across ticks is introduced) — it is the minimum relocation required
+for this phase's own stated goal (frame-rate-independent player physics) to actually hold for
+every constant in §2, not just gravity.
 
-`SDL_GetKeyboardState(NULL)` needs no window/event-loop context, so reading it from `process()`/
-`process2()` (which only take `GameState*`, no `SDL_Window*`) is straightforward — confirmed no
-signature change beyond adding `float dt` is needed for this relocation.
+**Refinement made during implementation, not in the original plan text**: the relocated code does
+*not* land directly inside `process()`/`process2()`. It lives in two new standalone functions,
+`apply_arcade_player_forces(GameState*, float dt)` and `apply_runner_player_forces(GameState*,
+float dt)` (`src/process.c`), called from `arcade_simulate`/`runner_simulate` (`src/frame.c`)
+immediately *before* `process`/`process2` each fixed tick. Reason: `process()`/`process2()` are
+called directly by several existing non-interactive tests (`frame_pipeline_test.c`,
+`runner_death_test.c`) with manually-set `dx`/`dy`/`slowingDown` state and no real window — if the
+held-key code (which calls `SDL_GetKeyboardState(NULL)`) lived inside `process`/`process2`
+themselves, those tests' hand-set preconditions would be silently overwritten by "no keys pressed"
+on every call, corrupting assertions unrelated to input. Keeping `process`/`process2` free of any
+keyboard read preserves their direct testability exactly as before; `apply_*_player_forces` are the
+only new call sites that touch `SDL_GetKeyboardState`, and both run at the fixed tick rate via
+`arcade_simulate`/`runner_simulate`, so the phase's frame-rate-independence goal still holds for
+every constant in §2.
+
+`SDL_GetKeyboardState(NULL)` needs no window/event-loop context, so reading it from
+`apply_arcade_player_forces`/`apply_runner_player_forces` (which only take `GameState*`, no
+`SDL_Window*`) is straightforward.
 
 ## 5. Deliberate scope boundary and known side effect
 
