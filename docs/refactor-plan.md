@@ -60,6 +60,11 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
 | 48 | Strengthen `audit_repository_usage.py` (tiered errors/known-exceptions/informational output, regular-file check, case-colliding-sibling check, backslash check, duplicate-alias detection) | **Done — Pass 8** |
 | 49 | Case-sensitive Linux CI job (`linux-asset-validation`) | **Done — Pass 8** |
 | 50 | Additive Linux build target (`make linux`/`linux-smoketest`, best-effort, not locally verified) | Attempted — Pass 8, CI result is the deciding signal |
+| 51 | Evidence-based SOLID/GoF architecture audit (`docs/solid-gof-audit.md`, `docs/dependency-map.md`) | **Done — Pass 9** |
+| 52 | Factory Method: centralize enemy/smart-enemy/boss spawn invariants (`src/entity_spawn.c`) | **Done — Pass 9** |
+| 53 | ISP: extract focused `inc/scene.h`/`inc/frame.h` headers | **Done — Pass 9** |
+| 54 | Command: discrete-action input translation (`src/input_command.c`) for `processEvents`/`processEvents2`/`menu0_events` | **Done — Pass 9** |
+| 55 | DIP consistency fix: route `load_menu.c` through the checked `load_texture()` loader | **Done — Pass 9** |
 
 ## Phases executed in Pass 1
 
@@ -677,7 +682,103 @@ pass), `make mingw` 0 errors/161 warnings, all eight existing local targets pass
 - Rollback: `git revert`; the Makefile Linux targets are safe to keep regardless of whether the
   CI job's best-effort steps ever succeed.
 
+## Phases executed in Pass 9 (evidence-based SOLID/GoF architecture refactor)
+
+Full evidence and decision tables in `docs/solid-gof-audit.md`, written before any Pass 9 code
+edit. Baseline: commit `e967001` (tag `refactor-pre-solid-gof`), `make mingw` 0 errors/161
+warnings, all eight existing local targets passing. Scope discipline throughout: at most two
+substantial GoF patterns, one or two small SOLID extractions, at most three new abstractions —
+Arcade and Runner remain fully separate, `GameState` untouched, no Singleton/Service
+Locator/DI container/ECS.
+
+### Phase 51 — SOLID/GoF audit
+- Files: new `docs/solid-gof-audit.md`, `docs/dependency-map.md`.
+- What was done: module map, header dependency map, mutable-state ownership map, top-level call
+  graph, per-SOLID-principle findings, and a full GoF candidate-pattern decision table
+  (required/already-present/rejected/deferred), all gathered directly from the tree via three
+  parallel codebase explorations plus targeted direct reads — not carried over from any prior
+  summary. Two precision corrections were made to the audit *during* implementation as real
+  constraints surfaced (documented transparently in the doc itself, not silently): the exact
+  spawn-site count (`loadGame.c`'s `enemyValues` reset loop has a genuinely different field
+  contract than every other site and was left unconverted), and the header-split asymmetry
+  (`app_change_scene` has 5 real callers vs. `arcade_frame`/`runner_frame`'s 1, changing what was
+  safely trimmable from `header.h` without touching unrelated files).
+- Rollback: delete both files; no code affected.
+
+### Phase 52 — Factory Method: entity-spawn invariants
+- Files: new `src/entity_spawn.c`, `inc/entity_spawn.h`; edited `src/process.c` (8 wave-trigger
+  blocks), `src/loadGame.c` (2 of 3 reset loops).
+- What was done: `enemy_spawn`/`smart_enemy_spawn`/`boss_spawn` centralize the 5-6-field
+  `Enemies` struct initialization previously hand-duplicated at 10 call sites, each now
+  bounds-checking its index (a correctness guarantee none of the original inline code had) and
+  returning `false` without mutating anything on an out-of-range index. `loadGame.c`'s
+  `enemyValues` reset loop is deliberately left inline (its contract omits `visible`/`countShots`,
+  unlike every other site — converting it would have silently changed reset behavior).
+- Behavior impact: none — every converted call site passes the same literal values it used
+  before.
+- Validation: `make mingw` — 0 errors, 161 warnings. All 9 local targets pass (including the new
+  `docs/verification/entity_spawn_test.c` / `mingw-entityspawntest`, asserting exact field values
+  against the original literals plus the new out-of-range rejection).
+- Rollback: `git revert`.
+
+### Phase 53 — ISP: focused scene/frame headers
+- Files: new `inc/scene.h`, `inc/frame.h`; edited `inc/header.h`, `src/scene.c`, `src/frame.c`,
+  `src/main.c`, plus two test harnesses (`frame_pipeline_test.c`, `runner_death_test.c`) that call
+  `arcade_frame`/`runner_frame` directly and needed the same new include.
+- What was done: mirrors the existing `inc/app.h` pattern. `arcade_frame`/`runner_frame` (exactly
+  one definer, one production caller) moved fully out of `header.h` into `frame.h`.
+  `app_change_scene` (5 real callers) is declared in *both* `header.h` (unchanged, so 3 unrelated
+  callers need no edit) and the new `scene.h` — a legal duplicate prototype, per the task's own
+  "leave unresolved declarations in the compatibility header, migrate gradually" guidance.
+  `AppScene` itself stays defined in `header.h` (moving it would create a circular include with
+  `GameState.scene`'s own dependency on it).
+- Validation: `make mingw` — 0 errors, 161 warnings. All 9 local targets pass; `audit-repo` still
+  reports `Result: PASS` (prototype-matching check unaffected by the duplicate declaration).
+- Rollback: `git revert`.
+
+### Phase 54 — Command: discrete-action input translation
+- Files: new `src/input_command.c`, `inc/input_command.h`; edited `src/processEvents.c`
+  (`processEvents`/`processEvents2`), `src/menu_events.c` (`menu0_events` only).
+- What was done: `GameCommand` enum + `translate_arcade_command`/`translate_runner_command`/
+  `translate_menu_command` — pure, synchronous `SDL_Keycode -> GameCommand` functions replacing
+  the raw-keycode `switch` dispatch in the two largest, most parallel files in the codebase
+  (`processEvents`/`processEvents2`, which independently hand-implement the same 5 keys meaning
+  the same 5 actions) and formalizing `menu0_events()`'s existing dual-keycode fall-through
+  pattern. `menu_events()` (mode-select submenu) and `pause_events()` are deliberately **not**
+  converted — neither duplicates its own keymap the way `processEvents`/`processEvents2` do with
+  each other, so conversion wouldn't meaningfully reduce complexity there; recorded as smaller
+  deferred debt, not silently dropped. `processEvents2()`'s `SDLK_0` cheat code is intentionally
+  left outside `GameCommand` (not duplicated elsewhere) and still checked as a raw keycode
+  alongside the new dispatch. No queue, no heap allocation, no change to continuous held-key
+  movement polling.
+- Behavior impact: none — every converted handler body is byte-for-byte unchanged; only the
+  dispatch key (keycode vs. `GameCommand`) changed.
+- Validation: `make mingw` — 0 errors, 161 warnings. All 10 local targets pass (including the new
+  `docs/verification/command_translation_test.c` / `mingw-commandtest`, asserting every documented
+  key maps to its documented command, both dual-keycode pairs, and the `SDLK_0` exclusion).
+- Rollback: `git revert`.
+
+### Phase 55 — DIP consistency fix: `load_menu.c`
+- Files: `src/load_menu.c`.
+- What was done: replaced 3 raw `IMG_Load()`/`SDL_CreateTextureFromSurface()` call sites (the one
+  place in the codebase bypassing the checked, NULL-safe `load_texture()` wrapper every other
+  texture load already uses) with `load_texture()` calls. Each site's original fail-hard behavior
+  (print message, `SDL_Quit()`, `exit(1)`) is unchanged — only the loading call itself is now
+  checked and consistent with every other texture-load site.
+- Validation: `make mingw` — 0 errors, 161 warnings. All 10 local targets pass.
+- Rollback: `git revert`.
+
 ## Deferred phases (reasoning, and what "ready to start" looks like)
+
+**Pass 9 deferred items** (full reasoning in `docs/solid-gof-audit.md` section 9 and
+`docs/design-patterns.md`): `GameState` decomposition into nested structs (real candidate
+clusters exist, but combining with the Command/Factory work risked exceeding Pass 9's
+abstraction ceiling); unifying the 9 scattered lazy-SFX-reload sites into the
+`_assets_load`/`_assets_unload` ownership model; converting `menu_events()`/`pause_events()` to
+`GameCommand` (neither duplicates its own keymap the way `processEvents`/`processEvents2` do);
+further header decomposition beyond `scene.h`/`frame.h`/`entity_spawn.h`/`input_command.h`. Ready
+to start once a future phase is scoped specifically for one of these, each independently, not
+combined.
 
 **Phase 5 — `doRender2` state mutation. Done in Pass 5** (see below) — the original plan assumed
 merging the mutation into `process2()`'s existing (separately broken) `deathCountdown` mechanism;

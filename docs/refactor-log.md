@@ -1384,3 +1384,94 @@ created this pass), `make mingw` 0 errors/161 warnings, all eight existing local
   not assumed here.
 - Rollback: `git revert fce8ef8`; the Makefile Linux targets are harmless to keep regardless of
   whether the CI job's best-effort steps ever succeed.
+
+## Pass 9 summary — evidence-based SOLID/GoF architecture refactor (2026-07-19)
+
+Applies SOLID/GoF only where the codebase already showed repeated, demonstrated pain, per that
+phase's own explicit "not a checklist exercise" charter: at most two substantial GoF patterns, one
+or two small SOLID extractions, at most three new abstractions total. Baseline confirmed before
+any edit: commit `e967001` (tag `refactor-pre-solid-gof`), `make mingw` 0 errors/161 warnings, all
+eight existing local targets passing. Full evidence, decision tables, and pattern rationale in
+`docs/solid-gof-audit.md`, `docs/dependency-map.md`, and `docs/design-patterns.md`.
+
+### [2026-07-19] Audit SOLID violations and GoF candidates
+- Phase: Pass 9 (commit `e745aeb`)
+- File(s): new `docs/solid-gof-audit.md`, `docs/dependency-map.md`
+- Action: module map, header dependency map, mutable-state ownership map, top-level call graph,
+  per-principle SOLID findings, and a full GoF candidate-pattern decision table
+  (required/already-present/rejected/deferred) gathered directly from the tree via three parallel
+  codebase explorations plus targeted direct reads.
+- **Two precision corrections made during implementation, not silently**: the exact
+  entity-spawn-duplication count was refined once `loadGame.c`'s `enemyValues` reset loop was
+  found to have a genuinely different field contract than every other site (it never sets
+  `visible`/`countShots`); the header-split scope was refined once `app_change_scene`'s 5 real
+  callers (vs. `arcade_frame`/`runner_frame`'s 1) were confirmed by grep, changing what could
+  safely move fully out of `header.h`.
+- Behavior impact: none (documentation only).
+- Verification performed: manual re-derivation of every claim directly from the current tree.
+- Rollback: delete both files.
+
+### [2026-07-19] Centralize enemy/smart-enemy/boss spawn invariants
+- Phase: Pass 9 (commit `3a53e41`)
+- File(s): new `src/entity_spawn.c`, `inc/entity_spawn.h`; `src/process.c` (8 wave-trigger
+  blocks), `src/loadGame.c` (2 of 3 reset loops), `Makefile` (new `mingw-entityspawntest` target),
+  new `docs/verification/entity_spawn_test.c`
+- Action: `enemy_spawn`/`smart_enemy_spawn`/`boss_spawn` (Factory Method) replace 10 hand-written
+  inline `Enemies` struct initializations with bounds-checked creation calls; each rejects an
+  out-of-range index without mutating anything, a correctness guarantee none of the original
+  inline code had. `loadGame.c`'s `enemyValues` reset loop is deliberately left inline (its
+  contract genuinely differs — see the audit correction above).
+- Behavior impact: none — every converted call site passes the same literal values it used
+  before; regression-verified by the new test's exact-value assertions against the original
+  literals.
+- Verification performed: `make mingw` — 0 errors, 161 warnings. All 9 local targets pass.
+- Rollback: `git revert 3a53e41`.
+
+### [2026-07-19] Extract focused scene and frame headers
+- Phase: Pass 9 (commit `42517d3`)
+- File(s): new `inc/scene.h`, `inc/frame.h`; `inc/header.h`, `src/scene.c`, `src/frame.c`,
+  `src/main.c`, `docs/verification/frame_pipeline_test.c`, `docs/verification/runner_death_test.c`
+- Action: mirrors the existing `inc/app.h` pattern. `arcade_frame`/`runner_frame` (1 definer, 1
+  production caller) moved fully out of `header.h` into `frame.h`; two test harnesses that also
+  call them directly needed the same include, caught immediately by a failed build.
+  `app_change_scene` (5 real callers) is declared in both `header.h` (unchanged, so 3 unrelated
+  callers need no edit this phase) and the new `scene.h` — a legal duplicate prototype, per the
+  task's own "leave unresolved declarations in the compatibility header, migrate gradually"
+  guidance. `AppScene` stays defined in `header.h` (moving it would create a circular include with
+  `GameState.scene`'s own dependency on it).
+- Behavior impact: none.
+- Verification performed: `make mingw` — 0 errors, 161 warnings. All 9 local targets pass;
+  `audit-repo` still `Result: PASS`.
+- Rollback: `git revert 42517d3`.
+
+### [2026-07-19] Introduce discrete-action command translation
+- Phase: Pass 9 (commit `645e13f`)
+- File(s): new `src/input_command.c`, `inc/input_command.h`; `src/processEvents.c`
+  (`processEvents`/`processEvents2`), `src/menu_events.c` (`menu0_events` only), `Makefile` (new
+  `mingw-commandtest` target), new `docs/verification/command_translation_test.c`
+- Action: `GameCommand` enum + `translate_arcade_command`/`translate_runner_command`/
+  `translate_menu_command` — pure `SDL_Keycode -> GameCommand` functions replacing the raw-keycode
+  switch dispatch for the 5 keys `processEvents()`/`processEvents2()` independently duplicate
+  (ESCAPE/p/w/UP/q), plus a formalization of `menu0_events()`'s existing dual-keycode
+  fall-through. `menu_events()`/`pause_events()` deliberately not converted this phase (§9 of the
+  audit). `processEvents2()`'s `SDLK_0` cheat code intentionally stays outside `GameCommand`,
+  still checked as a raw keycode. No queue, no heap allocation, no change to continuous held-key
+  polling.
+- Behavior impact: none — every converted handler body is byte-for-byte unchanged; only the
+  dispatch key changed from keycode to `GameCommand`.
+- Verification performed: `make mingw` — 0 errors, 161 warnings. All 10 local targets pass
+  (including the new test asserting every documented key-to-command mapping, both dual-keycode
+  pairs, and the `SDLK_0` exclusion).
+- Rollback: `git revert 645e13f`.
+
+### [2026-07-19] Route load_menu.c texture loads through the checked loader
+- Phase: Pass 9 (commit `2a4425d`)
+- File(s): `src/load_menu.c`
+- Action: replaced 3 raw `IMG_Load()`/`SDL_CreateTextureFromSurface()` call sites — the one place
+  in the codebase bypassing the checked, NULL-safe `load_texture()` wrapper every other texture
+  load already uses — with `load_texture()` calls. Each site's original fail-hard behavior (print
+  message, `SDL_Quit()`, `exit(1)`) is unchanged; only the loading call itself is now checked.
+- Behavior impact: none on success; adds the same NULL-safety every other loader site already has
+  on failure.
+- Verification performed: `make mingw` — 0 errors, 161 warnings. All 10 local targets pass.
+- Rollback: `git revert 2a4425d`.
