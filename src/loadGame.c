@@ -180,6 +180,12 @@ void arcade_session_reset(GameState *game, GameMode mode)
     game->man.isDead = 0;
     game->statusState = STATUS_STATE_LIVES;
 
+    // Clear any edge-triggered jump request left over from a previous
+    // session (e.g. quit mid-air, just after a keydown but before the next
+    // physics tick consumed it) -- see docs/input-simulation-separation-map.md.
+    game->input.jumpRequestedPlayer1 = false;
+    game->input.jumpRequestedPlayer2 = false;
+
     game->train.x = 0;
     game->train.y = 440;
 
@@ -431,6 +437,11 @@ void runner_session_reset(GameState *game, GameMode mode)
     game->gameLives = 3;
     game->man.isDead = 0;
     game->statusState = STATUS_STATE_LIVES;
+
+    // Clear any edge-triggered jump request left over from a previous
+    // session -- see docs/input-simulation-separation-map.md.
+    game->input.jumpRequestedPlayer1 = false;
+    game->input.jumpRequestedPlayer2 = false;
 
     if (game->multiPlayer)
     {
