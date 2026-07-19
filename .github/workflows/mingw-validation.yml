@@ -93,6 +93,14 @@ jobs:
         shell: msys2 {0}
         run: make mingw-deathtest 2>&1 | tee deathtest.log
 
+      - name: Entity spawn factory test
+        shell: msys2 {0}
+        run: make mingw-entityspawntest 2>&1 | tee entityspawntest.log
+
+      - name: Command translation test
+        shell: msys2 {0}
+        run: make mingw-commandtest 2>&1 | tee commandtest.log
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -105,6 +113,8 @@ jobs:
             lifecycletest.log
             frametest.log
             deathtest.log
+            entityspawntest.log
+            commandtest.log
           if-no-files-found: ignore
 
   # Windows CI, however thorough, cannot prove case-sensitive path
