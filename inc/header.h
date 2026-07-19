@@ -235,6 +235,20 @@ typedef struct AssetLifecycleFlags
     bool sharedAssetsLoaded;
 } AssetLifecycleFlags;
 
+// Edge-triggered discrete-input request flags, separated from the fixed-tick
+// simulation that consumes them -- see docs/input-simulation-separation-map.md
+// (Phase 12; the physics assessment's own "Phase 2 -- separate input and
+// simulation"). Set (to true) by processEvents()/processEvents2() on
+// SDL_KEYDOWN; consumed and cleared by consume_arcade_jump_requests()/
+// consume_runner_jump_requests() (src/process.c) at the fixed physics tick
+// rate, giving one input edge exactly one jump regardless of how many ticks a
+// real frame produces.
+typedef struct InputState
+{
+    bool jumpRequestedPlayer1;
+    bool jumpRequestedPlayer2;
+} InputState;
+
 typedef struct
 {
     // scroll thw world
@@ -339,6 +353,11 @@ typedef struct
     // Accessed as game->assetFlags.arcadeAssetsLoaded, etc.
     AssetLifecycleFlags assetFlags;
 
+    // Edge-triggered jump-request flags -- see InputState above and
+    // docs/input-simulation-separation-map.md. Accessed as
+    // game->input.jumpRequestedPlayer1/2.
+    InputState input;
+
     // DEPRECATED: superseded by `app.scene` (AppScene) above. No longer read or
     // written anywhere in active routing code as of the scene-state refactor;
     // kept declared (not deleted) per that phase's own scope rules. Safe to
@@ -379,6 +398,7 @@ bool runner_assets_load(GameState *game);
 void runner_assets_unload(GameState *game);
 void runner_session_reset(GameState *game, GameMode mode);
 
+void consume_arcade_jump_requests(GameState *game);
 void apply_arcade_player_forces(GameState *game, float dt);
 void process(GameState *game, float dt);
 void collisionDetect(GameState *game);
@@ -444,6 +464,7 @@ int  doRender_menu0(SDL_Renderer *renderer, GameState *game);
 void menu0_events(GameState *gameState);
 void collisionDetect2(GameState *game);
 void doRender2(SDL_Renderer *renderer, GameState *game);
+void consume_runner_jump_requests(GameState *game);
 void apply_runner_player_forces(GameState *game, float dt);
 void process2(GameState *game, float dt);
 int processEvents2(SDL_Window *window, GameState *game);
