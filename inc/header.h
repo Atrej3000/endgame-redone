@@ -342,17 +342,16 @@ int  doRender_menu1(SDL_Renderer *renderer, GameState *game);
 int  doRender_menu2(SDL_Renderer *renderer, GameState *game);
 int doRender_leaderboard(SDL_Renderer *renderer, GameState *game);
 int doRender_pause(SDL_Renderer *renderer, GameState *game);
-void doRender(SDL_Renderer *renderer, GameState *game);
 int collide2d(float x1, float y1, float x2, float y2, float wt1, float ht1, float wt2, float ht2);
 void menu_events(GameState *gameState);
 void load_menu1(GameState *game);
 void load_menu2(GameState *game);
 
-// Scene routing (src/scene.c) -- see docs/scene-state-map.md. Also declared in
-// the focused inc/scene.h (legal duplicate prototype) -- kept here too since
-// menu_events.c/pause_events.c/processEvents.c call this and are not migrated
-// to the focused header this phase; see docs/solid-gof-audit.md section 7.3.
-void app_change_scene(GameState *game, AppScene next_scene);
+// Scene routing (src/scene.c) -- see docs/scene-state-map.md. Declared only in
+// the focused inc/scene.h as of Phase 10 -- every caller (scene.c, main.c,
+// menu_events.c, pause_events.c, processEvents.c) now includes it directly;
+// see docs/gamestate-decomposition.md section 5 and
+// docs/solid-gof-audit.md section 7.3 for the migration history.
 
 // Per-mode frame pipeline (src/frame.c) -- see docs/frame-pipeline-map.md and
 // inc/frame.h. Moved fully to inc/frame.h: arcade_frame()/runner_frame() have

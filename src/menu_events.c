@@ -1,4 +1,5 @@
 #include "header.h"
+#include "scene.h"
 #include "input_command.h"
 
 void menu_events(GameState *gameState)

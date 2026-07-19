@@ -9,6 +9,7 @@
 // app_change_scene(), which is the thing actually under test. Production
 // code must never do this -- only this test file does, and only for setup.
 #include "app.h"
+#include "scene.h"
 
 static int failures = 0;
 

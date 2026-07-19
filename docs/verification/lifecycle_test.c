@@ -11,6 +11,7 @@
 // below directly assign game->scene to set up a precondition. Production
 // code must never do this -- only this test file does, and only for setup.
 #include "app.h"
+#include "scene.h"
 
 static int failures = 0;
 

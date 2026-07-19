@@ -12,6 +12,7 @@
 // precondition. Production code must never do this -- only this test file
 // does, and only for setup.
 #include "app.h"
+#include "scene.h"
 #include "frame.h"
 
 static int failures = 0;

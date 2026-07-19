@@ -1,4 +1,5 @@
 #include "header.h"
+#include "scene.h"
 
 int pause_events(GameState *gameState)
 {
