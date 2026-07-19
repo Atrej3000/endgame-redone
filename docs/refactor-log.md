@@ -1700,3 +1700,75 @@ warnings, all 10 existing local targets passing. Full evidence in `docs/physics-
 - Verification performed: `make mingw` — 0 errors, 145 warnings. All 10 local targets pass
   (10/10 new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
 - Rollback: `git revert 15d5111`.
+
+## Pass 12 summary — input/simulation separation (2026-07-19)
+
+Implements the physics assessment's own "Phase 2 — separate input and simulation (`InputState`
+struct, edge-triggered de-duplication)", the recommended follow-on to Pass 11's fixed timestep.
+Pass 11 fixed the continuous-force half of the frame-rate-dependence problem (held-key
+accel/jump-hold/friction, now on the fixed tick); this pass closes the remaining discrete half —
+jump-trigger handling, which was still evaluated once per real frame rather than at the fixed tick
+rate. Also fixes a regression discovered during this pass's audit: Runner's jump impulse was never
+converted off a bare frame-tuned `-10` during Pass 11, making Runner's jump 60× weaker than
+intended ever since Pass 11 merged. Baseline confirmed before any edit: commit `8410b18` (tag
+`refactor-pre-input-simulation-separation`), `make mingw` 0 errors/145 warnings, all 10 existing
+local targets passing. Full evidence in `docs/input-simulation-separation-map.md`.
+
+### [2026-07-19] Map input/simulation separation
+- Phase: Pass 12 (commit `497b8c1`)
+- File(s): new `docs/input-simulation-separation-map.md`
+- Action: confirmed the exact gap left by Pass 11 (discrete jump-trigger handling still coupled to
+  the real-frame rate via `processEvents`/`processEvents2`, called once per frame after the
+  fixed-tick loop has already run 0–5 times); found and documented the Runner jump-impulse
+  regression (bare `-10`, never converted, confirmed by direct read of both the constant's own
+  doc-comment and the actual call sites); designed the `InputState` struct and edge-triggered
+  consumption approach; listed everything deliberately deferred (collision/death-trigger staleness,
+  shooting/projectile input, menu/pause/cheat-code handling).
+- Behavior impact: none (documentation only).
+- Verification performed: manual re-derivation of every claim directly from the current tree.
+- Rollback: delete the file.
+
+### [2026-07-19] Add InputState and jump-request consumption
+- Phase: Pass 12 (commit `c44f4c3`)
+- File(s): `inc/header.h`, `src/process.c`, `src/frame.c`
+- Action: added `InputState` (`jumpRequestedPlayer1`/`jumpRequestedPlayer2`, `GameState` field
+  `input`), following Phase 61's `AppContext`/`AssetLifecycleFlags` nested-struct pattern; new
+  `consume_arcade_jump_requests`/`consume_runner_jump_requests` (`src/process.c`), wired into
+  `arcade_simulate`/`runner_simulate` (`src/frame.c`) immediately before `apply_*_player_forces`,
+  preserving the original relative ordering (a keydown-triggered jump could stack with jump-hold
+  thrust in the same real frame before; preserved by running consumption first).
+- Behavior impact: none yet — no producer sets the new flags in this commit.
+- Verification performed: `make mingw` — 0 errors, 145 warnings (unchanged). All 10 local targets
+  pass.
+- Rollback: `git revert`.
+
+### [2026-07-19] Route jump input through InputState
+- Phase: Pass 12 (commit `8173289`)
+- File(s): `src/processEvents.c`, `src/loadGame.c`
+- Action: `GAME_COMMAND_JUMP_PLAYER1`/`_PLAYER2` case bodies in both
+  `processEvents()`/`processEvents2()` shrink to a single flag-set — the `onLedge` check, `dy`
+  assignment, and SFX playback move to the consumption functions added in the previous commit,
+  which now run at the fixed physics tick rate. This is where the Runner jump-impulse regression
+  found during this pass's audit is fixed: both modes now route through the same
+  `consume_*_jump_requests` functions, which use `JUMP_SPEED_PER_SEC` uniformly. Also clears the
+  new request flags in `arcade_session_reset`/`runner_session_reset`, preventing a request left
+  pending from a previous session from firing an unwanted instant jump at the start of the next.
+- Behavior impact: Arcade jump feel unchanged (impulse was already correct); Runner jump height
+  corrected (previously 60× too weak). Everything else unchanged.
+- Verification performed: `make mingw` — 0 errors, 145 warnings (unchanged). All 10 local targets
+  pass.
+- Rollback: `git revert 8173289`.
+
+### [2026-07-19] Validate input/simulation separation
+- Phase: Pass 12 (commit `c4432f4`)
+- File(s): new `docs/verification/input_state_test.c`, `Makefile` (new `mingw-inputtest` target),
+  `.github/workflows/mingw-validation.yml` (step + log-upload path added in the same commit)
+- Action: (1) edge-triggered single consumption — a grounded request fires the jump exactly once
+  and clears itself, a second consume call in the same real frame does not re-fire even if
+  re-grounded in between; (2) an airborne request is dropped, not buffered; (3) Runner's jump
+  impulse uses `JUMP_SPEED_PER_SEC`, not the never-converted bare `-10` (direct regression-fix
+  proof); (4) the player-2 path for both modes; (5) one real `arcade_simulate`/`runner_simulate`
+  call confirms the consumption wires correctly into the existing fixed-tick order.
+- Verification performed: `make mingw` — 0 errors, 145 warnings. All 11 local targets pass (14/14
+  new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert c4432f4`.
