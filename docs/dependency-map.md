@@ -65,13 +65,15 @@ main.c
   |     |-> runner_death.c
   |     `-> processEvents.c (processEvents/processEvents2)
   |           `-calls->  input_command.c (translate_arcade_command/translate_runner_command) [NEW]
-  |-> menu_events.c, pause_events.c
-  |     `-calls->  input_command.c (translate_menu_command)  [NEW]                 [NEW dependency]
+  |-> menu_events.c (menu0_events)
+  |     `-calls->  input_command.c (translate_menu_command)  [NEW]
+  |-> menu_events.c (menu_events), pause_events.c   -- unchanged this phase (audit sections 7.2/9)
   `-> load_menu.c  --calls-->  asset_loader.c (load_texture)   [FIXED: no longer bypasses it]
 ```
 
-**New dependency edges**: `process.c -> entity_spawn.c`, `processEvents.c -> input_command.c`,
-`menu_events.c -> input_command.c`, `pause_events.c -> input_command.c`. All four are
+**New dependency edges**: `process.c -> entity_spawn.c`, `loadGame.c -> entity_spawn.c`,
+`processEvents.c -> input_command.c`, `menu_events.c -> input_command.c` (only `menu0_events()`;
+`menu_events()` and `pause_events.c` are left unchanged this phase, see audit §7.2). All are
 low-risk/downward (a mode-simulation or input-handling module depending on a lower-level, stateless
 helper module — consistent with the intended direction above, nothing added in the reverse
 direction). `entity_spawn.c` and `input_command.c` both depend only on `header.h` (for `GameState`/

@@ -177,7 +177,7 @@ would be a 4th abstraction and is left for a future phase.
 |---|---|---|---|---|---|
 | 10-site duplicated inline `Enemies` init | `process.c` x9, `loadGame.c` x1 (§5.2) | SRP, OCP | Factory Method | A single non-bounds-checked helper function (rejected — a genuine bounds check is worth the small formal step) | **Required** |
 | Bullet creation | `addBullet`/`addSecondBullet` (`process.c:3,40`) | SRP | Factory Method | — | **Already present**, no change needed |
-| Quit-to-menu (`SDLK_q`) divergent x4, pause x2, jump x2 | `processEvents.c`, `menu_events.c`, `pause_events.c` (§5.2) | SRP, OCP | Command (translation boundary, not queued objects) | Per-file helper function duplicated 4 times (rejected — doesn't remove the keycode-mapping duplication itself) | **Required** |
+| `processEvents()`/`processEvents2()` duplicate the same 5-key mapping; `menu0_events()` already hand-rolls multi-key-to-one-action | `processEvents.c` (§5.2) | SRP, OCP | Command (translation boundary, not queued objects) | Per-file helper function duplicated across processEvents/processEvents2 (rejected — doesn't remove the keycode-mapping duplication itself) | **Required** (scoped to `processEvents`/`processEvents2`/`menu0_events`; `menu_events.c`/`pause_events.c` deferred, §9) |
 | Scene routing | `AppScene` + `app_change_scene()` + 2 entry hooks (§4) | — | State | Formal per-scene state objects | **Already present, informally** — only 2/10 scenes need entry side effects; formal objects would be pure overhead |
 | App/session/frame entry points | `app_init/app_shutdown`, `arcade_frame/runner_frame`, `*_assets_load/unload` | — | Facade | Another wrapper layer | **Already present, informally** — documented, not re-wrapped |
 | Shared immutable textures/font | `shared_assets_load`, `sharedAssetsLoaded`, Phase-5 `manFrames[0]` consolidation | — | Flyweight | Reference-counted cache | **Already present, informally** — no active duplicated loading remains |
@@ -242,15 +242,13 @@ doesn't, is the correct application of LSP here, not an oversight.
 ```c
 typedef enum GameCommand {
     GAME_COMMAND_NONE,
-    GAME_COMMAND_QUIT_TO_MENU,
+    GAME_COMMAND_QUIT_TO_MODE_MENU,
     GAME_COMMAND_QUIT_TO_MAIN_MENU,
     GAME_COMMAND_PAUSE,
-    GAME_COMMAND_RESUME,
     GAME_COMMAND_JUMP_PLAYER1,
     GAME_COMMAND_JUMP_PLAYER2,
-    GAME_COMMAND_SELECT_SINGLE_PLAYER,
-    GAME_COMMAND_SELECT_MULTIPLAYER,
-    GAME_COMMAND_SELECT_LEADERBOARD,
+    GAME_COMMAND_SELECT_ARCADE,
+    GAME_COMMAND_SELECT_RUNNER,
     GAME_COMMAND_QUIT_GAME
 } GameCommand;
 
@@ -258,24 +256,42 @@ GameCommand translate_arcade_command(SDL_Keycode key);
 GameCommand translate_runner_command(SDL_Keycode key);
 GameCommand translate_menu_command(SDL_Keycode key);
 ```
-1. **Problem**: the same discrete action is independently keyed/bodied across 2-4 files with
-   divergent side effects (§5.2); `menu0_events()` maps two distinct keycodes to the same action
-   three separate times via switch fall-through (already collapsed there, but not reusable
-   elsewhere).
+1. **Problem**: `processEvents()`/`processEvents2()` are the two largest, most tightly parallel
+   files in the codebase (783 lines together) and independently hand-implement the *same 5 keys*
+   (`ESCAPE`, `p`, `w`, `UP`, `q`) meaning the *same 5 actions* (quit-to-mode-menu, pause, jump
+   player 1, jump player 2, quit-to-main-menu), each buried inside a much larger function mixing
+   input polling with continuous movement and win/loss checks (§5.1/§5.2). Separately,
+   `menu0_events()` already maps two distinct keycodes to each of 3 actions via switch
+   fall-through — a working but ad-hoc, non-reusable, untested implementation of exactly what
+   Command formalizes.
 2. **Why insufficient today**: a per-file helper function would remove body duplication but not
-   the *keycode-to-action mapping* duplication itself, and wouldn't give a single place to unit-test
-   "does key X mean action Y" independent of the mode-specific side effects.
-3. **Why a translation boundary over a queued Command object**: the task explicitly forbids queuing
-   or heap-allocating commands, and continuous movement must stay untouched — a synchronous
-   `SDL_Keycode -> GameCommand` pure function, consumed immediately by a small per-mode switch, is
-   the smallest correct shape that removes the mapping duplication without changing timing.
+   the *keycode-to-action mapping* duplication itself, and wouldn't give a single place to
+   unit-test "does key X mean action Y" independent of the mode-specific side effects (which audio
+   handles get freed, etc.) that genuinely differ between Arcade and Runner.
+3. **Why a translation boundary over a queued Command object**: the task explicitly forbids
+   queuing or heap-allocating commands, and continuous movement must stay untouched — a
+   synchronous `SDL_Keycode -> GameCommand` pure function, consumed immediately by a small
+   per-mode switch, is the smallest correct shape that removes the mapping duplication without
+   changing timing.
 4. **Tested by**: `docs/verification/command_translation_test.c` — see §10.
 
-Only discrete `SDL_KEYDOWN` actions already identified as duplicated are translated. Held-key
-continuous polling (`SDL_GetKeyboardState`-based movement/shooting) is untouched — confirmed by
-the test asserting no `GAME_COMMAND_MOVE_*` value exists in the enum at all. Mode-specific bodies
-(e.g., which audio handles Arcade frees vs. Runner) remain separate hand-written code per mode
-where they genuinely differ — Arcade and Runner are not forced into one shared handler.
+**Scope, decided during implementation**: `translate_arcade_command()`/`translate_runner_command()`
+cover `processEvents()`/`processEvents2()`'s 5 shared keys — the strongest evidence, converted in
+full. `translate_menu_command()` covers `menu0_events()`'s 3 dual-keycode pairs — the cleanest,
+smallest demonstration of "same action, multiple keys," converted in full. **`menu_events()`
+(the Arcade/Runner mode-select submenu: `1`/`2`/`3`/`q`) and `pause_events()` (`q`/`ESCAPE`) are
+NOT converted this phase**: each has a small, single-key-per-action switch with no shared shape
+duplicated *within itself* the way `processEvents`/`processEvents2` duplicate *with each other* —
+routing them through `GameCommand` would not meaningfully reduce their complexity and would push
+this phase past a reasonable scope for one Command boundary. Their `SDLK_q`-triggers-"quit to
+main menu" duplication (§5.2) remains as small, independent inline handlers — recorded as smaller,
+lower-priority deferred debt alongside the items in §9, not silently dropped.
+
+Held-key continuous polling (`SDL_GetKeyboardState`-based movement/shooting) is untouched in every
+file — confirmed by the test asserting no `GAME_COMMAND_MOVE_*` value exists in the enum at all.
+Mode-specific bodies (e.g., which audio handles Arcade frees vs. Runner) remain separate
+hand-written code per mode where they genuinely differ — Arcade and Runner are not forced into one
+shared handler.
 
 ### 7.3 ISP — `inc/scene.h`, `inc/frame.h`
 Mirrors the existing `inc/app.h` pattern (`#include "header.h"` + narrow prototypes on top).
@@ -335,6 +351,10 @@ for this phase.
   in one phase risks exceeding the 3-abstraction ceiling and mixing rollback boundaries.
 - **Unifying the 9 scattered lazy-SFX-reload sites** into the `_assets_load`/`_assets_unload`
   ownership model — would be a 4th abstraction this phase.
+- **Converting `menu_events.c`/`pause_events.c` to `GameCommand`** — each has a small,
+  single-key-per-action switch with no internal shape duplication the way `processEvents`/
+  `processEvents2` duplicate with each other (§7.2); their shared `SDLK_q` "quit to main menu"
+  trigger remains a small independent inline handler in each file.
 - **Further header decomposition** beyond `scene.h`/`frame.h`/`entity_spawn.h`/`input_command.h` —
   `header.h` remains the compatibility header for `process.c`/`processEvents.c`/`collisionDetect.c`
   and the rest; splitting those out is real future ISP work but not attempted here per the task's

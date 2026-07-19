@@ -1,4 +1,5 @@
 #include "header.h"
+#include "input_command.h"
 
 void menu_events(GameState *gameState)
 {
@@ -84,23 +85,20 @@ void menu0_events(GameState *gameState)
     {
         if (event.type == SDL_KEYDOWN)
         {
-        switch (event.key.keysym.sym) {
-            case SDLK_b:
-            case SDLK_1:
+        switch (translate_menu_command(event.key.keysym.sym)) {
+            case GAME_COMMAND_SELECT_ARCADE:
                 app_change_scene(gameState, APP_SCENE_ARCADE_MENU);
 
                 Mix_VolumeChunk(gameState->select, 16);
                 Mix_PlayChannel(-1, gameState->select, 0);
                 break;
-            case SDLK_r:
-            case SDLK_2:
+            case GAME_COMMAND_SELECT_RUNNER:
                 app_change_scene(gameState, APP_SCENE_RUNNER_MENU);
 
                 Mix_VolumeChunk(gameState->select, 16);
                 Mix_PlayChannel(-1, gameState->select, 0);
                 break;
-            case SDLK_q:
-            case SDLK_ESCAPE:
+            case GAME_COMMAND_QUIT_GAME:
                 app_change_scene(gameState, APP_SCENE_QUIT);
 
                 Mix_VolumeChunk(gameState->select, 32);

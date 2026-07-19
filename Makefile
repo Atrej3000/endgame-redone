@@ -204,6 +204,19 @@ mingw-entityspawntest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/entityspawntest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/entityspawntest.exe
 
+# Non-interactive Command-translation test: verifies translate_arcade_command/
+# translate_runner_command/translate_menu_command (src/input_command.c) map
+# every documented key to its documented GameCommand, including the
+# dual-keycode menu pairs and the runner-only SDLK_0 cheat code exclusion.
+# Pure functions -- no SDL subsystem init needed. See
+# docs/verification/command_translation_test.c and
+# docs/solid-gof-audit.md section 7.2.
+mingw-commandtest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/command_translation_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/commandtest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/commandtest.exe
+
 # Dependency-light (stdlib-only) Python script. Override PYTHON on the
 # command line if python3 isn't on PATH (e.g. `make PYTHON="py -3" audit-repo`
 # on some Windows setups).
