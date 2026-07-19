@@ -76,7 +76,16 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define RUN_FRICTION_DECAY_PER_TICK 0.8f      // unchanged multiplicative factor
 #define RUN_SNAP_ZERO_SPEED_PER_SEC 6.0f      // was fabsf(dx) < 0.1f/frame
 
-typedef struct 
+// Player-vs-ledge hitbox, named for the 5 collisionDetect.c blocks Phase 13
+// touches (Arcade/Runner man/secondPlayer) -- same 48x48 value every one of
+// those blocks already used as a bare literal; see
+// docs/collision-correctness-map.md section 5 for why the many *other*
+// scattered hitbox literals (enemy/boss/star/etc.) are deliberately left
+// untouched rather than reconciled with this one.
+#define PLAYER_LEDGE_HITBOX_W 48.0f
+#define PLAYER_LEDGE_HITBOX_H 48.0f
+
+typedef struct
 {
     float x, y, w, h;
     float dx, dy;
@@ -97,6 +106,12 @@ typedef struct
 {
     float x, y, w, h;
     float dx, dy;
+    // y at the end of the previous physics tick, captured by
+    // capture_player_prev_y() (src/collisionDetect.c) before this tick's
+    // process()/process2() moves y -- lets the ledge landing check
+    // distinguish "still resting on a surface" from "just walked off one"
+    // (Phase 13, see docs/collision-correctness-map.md).
+    float prevY;
     short lives;
     char *name;
     int onLedge, isDead;//, isdead, visible, countShots;
@@ -398,6 +413,7 @@ bool runner_assets_load(GameState *game);
 void runner_assets_unload(GameState *game);
 void runner_session_reset(GameState *game, GameMode mode);
 
+void capture_player_prev_y(GameState *game);
 void consume_arcade_jump_requests(GameState *game);
 void apply_arcade_player_forces(GameState *game, float dt);
 void process(GameState *game, float dt);

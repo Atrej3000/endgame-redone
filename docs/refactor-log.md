@@ -1772,3 +1772,77 @@ local targets passing. Full evidence in `docs/input-simulation-separation-map.md
 - Verification performed: `make mingw` — 0 errors, 145 warnings. All 11 local targets pass (14/14
   new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
 - Rollback: `git revert c4432f4`.
+
+## Pass 13 summary — collision correctness, player-only (2026-07-20)
+
+Implements the physics assessment's own "Phase 3 — correct collisions: previous-position
+tracking, reset grounded each step, standardize hitboxes, fix Runner's ceiling `onLedge` bug" —
+already the designated home for the Runner bug per `docs/physics-timestep-map.md`,
+`docs/refactor-plan.md`, and `docs/input-simulation-separation-map.md`, all three written in
+earlier passes. Found a real bug broader than the already-known Runner ceiling issue during this
+pass's own audit: `onLedge` was never reset at the start of a collision pass in either mode, for
+either player, so walking off a ledge's edge (no ceiling hit, no jump) never cleared it. Baseline
+confirmed before any edit: commit `c7fb663` (tag `refactor-pre-collision-correctness`), `make
+mingw` 0 errors/145 warnings, all 11 existing local targets passing. Full evidence in
+`docs/collision-correctness-map.md`.
+
+### [2026-07-20] Map collision correctness
+- Phase: Pass 13 (commit `5b16114`)
+- File(s): new `docs/collision-correctness-map.md`
+- Action: confirmed `onLedge` is never reset at the start of a collision pass in either
+  `collisionDetect()`/`collisionDetect2()`, for either player — a walk-off-ledge bug distinct from
+  and broader than the already-documented Runner ceiling bug. Found the landmine a naive "reset
+  each tick" would hit: the landing check's strict inequality can't re-fire while a player rests
+  exactly on a surface, so resetting `onLedge` without also fixing the check would immediately
+  un-ground anyone standing still. Designed the fix (a crossing-based landing test using a new
+  `Man.prevY` field). Scoped hitbox standardization narrowly — named the shared `48x48` literal
+  without reconciling it against other scattered hit-test/render sizes.
+- Behavior impact: none (documentation only).
+- Verification performed: manual re-derivation of every claim directly from the current tree.
+- Rollback: delete the file.
+
+### [2026-07-20] Add previous-Y tracking and ledge hitbox constants
+- Phase: Pass 13 (commit `eade7b8`)
+- File(s): `inc/header.h`, `src/collisionDetect.c`
+- Action: added `Man.prevY` and `capture_player_prev_y()` (not yet called from anywhere);
+  added `PLAYER_LEDGE_HITBOX_W`/`_H` (`48.0f`, not yet used at any check site).
+- Behavior impact: none yet.
+- Verification performed: `make mingw` — 0 errors, 145 warnings (unchanged). All 11 local targets
+  pass.
+- Rollback: `git revert eade7b8`.
+
+### [2026-07-20] Correct player ledge collision
+- Phase: Pass 13 (commit `83ff619`)
+- File(s): `inc/header.h`, `src/collisionDetect.c`, `src/frame.c`
+- Action: wired `capture_player_prev_y()` into `arcade_simulate()`/`runner_simulate()` as the
+  first line of each. At all 5 player ledge-collision blocks (Arcade man, Arcade secondPlayer ×2,
+  Runner man, Runner secondPlayer): `onLedge` resets to `0` once per collision pass (before the
+  100-ledge loop, not inside it); the landing check became crossing-based; the bare `48, 48`
+  literals became named constants. Runner's two ceiling branches (man, secondPlayer) had their
+  `onLedge = 1` corrected to `onLedge = 0`, matching Arcade — the long-documented bug.
+  Enemy/boss/smart-enemy ledge collision and the enemy-to-enemy self-collision loop are untouched.
+- Behavior impact: walking off a ledge now correctly leaves the player airborne in both modes
+  (previously they'd stay "grounded" indefinitely); Runner's head-bump now correctly leaves the
+  player airborne instead of instantly re-grounding them mid-air.
+- Verification performed: `make mingw` — 0 errors, 145 warnings (unchanged). All 11 local targets
+  pass.
+- Rollback: `git revert 83ff619`.
+
+### [2026-07-20] Validate collision correctness
+- Phase: Pass 13 (commit `5da8602`)
+- File(s): new `docs/verification/collision_correctness_test.c`, `Makefile` (new
+  `mingw-collisiontest` target), `.github/workflows/mingw-validation.yml` (step + log-upload path
+  added in the same commit), `src/collisionDetect.c` (see below), `docs/collision-correctness-map.md`
+- Action: (1) walking off a ledge clears `onLedge`; (2) resting continuously across multiple
+  consecutive `collisionDetect`/`collisionDetect2` calls re-affirms `onLedge=1`; (3) normal
+  falling-and-landing still works; (4) Runner's ceiling bump clears `onLedge` for both players
+  (regression-fix proof); (5) `capture_player_prev_y` sets `prevY` correctly. Caught a second
+  landmine while writing test 4, not assumed correct beforehand: the crossing-based landing check
+  (as landed in the previous commit) had no upper bound, so it fired a second time in the same
+  loop iteration immediately after a ceiling correction (which sets `my=by+bh, dy=0` — both
+  satisfying the landing condition as first written), undoing the correction that had just run.
+  The original strict `my < by` had prevented this implicitly; fixed by adding `my < by + bh` back
+  to all 5 landing checks in the same commit as the test that caught it.
+- Verification performed: `make mingw` — 0 errors, 145 warnings. All 12 local targets pass (12/12
+  new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert 5da8602`.
