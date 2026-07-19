@@ -108,3 +108,24 @@ Exactly three case-sensitivity defects exist in the entire codebase, all three i
 `src/loadGame.c`, all three resolved by correcting the source literal (never the tracked file).
 No other mismatch of any kind was found across source, headers, tests, build files, scripts, CI,
 or documentation.
+
+## CI validation results (PR #4, `linux-asset-validation` job)
+
+- **Mandatory step — `audit_repository_usage.py` on Ubuntu's real case-sensitive filesystem**:
+  `Asset path errors: 0`, `Prototype errors: 0`, `Known exceptions: 0`,
+  `Informational notices: 4` (legitimate lazy-load-guard duplicate references),
+  `Result: PASS`. This is the actual proof the three corrections above are right on a
+  case-sensitive filesystem, not just statically plausible — required, and green.
+- **Best-effort steps** (`continue-on-error`, not required for this phase's definition of done):
+  the additive `make linux` build initially failed with a linker error
+  (`/usr/bin/ld: ...libm.so.6: error adding symbols: DSO missing from command line`) — modern
+  Ubuntu's linker no longer resolves a transitive `libm` dependency implicitly, and
+  `src/random_sign.c` calls `pow()`. Fixed by linking `-lm` explicitly (Makefile only, MinGW/macOS
+  untouched); the build now succeeds. The subsequent `linux-smoketest` step still fails, but only
+  with `SDL_CreateRenderer failed: Couldn't find matching render driver` — a GitHub-hosted Linux
+  runner has no GPU/display and the SDL dummy video driver doesn't expose an accelerated render
+  driver by default. This is a headless-CI-environment limitation, not an asset-path or source
+  portability defect, and is explicitly deferred rather than expanding this phase's scope (fixing
+  it would mean adding an `SDL_RENDERER_SOFTWARE` fallback to the production renderer-creation
+  path, a behavior change out of charter for a path-casing phase). Documented here rather than
+  silently left unexplained.
