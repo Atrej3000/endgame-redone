@@ -271,9 +271,15 @@ void collisionDetect(GameState *game)
     // }
 
     //Check for collision with any ledges (brick blocks)
+    // Reset grounded each step (Phase 13, see docs/collision-correctness-map.md):
+    // onLedge defaults to not-grounded before this pass; the landing check
+    // below re-affirms it to 1 only if the man is actually still resting on
+    // a ledge this tick. Fixes a real bug where walking off a ledge's edge
+    // (no ceiling hit, no jump) never used to clear onLedge.
+    game->man.onLedge = 0;
     for (int i = 0; i < 100; i++)
     {
-        float mw = 48, mh = 48;
+        float mw = PLAYER_LEDGE_HITBOX_W, mh = PLAYER_LEDGE_HITBOX_H;
         float mx = game->man.x, my = game->man.y;
         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
 
@@ -293,8 +299,12 @@ void collisionDetect(GameState *game)
         }
         if (mx + mw > bx && mx < bx + bw)
         {
-            //are we landing on the ledge
-            if (my + mh > by && my < by && game->man.dy > 0)
+            // Landing/resting: crossing-based using this tick's start-of-tick
+            // y (man.prevY), not just the current-tick threshold -- a man
+            // resting exactly on a ledge sits at my+mh == by (not > by), so
+            // a strict current-position-only test would never re-fire while
+            // at rest. See docs/collision-correctness-map.md section 3.
+            if (game->man.prevY + mh <= by && my + mh >= by && game->man.dy >= 0)
             {
                 //correct y
                 game->man.y = by - mh;
@@ -391,9 +401,14 @@ void collisionDetect(GameState *game)
         }
     }
 
+    // Reset grounded each step -- see the man loop above and
+    // docs/collision-correctness-map.md. Only this (first) secondPlayer
+    // block needs the reset; the multiplayer-duplicate block below re-uses
+    // it since secondPlayer's position doesn't change in between.
+    game->secondPlayer.onLedge = 0;
     for (int i = 0; i < 100; i++)
     {
-        float mw = 48, mh = 48;
+        float mw = PLAYER_LEDGE_HITBOX_W, mh = PLAYER_LEDGE_HITBOX_H;
         float mx = game->secondPlayer.x, my = game->secondPlayer.y;
         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
 
@@ -413,8 +428,8 @@ void collisionDetect(GameState *game)
         }
         if (mx + mw > bx && mx < bx + bw)
         {
-            //are we landing on the ledge
-            if (my + mh > by && my < by && game->secondPlayer.dy > 0)
+            // Landing/resting: crossing-based, see the man loop above.
+            if (game->secondPlayer.prevY + mh <= by && my + mh >= by && game->secondPlayer.dy >= 0)
             {
                 //correct y
                 game->secondPlayer.y = by - mh;
@@ -513,7 +528,7 @@ void collisionDetect(GameState *game)
         // }
             for (int i = 0; i < 100; i++)
             {
-                float mw = 48, mh = 48;
+                float mw = PLAYER_LEDGE_HITBOX_W, mh = PLAYER_LEDGE_HITBOX_H;
                 float mx = game->secondPlayer.x, my = game->secondPlayer.y;
                 float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
 
@@ -533,8 +548,10 @@ void collisionDetect(GameState *game)
                 }
                 if (mx + mw > bx && mx < bx + bw)
                 {
-                    //are we landing on the ledge
-                    if (my + mh > by && my < by && game->secondPlayer.dy > 0)
+                    // Landing/resting: crossing-based, see the man loop above.
+                    // No onLedge=0 reset needed in this (duplicate) block --
+                    // the first secondPlayer loop already reset it this tick.
+                    if (game->secondPlayer.prevY + mh <= by && my + mh >= by && game->secondPlayer.dy >= 0)
                     {
                         //correct y
                         game->secondPlayer.y = by - mh;
@@ -648,9 +665,11 @@ void collisionDetect2(GameState *game)
         }
     }
     //Check for collision wit any ledges (brick blocks)
+    // Reset grounded each step -- see docs/collision-correctness-map.md.
+    game->man.onLedge = 0;
     for (int i = 0; i < 100; i++)
     {
-        float mw = 48, mh = 48;
+        float mw = PLAYER_LEDGE_HITBOX_W, mh = PLAYER_LEDGE_HITBOX_H;
         float mx = game->man.x, my = game->man.y;
         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
 
@@ -665,13 +684,17 @@ void collisionDetect2(GameState *game)
 
                 //bumped our head, stop any jump velocity
                 game->man.dy = 0;
-                game->man.onLedge = 1;
+                // Fixed (Phase 13): was incorrectly `1` -- a ceiling bump
+                // must leave the man airborne, matching Arcade's equivalent
+                // branch. See docs/collision-correctness-map.md section 2.
+                game->man.onLedge = 0;
             }
         }
         if (mx + mw > bx && mx < bx + bw)
         {
-            //are we landing on the ledge
-            if (my + mh > by && my < by && game->man.dy > 0)
+            // Landing/resting: crossing-based, see collisionDetect()'s man
+            // loop above.
+            if (game->man.prevY + mh <= by && my + mh >= by && game->man.dy >= 0)
             {
                 //correct y
                 game->man.y = by - mh;
@@ -706,9 +729,11 @@ void collisionDetect2(GameState *game)
         }
     }
 
+    // Reset grounded each step -- see docs/collision-correctness-map.md.
+    game->secondPlayer.onLedge = 0;
     for (int i = 0; i < 100; i++)
     {
-        float mw = 48, mh = 48;
+        float mw = PLAYER_LEDGE_HITBOX_W, mh = PLAYER_LEDGE_HITBOX_H;
         float mx = game->secondPlayer.x, my = game->secondPlayer.y;
         float bx = game->ledges[i].x, by = game->ledges[i].y, bw = game->ledges[i].w, bh = game->ledges[i].h;
 
@@ -723,13 +748,15 @@ void collisionDetect2(GameState *game)
 
                 //bumped our head, stop any jump velocity
                 game->secondPlayer.dy = 0;
-                game->secondPlayer.onLedge = 1;
+                // Fixed (Phase 13): was incorrectly `1` -- see the man loop
+                // above and docs/collision-correctness-map.md section 2.
+                game->secondPlayer.onLedge = 0;
             }
         }
         if (mx + mw > bx && mx < bx + bw)
         {
-            //are we landing on the ledge
-            if (my + mh > by && my < by && game->secondPlayer.dy > 0)
+            // Landing/resting: crossing-based, see the man loop above.
+            if (game->secondPlayer.prevY + mh <= by && my + mh >= by && game->secondPlayer.dy >= 0)
             {
                 //correct y
                 game->secondPlayer.y = by - mh;
