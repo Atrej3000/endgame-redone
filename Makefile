@@ -245,6 +245,20 @@ mingw-groupingtest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/groupingtest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/groupingtest.exe
 
+# Non-interactive fixed-timestep physics test: verifies process() (Arcade)
+# reproduces the old per-frame code's exact numeric behavior at a fixed
+# dt=1/60s, and that the same total simulated time chunked into different
+# real-frame patterns (simulating different display refresh rates) produces
+# identical final state and tick count -- the direct proof of Phase 11's
+# refresh-rate-independence goal. See
+# docs/verification/physics_timestep_test.c and
+# docs/physics-timestep-map.md.
+mingw-physicstest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/physics_timestep_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/physicstest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/physicstest.exe
+
 # Dependency-light (stdlib-only) Python script. Override PYTHON on the
 # command line if python3 isn't on PATH (e.g. `make PYTHON="py -3" audit-repo`
 # on some Windows setups).
@@ -309,4 +323,4 @@ linux-smoketest: $(LINUX_BUILD_DIR)
 linux-clean:
 	rm -rf $(LINUX_BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean

@@ -31,6 +31,7 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
         make mingw-commandtest   # non-interactive input-command translation check
         make mingw-headertest    # confirms each focused public header compiles standalone
         make mingw-groupingtest  # non-interactive GameState nested-struct lifecycle check
+        make mingw-physicstest   # non-interactive fixed-timestep player-physics check
         make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
         make audit-repo          # repository usage integrity check (asset paths + prototypes)
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
@@ -63,6 +64,12 @@ Architecture:
     documents the field-by-field `GameState` ownership audit behind the `AppContext`/
     `AssetLifecycleFlags` nested-struct groups (`game->app.renderer`/`game->app.scene`,
     `game->assetFlags.*`) and the memory-layout safety verification supporting them.
+    `docs/physics-timestep-map.md` documents the fixed-timestep conversion: `main()` now drives
+    gameplay simulation via a real-time accumulator at a fixed 60Hz (`PHYSICS_HZ`/`PHYSICS_DT`,
+    `inc/header.h`), and player (man/secondPlayer) gravity/velocity/acceleration/friction/jump
+    constants are expressed in explicit per-second units rather than per-frame ones -- gameplay
+    physics for the player is no longer tied to display refresh rate. Enemies, bosses, bullets,
+    background/decor scroll, and moving traps remain frame-count-based (deliberately deferred).
 
 Known platform limitations:
     - The default build targets macOS only (bundled `.framework`s under `resource/frameworks`,

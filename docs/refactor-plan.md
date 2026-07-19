@@ -850,6 +850,130 @@ PR #5 merge), `make mingw` 0 errors/161 warnings, all 8 existing local targets p
 - Validation: `make mingw` — 0 errors, 161 warnings. All 10 local targets pass.
 - Rollback: `git revert`.
 
+## Phases executed in Pass 11 (fixed-timestep player physics)
+
+Full evidence in `docs/physics-timestep-map.md`, written before any Pass 11 code edit. Baseline:
+commit `a58268f` (tag `refactor-pre-fixed-timestep`, `main` after Phase 10's PR #6 merge),
+`make mingw` 0 errors/161 warnings, all 10 existing local targets passing. Triggered by an external
+technical assessment identifying frame-dependent physics (no fixed timestep) as the core defect in
+the custom kinematic system; this pass implements the assessment's own "Phase 1 — Stabilize time"
+scope only (fixed 60Hz accumulator + player-only per-second unit conversion), narrower than the
+assessment's full 6-phase roadmap — Phases 2-6 (input/simulation split, collision correctness,
+projectile correctness, game feel, optimization) are explicitly out of scope and deferred.
+
+### Phase 63 — Fixed-timestep physics conversion map
+- Files: new `docs/physics-timestep-map.md`.
+- What was done: confirmed zero existing timing infrastructure anywhere in the tree; full
+  inventory of every frame-dependent player constant (gravity, jump impulse, horizontal
+  accel/clamp, jump-hold thrust, friction, snap-to-zero) with exact file:line citations;
+  mathematically derived and verified the frame-to-per-second conversion factors (velocity ×60,
+  acceleration ×3600); documented the `processEvents`/`processEvents2` → fixed-tick relocation
+  finding (see Phase 65); listed everything found but deliberately deferred (enemy/boss/bullet/
+  decor/trap timing, the Runner ceiling `onLedge` bug, the bullet triple-movement bug,
+  jump-hold-thrust redesign, collision-order issues).
+- Rollback: delete the file.
+
+### Phase 64 — Fixed-timestep constants and simulate functions
+- Files: `inc/header.h`, `inc/frame.h`, `src/frame.c`.
+- What was done: added `PHYSICS_HZ`/`PHYSICS_DT`/`MAX_FRAME_TIME`/`MAX_PHYSICS_STEPS_PER_FRAME`
+  and the 8 player per-second constants (`GRAVITY_PER_SEC2`, `JUMP_SPEED_PER_SEC`,
+  `RUN_ACCEL_PER_SEC2`, `RUN_MAX_SPEED_PER_SEC`, `ARCADE_JUMP_HOLD_ACCEL_PER_SEC2`,
+  `RUNNER_JUMP_HOLD_ACCEL_PER_SEC2`, `RUN_FRICTION_DECAY_PER_TICK`,
+  `RUN_SNAP_ZERO_SPEED_PER_SEC`); removed the old frame-tuned `GRAVITY` macro (only 4 call sites,
+  all converted in Phase 65); introduced `arcade_simulate`/`runner_simulate` (`src/frame.c`) as the
+  fixed-tick entry points, and gave `arcade_frame`/`runner_frame`/`process`/`process2` an explicit
+  `float dt` parameter.
+- Rollback: `git revert`.
+
+### Phase 65 — Player physics converted to fixed-timestep per-second units
+- Files: `src/process.c`, `src/processEvents.c`.
+- What was done: converted the 4 gravity sites and 4 man/secondPlayer position-integration sites in
+  `process()`/`process2()` to use `dt` and the new per-second constants; converted the 4 jump-impulse
+  sites in `processEvents.c` (`-10` → `-JUMP_SPEED_PER_SEC`, still a one-shot discrete assignment,
+  no `dt` needed).
+- Architectural refinement made during implementation (not in the original plan text): the held-key
+  continuous-force blocks (horizontal accel/clamp, jump-hold thrust, friction/snap) were relocated
+  out of `processEvents()`/`processEvents2()` into two new standalone functions,
+  `apply_arcade_player_forces`/`apply_runner_player_forces` (`src/process.c`) — not directly into
+  `process()`/`process2()` as originally planned. Reason: several existing non-interactive tests
+  call `process()`/`process2()` directly with manually-set `dx`/`dy`/`slowingDown` state; had the
+  held-key code (which reads `SDL_GetKeyboardState`) lived inside those functions, the headless
+  "no keys pressed" reading would have silently overwritten the tests' hand-set preconditions. See
+  `docs/physics-timestep-map.md` section 4 for the full rationale. Caught via a failing test run,
+  fixed by extraction, not by weakening the tests.
+- Also caught and corrected during implementation: an initial draft of
+  `apply_runner_player_forces` incorrectly copied Arcade's `game->time % 6 == 0` animation-frame
+  gating onto Runner's relocated blocks; re-verified against the exact original
+  `processEvents2()` content confirmed Runner has no such gating (it advances `animFrame` via a
+  different modulus inside `process2()`'s own untouched integration block) — removed before
+  finalizing.
+- Warning count: 161 → 145 (a decrease). Explained, not just observed: 8 relocated held-key accel
+  lines used bare `double` literals against `float` fields (`-Wdouble-promotion`/
+  `-Wfloat-conversion`, 2 warnings each = 16); the new code uses explicit `float`-suffixed constants
+  multiplied by `dt` (also `float`), eliminating the mismatch. `process.c`'s own warning count held
+  exactly flat (70 → 70) despite the added code.
+- Rollback: `git revert`.
+
+### Phase 66 — Fixed-timestep accumulator in the main loop
+- Files: `src/main.c`.
+- What was done: added a real-time accumulator (`SDL_GetPerformanceCounter`/
+  `SDL_GetPerformanceFrequency`, real frame time capped at `MAX_FRAME_TIME` to avoid a catch-up
+  "spiral of death" after a debugger pause or similar stall). The two gameplay scene cases
+  (`APP_SCENE_ARCADE_GAME`, `APP_SCENE_RUNNER_GAME`) each run a bounded
+  `while (accumulator >= PHYSICS_DT && steps < MAX_PHYSICS_STEPS_PER_FRAME)` loop calling
+  `arcade_simulate`/`runner_simulate`, then render/process-events once, exactly as before. The
+  other 7 scene cases (menus, leaderboards, pause) are unchanged and never accrue the accumulator,
+  so no time banks up while paused or in a menu. `runner_update_death()` deliberately stays outside
+  `runner_simulate()`, called once per real frame after `doRender2()` exactly as before — Phase 5/6
+  deliberately renders the death-in-progress state before resolving it, and folding it into the
+  fixed-tick step would have changed that order.
+- Rollback: `git revert`.
+
+### Phase 67 — Existing test harnesses updated for explicit `dt`
+- Files: `docs/verification/frame_pipeline_test.c`, `docs/verification/runner_death_test.c`.
+- What was done: mechanical update — every direct call to `process`/`process2`/`arcade_frame`/
+  `runner_frame` now passes an explicit `PHYSICS_DT` argument. No assertion values changed: `process`/
+  `process2` no longer read keyboard state (Phase 65's extraction), so existing `animFrame`/
+  `time%3` assertions remained valid unchanged.
+- Rollback: `git revert`.
+
+### Phase 68 — Fixed-timestep physics validation test
+- Files: new `docs/verification/physics_timestep_test.c`, `Makefile` (new `mingw-physicstest`
+  target), `.github/workflows/mingw-validation.yml` (step + log-upload path, both added in this
+  same commit).
+- What was done: (1) regression-equivalence — one fixed tick from rest reproduces the old
+  per-frame code's exact numeric behavior bit-for-bit (`dy == GRAVITY_PER_SEC2*PHYSICS_DT`, `y`
+  moves by exactly `0.5f`); (2) refresh-rate independence — the same total simulated time (~1
+  second), chunked into a fast-display pattern (240 small real-time steps) vs. a slow-display
+  pattern (30 large real-time steps) driving the same accumulator, produces the same tick count and
+  identical final `man.x`/`y`/`dx`/`dy`. One assertion was loosened during implementation: an exact
+  `ticksA == 60` check was replaced with `ticksA == ticksB` plus a `59..60` range check, since
+  double-precision summation of `1.0/240.0` (×240) or `1.0/30.0` (×30) doesn't guarantee landing on
+  exactly `1.0` — the real invariant is that both chunking patterns agree with each other, not that
+  either hits a bit-exact tick count.
+- Validation: `make mingw` — 0 errors, 145 warnings. All 10 local targets pass.
+- Rollback: `git revert`.
+
+### Phase 69 — Final documentation pass
+- Files: `docs/physics-timestep-map.md` (section 4 correction to describe the actual
+  `apply_*_player_forces` architecture rather than the originally-planned direct relocation),
+  `docs/refactor-log.md`, `docs/refactor-plan.md`, `README.md`.
+- What was done: standard per-commit doc entries; corrected the one section of
+  `docs/physics-timestep-map.md` that had gone stale after Phase 65's extraction refinement; marked
+  this document's own pre-existing "Phase 11 — Delta-time conversion" forward-reference as done.
+- Rollback: `git revert`.
+
+**Pass 11 deferred items** (full reasoning in `docs/physics-timestep-map.md` section 6): enemy
+gravity (`+= 0.4`), boss gravity (`+= 0.1`), smart-enemy discrete impulses, all bullet-movement
+code (including a separately confirmed pre-existing bug where bullets can move up to 3× per frame),
+background/decor scroll, and the moving-trap `sin`/`cos` block remain frame-tied — not converted,
+consistent with the assessment's own later phases (3, 4, 6) covering entities/projectiles/collision
+separately. The Runner ceiling `onLedge` bug (`collisionDetect.c:656,714` sets `onLedge=1` on
+ceiling hit; Arcade's equivalent correctly sets `0`), jump-hold-thrust redesign (coyote time, jump
+buffering, variable jump height), and collision-order/corner-case issues were all found during
+exploration and documented, none fixed this pass. Ready to start once a future phase is scoped
+specifically for one of these.
+
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
 **Pass 9 deferred items** (full reasoning in `docs/solid-gof-audit.md` section 9 and
@@ -908,10 +1032,11 @@ AABB resolution, animation-frame advance) but materially different mechanics bet
 build-verified baseline before any extraction, to avoid subtly merging behavior that looks
 identical but isn't.
 
-**Phase 11 — Delta-time conversion.** Explicitly required by the brief to wait until a stable,
-comparable baseline exists (documented current timing assumptions, stable main loop, isolated
-time constants) before any conversion — not started this pass beyond documenting the current
-frame-count-based timing in the audit.
+**Phase 11 — Delta-time conversion. Done in Pass 11** (see above) — a fixed 60Hz accumulator now
+drives `main()`'s two gameplay scenes, and player gravity/velocity/acceleration/friction/jump
+constants are converted to explicit per-second units (`docs/physics-timestep-map.md`). Enemy/boss/
+bullet/decor/trap timing remains frame-count-based, deliberately deferred to a future phase scoped
+for entity/projectile work specifically.
 
 **Phase 12 — Build/README modernization.** Any real Makefile fix (porting off macOS
 `.framework` flags and `clang`-specific paths, fixing the `clean:`/`$(OBJS)` no-op, deciding

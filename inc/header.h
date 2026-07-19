@@ -45,12 +45,36 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define STATUS_STATE_GAME 1
 #define WIDTH 1280
 #define HEIGHT 720
-#define GRAVITY 0.5f
 #define MAX_BULLETS 1000
 
 #define NUM_STARS 100
 #define NUM_ENEMIES 101
 #define NUM_SMART_ENEMIES 10
+
+// Fixed-timestep physics (Phase 11) -- see docs/physics-timestep-map.md for
+// the full derivation. process()/process2() are called at this fixed rate
+// from main()'s accumulator, decoupled from the render/VSync rate.
+#define PHYSICS_HZ 60.0
+#define PHYSICS_DT ((float)(1.0 / PHYSICS_HZ))
+// Caps a real-time spike (e.g. a debugger pause) so the accumulator can't
+// demand hundreds of catch-up ticks in one frame ("spiral of death").
+#define MAX_FRAME_TIME 0.25
+#define MAX_PHYSICS_STEPS_PER_FRAME 5
+
+// Player-only physics constants, converted from the previous per-frame
+// values to per-second units (velocity: old x60; acceleration: old x3600 --
+// see docs/physics-timestep-map.md section 3 for the derivation and the
+// regression proof that dt=1/60 reproduces the old per-frame behavior
+// exactly). Enemies/bosses/bullets/background/traps are unconverted this
+// phase -- still frame-tied, deliberately out of scope.
+#define GRAVITY_PER_SEC2 1800.0f              // was GRAVITY 0.5f/frame
+#define JUMP_SPEED_PER_SEC 600.0f             // was dy = -10/frame (one-shot impulse)
+#define RUN_ACCEL_PER_SEC2 1800.0f            // was dx += 0.5f/frame
+#define RUN_MAX_SPEED_PER_SEC 360.0f          // was clamp to +-6/frame
+#define ARCADE_JUMP_HOLD_ACCEL_PER_SEC2 720.0f  // was dy -= 0.2f/frame (Arcade)
+#define RUNNER_JUMP_HOLD_ACCEL_PER_SEC2 540.0f  // was dy -= 0.15f/frame (Runner)
+#define RUN_FRICTION_DECAY_PER_TICK 0.8f      // unchanged multiplicative factor
+#define RUN_SNAP_ZERO_SPEED_PER_SEC 6.0f      // was fabsf(dx) < 0.1f/frame
 
 typedef struct 
 {
@@ -355,7 +379,8 @@ bool runner_assets_load(GameState *game);
 void runner_assets_unload(GameState *game);
 void runner_session_reset(GameState *game, GameMode mode);
 
-void process(GameState *game);
+void apply_arcade_player_forces(GameState *game, float dt);
+void process(GameState *game, float dt);
 void collisionDetect(GameState *game);
 int processEvents(SDL_Window *window, GameState *game);
 void doRender(SDL_Renderer *renderer, GameState *game);
@@ -419,7 +444,8 @@ int  doRender_menu0(SDL_Renderer *renderer, GameState *game);
 void menu0_events(GameState *gameState);
 void collisionDetect2(GameState *game);
 void doRender2(SDL_Renderer *renderer, GameState *game);
-void process2(GameState *game);
+void apply_runner_player_forces(GameState *game, float dt);
+void process2(GameState *game, float dt);
 int processEvents2(SDL_Window *window, GameState *game);
 int doRender_leaderboard2(SDL_Renderer *renderer, GameState *game);
 

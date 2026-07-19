@@ -115,7 +115,7 @@ int main(void)
     game->deathCountdown = 0;
     int gameLivesBefore3 = game->gameLives;
 
-    runner_frame(game, window, renderer);
+    runner_frame(game, window, renderer, PHYSICS_DT);
 
     CHECK("runner_frame(): gameLives decremented once by the relocated mutation",
           game->gameLives == gameLivesBefore3 - 1);
@@ -185,14 +185,14 @@ int main(void)
     game->man.animFrame = 0;
     game->time = 2; // process() increments to 3 first -> 3%3==0
 
-    process(game);
+    process(game, PHYSICS_DT);
 
     CHECK("process(): animFrame advances when moving, on-ledge, time%3==0", game->man.animFrame == 1);
 
     game->man.animFrame = 11;
     game->time = 5; // increments to 6 -> 6%3==0
 
-    process(game);
+    process(game, PHYSICS_DT);
 
     CHECK("process(): animFrame wraps from 11 back to 0", game->man.animFrame == 0);
 
@@ -200,7 +200,7 @@ int main(void)
     game->man.animFrame = 5;
     game->time = 8; // increments to 9 -> 9%3==0
 
-    process(game);
+    process(game, PHYSICS_DT);
 
     CHECK("process(): animFrame does not advance when idle (dx==0)", game->man.animFrame == 5);
 
@@ -209,7 +209,7 @@ int main(void)
     game->man.animFrame = 5;
     game->time = 11; // increments to 12 -> 12%3==0
 
-    process(game);
+    process(game, PHYSICS_DT);
 
     CHECK("process(): animFrame does not advance when off-ledge", game->man.animFrame == 5);
 
@@ -223,7 +223,7 @@ int main(void)
     game->secondPlayer.animFrameSecond = 0;
     game->time = 2; // increments to 3 -> 3%3==0
 
-    process2(game);
+    process2(game, PHYSICS_DT);
 
     CHECK("process2(): secondPlayer.animFrameSecond advances when moving, on-ledge, time%3==0",
           game->secondPlayer.animFrameSecond == 1);
@@ -231,7 +231,7 @@ int main(void)
     game->secondPlayer.animFrameSecond = 11;
     game->time = 5; // increments to 6 -> 6%3==0
 
-    process2(game);
+    process2(game, PHYSICS_DT);
 
     CHECK("process2(): secondPlayer.animFrameSecond wraps from 11 back to 0",
           game->secondPlayer.animFrameSecond == 0);
@@ -240,7 +240,7 @@ int main(void)
     game->secondPlayer.animFrameSecond = 5;
     game->time = 8; // increments to 9 -> 9%3==0
 
-    process2(game);
+    process2(game, PHYSICS_DT);
 
     CHECK("process2(): secondPlayer.animFrameSecond does not advance when idle (dx==0)",
           game->secondPlayer.animFrameSecond == 5);
