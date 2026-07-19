@@ -1475,3 +1475,105 @@ eight existing local targets passing. Full evidence, decision tables, and patter
   on failure.
 - Verification performed: `make mingw` — 0 errors, 161 warnings. All 10 local targets pass.
 - Rollback: `git revert 2a4425d`.
+
+## Pass 10 summary — incremental GameState decomposition and header isolation (2026-07-19)
+
+Finishes the scene-interface header migration Phase 9 deliberately left duplicated, corrects
+the entity-spawn functions' pattern terminology, and introduces exactly two cohesive nested
+structs inside `GameState` (`AppContext`, `AssetLifecycleFlags`), chosen from an evidence-based
+field-by-field audit rather than the task's example list by default. Baseline confirmed before
+any edit: commit `81dda1e` (tag `refactor-pre-gamestate-decomposition`), `make mingw` 0
+errors/161 warnings, all 8 existing local targets passing. Full evidence in
+`docs/gamestate-decomposition.md`.
+
+### [2026-07-19] Audit GameState ownership and header dependencies
+- Phase: Pass 10 (commit `daa324b`)
+- File(s): new `docs/gamestate-decomposition.md`
+- Action: field-by-field `GameState` inventory; memory-layout safety verification (exactly one
+  `sizeof(GameState)` site, zero memcpy/memset/casts/pointer-arithmetic/offsetof/file-I-O/
+  whole-struct-memcmp touching `GameState`); exact access-site counts for every candidate group;
+  selection rationale for `AppContext`/`AssetLifecycleFlags` over audio fields (lifecycle not
+  centralized, per Phase 9's own finding) and Arcade/Runner session data (large/high-risk,
+  explicitly discouraged as a first choice). Found an accidental, pre-existing verbatim duplicate
+  of `doRender`'s prototype inside `header.h` itself, unrelated to the documented
+  `app_change_scene` duplication.
+- Behavior impact: none (documentation only).
+- Verification performed: manual re-derivation of every claim directly from the current tree.
+- Rollback: delete the file.
+
+### [2026-07-19] Clarify simple factory pattern terminology
+- Phase: Pass 10 (commit `294765e`)
+- File(s): `docs/design-patterns.md`, `docs/solid-gof-audit.md`
+- Action: `enemy_spawn`/`smart_enemy_spawn`/`boss_spawn` were labeled "Factory Method" in Phase
+  9's docs. Corrected to "Simple Factory-style creation function" (informal, not a GoF pattern of
+  its own) — no creator hierarchy, no subclassing, no polymorphic product selection exists or was
+  added. `src/entity_spawn.c`/`inc/entity_spawn.h` unchanged.
+- Behavior impact: none (documentation only).
+- Verification performed: `make mingw` — 0 errors, 161 warnings (unaffected, as expected).
+- Rollback: `git revert 294765e`.
+
+### [2026-07-19] Complete scene interface migration
+- Phase: Pass 10 (commit `c926cea`)
+- File(s): `inc/header.h`, `src/menu_events.c`, `src/pause_events.c`, `src/processEvents.c`,
+  `docs/verification/scene_transition_test.c`, `docs/verification/lifecycle_test.c`,
+  `docs/verification/runner_death_test.c`, `docs/verification/frame_pipeline_test.c`
+- Action: the 3 remaining callers of `app_change_scene()` now include `scene.h` directly;
+  `header.h`'s duplicate prototype (deliberately left since Phase 9, pending exactly this
+  migration) is removed. Also removed an accidental, unrelated verbatim duplicate of `doRender`'s
+  prototype found inside `header.h` itself. 4 test harnesses calling `app_change_scene`/
+  `arcade_frame`/`runner_frame` directly needed the same `#include "scene.h"` addition — caught
+  immediately by failed builds, not silently missed.
+- Behavior impact: none.
+- Verification performed: `make mingw` — 0 errors, 161 warnings. All 8 local targets pass.
+- Rollback: `git revert c926cea`.
+
+### [2026-07-19] Validate focused header self-containment
+- Phase: Pass 10 (commit `3c8410c`)
+- File(s): new `docs/verification/header_only_{app,scene,frame,entity_spawn,input_command}.c`,
+  `Makefile` (new `mingw-headertest` target), `scripts/audit_repository_usage.py`
+- Action: one tiny translation unit per focused header, each compiled with `-fsyntax-only`
+  (parse + typecheck, no codegen/link, since these files have no runtime behavior) to confirm
+  each header compiles standalone with no reliance on inclusion order. Extended the audit script
+  with a new check scanning every `inc/*.h` file (not just `header.h`) for duplicate
+  function-prototype declarations, reported in the same tiered error/known-exception format as
+  the existing checks — a regression guard against reintroducing an accidental duplicate like the
+  `doRender` one found this phase.
+- Verification performed: `make mingw-headertest` — all 5 headers compile with 0
+  warnings/errors. `audit-repo` — `Duplicate declaration errors: 0`, `Result: PASS`.
+- Rollback: `git revert 3c8410c`.
+
+### [2026-07-19] Group application and asset lifecycle state
+- Phase: Pass 10 (commit `9895bad`)
+- File(s): `inc/header.h` (both struct definitions), `src/app.c`, `src/scene.c`,
+  `src/loadGame.c`, `src/load_menu.c`, `src/kills_score.c`, `src/X_score.c`,
+  `src/x_list_leader.c`, `src/status.c`, `src/draw_lifes.c`, `src/main.c`, `src/menu_events.c`,
+  `src/pause_events.c`, `src/processEvents.c`, and 5 `docs/verification/*.c` test files
+- Action: introduces `AppContext { renderer; scene; }` (field `app`) and `AssetLifecycleFlags
+  { arcadeAssetsLoaded; runnerAssetsLoaded; sharedAssetsLoaded; }` (field `assetFlags`) — the two
+  cleanest, most centrally-owned groups identified in the audit. `window` deliberately excluded
+  (never a `GameState` field — adding it would introduce new state, not migrate existing state).
+  Every access site is a pure mechanical rename (`game->renderer` → `game->app.renderer`,
+  `game->scene` → `game->app.scene`, `game->arcadeAssetsLoaded` →
+  `game->assetFlags.arcadeAssetsLoaded`, etc.) — zero logic, control-flow, constant, or behavior
+  change. Both groups land in one commit rather than the two originally planned:
+  `loadGame.c`/`scene.c`/`header.h` and 3 test files are touched by both migrations, and a clean
+  hunk-level split risked an intermediate non-compiling state — a deliberate, transparent
+  deviation from the original commit sequence, documented here and in the PR.
+- Behavior impact: none — confirmed by the full regression suite; `GameState` remains a single
+  `calloc(1, sizeof(GameState))` allocation (`src/app.c:128`, unchanged), so both new nested
+  structs are correctly zero-initialized with no code change needed at the allocation site.
+- Verification performed: `make mingw` — 0 errors, 161 warnings. All 9 local targets pass.
+- Rollback: `git revert 9895bad` (reverts both groups together).
+
+### [2026-07-19] Validate nested GameState lifecycle
+- Phase: Pass 10 (commit `e29eb20`)
+- File(s): new `docs/verification/gamestate_grouping_test.c`, `Makefile` (new
+  `mingw-groupingtest` target)
+- Action: verifies `AppContext`/`AssetLifecycleFlags` are correctly zero-initialized via the
+  existing `calloc`, explicitly writable through the real production functions
+  (`app_change_scene`, `arcade_assets_load`/`arcade_assets_unload`), reset/cleaned-up correctly,
+  and that unrelated `GameState` fields (`man.lives`, `app.scene` during an asset-flag change)
+  remain untouched by either group's operations.
+- Verification performed: `make mingw` — 0 errors, 161 warnings. All 10 local targets pass (13/13
+  new assertions pass).
+- Rollback: `git revert e29eb20`.

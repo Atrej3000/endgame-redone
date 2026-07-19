@@ -107,3 +107,30 @@ file's includes change. No circular include was introduced — verified: neither
 alongside its win/loss rule checks. See `docs/solid-gof-audit.md` §9 ("Deferred") — introducing an
 artificial wrapper layer with no behavioral value just to "enforce" a boundary here was rejected,
 per the task's own instruction not to enforce layers through no-value wrapper functions.
+
+## Phase 10 update
+
+`app_change_scene()`'s duplicate declaration is now resolved: `menu_events.c`, `pause_events.c`,
+and `processEvents.c` (the 3 callers left on `header.h` above) now include `scene.h` directly, and
+`header.h`'s copy of the prototype is removed — `scene.h` is the single authoritative source.
+`arcade_frame`/`runner_frame`'s prototypes remain exclusively in `frame.h` as before (unchanged
+this phase). An unrelated, accidental duplicate of `doRender`'s prototype (twice within
+`header.h` itself, pre-existing, unrelated to any header split) was also found and removed — see
+`docs/gamestate-decomposition.md` §5.
+
+`GameState` gains two nested structs this phase, both defined in `header.h` (not a new top-level
+header, per the task's own caution against a `header.h`-in-disguise `game_types.h`):
+`AppContext { renderer; scene; }` (field `app`) and `AssetLifecycleFlags { arcadeAssetsLoaded;
+runnerAssetsLoaded; sharedAssetsLoaded; }` (field `assetFlags`). No new dependency edges are
+introduced by this — every file that already depended on `GameState` (via `header.h`) continues
+to; only the field-access path changed (`game->renderer` → `game->app.renderer`, `game->scene` →
+`game->app.scene`, `game->arcadeAssetsLoaded` → `game->assetFlags.arcadeAssetsLoaded`, etc.),
+across `app.c`, `scene.c`, `loadGame.c`, `load_menu.c`, `kills_score.c`, `X_score.c`,
+`x_list_leader.c`, `status.c`, `draw_lifes.c`, `main.c`, `menu_events.c`, `pause_events.c`,
+`processEvents.c`, and 5 `docs/verification/*.c` test files. `window` remains outside `GameState`
+entirely (it was never a field — see `docs/gamestate-decomposition.md` §3), so no new field was
+added, only two existing ones regrouped.
+
+New static check: `scripts/audit_repository_usage.py` now scans every `inc/*.h` file (not just
+`header.h`) for duplicate function-prototype declarations, guarding against reintroducing an
+accidental duplicate like the `doRender` one found this phase.

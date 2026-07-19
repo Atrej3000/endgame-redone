@@ -29,6 +29,8 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
         make mingw-deathtest     # non-interactive Runner death/respawn/game-over lifecycle check
         make mingw-entityspawntest # non-interactive enemy/smart-enemy/boss spawn factory check
         make mingw-commandtest   # non-interactive input-command translation check
+        make mingw-headertest    # confirms each focused public header compiles standalone
+        make mingw-groupingtest  # non-interactive GameState nested-struct lifecycle check
         make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
         make audit-repo          # repository usage integrity check (asset paths + prototypes)
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
@@ -52,12 +54,15 @@ Continuous Integration:
 
 Architecture:
     `docs/solid-gof-audit.md` documents the evidence-based SOLID/GoF audit behind the codebase's
-    current design decisions -- what's implemented (Factory Method for enemy/boss spawning,
-    Command for discrete-action input translation), what's already present informally (State,
-    Facade, Flyweight, Adapter), and what's deliberately rejected (Strategy, Singleton, Service
-    Locator, and most of the remaining GoF catalogue) and why. `docs/design-patterns.md` is the
-    per-pattern implementation record; `docs/dependency-map.md` documents the intended and actual
-    module dependency direction.
+    current design decisions -- what's implemented (Simple Factory-style creation functions for
+    enemy/boss spawning, Command for discrete-action input translation), what's already present
+    informally (State, Facade, Flyweight, Adapter), and what's deliberately rejected (Strategy,
+    Singleton, Service Locator, and most of the remaining GoF catalogue) and why.
+    `docs/design-patterns.md` is the per-pattern implementation record; `docs/dependency-map.md`
+    documents the intended and actual module dependency direction. `docs/gamestate-decomposition.md`
+    documents the field-by-field `GameState` ownership audit behind the `AppContext`/
+    `AssetLifecycleFlags` nested-struct groups (`game->app.renderer`/`game->app.scene`,
+    `game->assetFlags.*`) and the memory-layout safety verification supporting them.
 
 Known platform limitations:
     - The default build targets macOS only (bundled `.framework`s under `resource/frameworks`,
