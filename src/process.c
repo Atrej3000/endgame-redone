@@ -73,7 +73,7 @@ void removeSecondBullet(GameState *game, int i)
     }
 }
 
-void process(GameState *game)
+void process(GameState *game, float dt)
 {
     // BULLET
     game->time++;
@@ -703,6 +703,72 @@ void process(GameState *game)
     }
     // END BOTS
 
+    // Continuous held-key forces for `man` -- relocated here from
+    // processEvents() (Phase 11, see docs/physics-timestep-map.md section 4)
+    // so they run at the fixed physics tick rate, not the render rate.
+    // Ungated by isDead/statusState, matching the original processEvents()
+    // code's conditions exactly (only position-integration below is gated).
+    {
+        const Uint8 *state = SDL_GetKeyboardState(NULL);
+
+        if (state[SDL_SCANCODE_W])
+        {
+            game->man.dy -= ARCADE_JUMP_HOLD_ACCEL_PER_SEC2 * dt;
+
+            //game->man.facingLeft = 1;
+            game->man.slowingDown = 0;
+
+            if (game->time % 6 == 0)
+            {
+                game->man.currentSpriteJump++;
+                game->man.currentSpriteJump %= 3;
+            }
+        }
+        if (state[SDL_SCANCODE_A])
+        {
+            game->man.dx -= RUN_ACCEL_PER_SEC2 * dt;
+            if (game->man.dx < -RUN_MAX_SPEED_PER_SEC)
+            {
+                game->man.dx = -RUN_MAX_SPEED_PER_SEC;
+            }
+            game->man.facingLeft = 1;
+            game->man.slowingDown = 0;
+
+            if (game->time % 6 == 0)
+            {
+                game->man.currentSpriteRun++;
+                game->man.currentSpriteRun %= 4;
+            }
+        }
+        else if (state[SDL_SCANCODE_D])
+        {
+            game->man.dx += RUN_ACCEL_PER_SEC2 * dt;
+            if (game->man.dx > RUN_MAX_SPEED_PER_SEC)
+            {
+                game->man.dx = RUN_MAX_SPEED_PER_SEC;
+            }
+            game->man.facingLeft = 0;
+            game->man.slowingDown = 0;
+
+            if (game->time % 6 == 0)
+            {
+                game->man.currentSpriteRun++;
+                game->man.currentSpriteRun %= 4;
+            }
+        }
+        else
+        {
+            game->man.dx *= powf(RUN_FRICTION_DECAY_PER_TICK, dt * (float)PHYSICS_HZ);
+            game->man.slowingDown = 1;
+            game->man.currentSpriteRun = 1;
+            //game->enemy.currentSpriteRun = 1;
+            if (fabsf(game->man.dx) < RUN_SNAP_ZERO_SPEED_PER_SEC)
+            {
+                game->man.dx = 0;
+            }
+        }
+    }
+
     if (game->man.x > 1280)
     {
         game->man.x = -30;
@@ -718,8 +784,8 @@ void process(GameState *game)
         {
             // Man MOVEMENT
             Man *man = &game->man;
-            man->x += man->dx;
-            man->y += man->dy;
+            man->x += man->dx * dt;
+            man->y += man->dy * dt;
 
             if (man->dx != 0 && man->onLedge && !man->slowingDown)
             {
@@ -740,7 +806,7 @@ void process(GameState *game)
             //     man->animFrame = 0;
             // }
 
-            man->dy += GRAVITY;
+            man->dy += GRAVITY_PER_SEC2 * dt;
         }
         if (game->man.isDead && game->deathCountdown < 0)
         {
@@ -763,6 +829,69 @@ void process(GameState *game)
 
     if (game->multiPlayer)
     {
+        // Continuous held-key forces for `secondPlayer` -- relocated here
+        // from processEvents() (Phase 11), same reasoning as `man` above.
+        {
+            const Uint8 *state = SDL_GetKeyboardState(NULL);
+
+            if (state[SDL_SCANCODE_UP])
+            {
+                game->secondPlayer.dy -= ARCADE_JUMP_HOLD_ACCEL_PER_SEC2 * dt;
+
+                //game->man.facingLeft = 1;
+                game->secondPlayer.slowingDown = 0;
+
+                if (game->time % 6 == 0)
+                {
+                    game->secondPlayer.currentSpriteJump2++;
+                    game->secondPlayer.currentSpriteJump2 %= 3;
+                }
+            }
+            if (state[SDL_SCANCODE_LEFT])
+            {
+                game->secondPlayer.dx -= RUN_ACCEL_PER_SEC2 * dt;
+                if (game->secondPlayer.dx < -RUN_MAX_SPEED_PER_SEC)
+                {
+                    game->secondPlayer.dx = -RUN_MAX_SPEED_PER_SEC;
+                }
+                game->secondPlayer.facingLeft = 1;
+                game->secondPlayer.slowingDown = 0;
+
+                if (game->time % 6 == 0)
+                {
+                    game->secondPlayer.currentSpriteRun2++;
+                    game->secondPlayer.currentSpriteRun2 %= 4;
+                }
+            }
+            else if (state[SDL_SCANCODE_RIGHT])
+            {
+                game->secondPlayer.dx += RUN_ACCEL_PER_SEC2 * dt;
+                if (game->secondPlayer.dx > RUN_MAX_SPEED_PER_SEC)
+                {
+                    game->secondPlayer.dx = RUN_MAX_SPEED_PER_SEC;
+                }
+                game->secondPlayer.facingLeft = 0;
+                game->secondPlayer.slowingDown = 0;
+
+                if (game->time % 6 == 0)
+                {
+                    game->secondPlayer.currentSpriteRun2++;
+                    game->secondPlayer.currentSpriteRun2 %= 4;
+                }
+            }
+            else
+            {
+                game->secondPlayer.dx *= powf(RUN_FRICTION_DECAY_PER_TICK, dt * (float)PHYSICS_HZ);
+                game->secondPlayer.slowingDown = 1;
+                game->secondPlayer.currentSpriteRun2 = 1;
+                //game->enemy.currentSpriteRun = 1;
+                if (fabsf(game->secondPlayer.dx) < RUN_SNAP_ZERO_SPEED_PER_SEC)
+                {
+                    game->secondPlayer.dx = 0;
+                }
+            }
+        }
+
         if (game->secondPlayer.x > 1280)
         {
             game->secondPlayer.x = -30;
@@ -777,8 +906,8 @@ void process(GameState *game)
             {
                 // Man MOVEMENT
                 Man *secondPlayer = &game->secondPlayer;
-                secondPlayer->x += secondPlayer->dx;
-                secondPlayer->y += secondPlayer->dy;
+                secondPlayer->x += secondPlayer->dx * dt;
+                secondPlayer->y += secondPlayer->dy * dt;
 
                 // if (secondPlayer->dx != 0 && secondPlayer->onLedge && !secondPlayer->slowingDown)
                 // {
@@ -799,7 +928,7 @@ void process(GameState *game)
                 //     man->animFrame = 0;
                 // }
 
-                secondPlayer->dy += GRAVITY;
+                secondPlayer->dy += GRAVITY_PER_SEC2 * dt;
             }
             if (game->secondPlayer.isDead && game->deathCountdown < 0)
             {
@@ -822,7 +951,7 @@ void process(GameState *game)
     //     game->scrollX = 0;
 }
 
-void process2(GameState *game)
+void process2(GameState *game, float dt)
 {
     game->time++;
 
@@ -832,14 +961,58 @@ void process2(GameState *game)
         game->statusState = STATUS_STATE_GAME; //show amount of lives
     }
 
+    // Continuous held-key forces for `man` -- relocated here from
+    // processEvents2() (Phase 11, see docs/physics-timestep-map.md section
+    // 4) so they run at the fixed physics tick rate, not the render rate.
+    // Ungated by isDead/statusState, matching the original processEvents2()
+    // code's conditions exactly.
+    {
+        const Uint8 *state = SDL_GetKeyboardState(NULL);
+
+        if (state[SDL_SCANCODE_W])
+        {
+            game->man.dy -= RUNNER_JUMP_HOLD_ACCEL_PER_SEC2 * dt;
+        }
+        if (state[SDL_SCANCODE_A])
+        {
+            game->man.dx -= RUN_ACCEL_PER_SEC2 * dt;
+            if (game->man.dx < -RUN_MAX_SPEED_PER_SEC)
+            {
+                game->man.dx = -RUN_MAX_SPEED_PER_SEC;
+            }
+            game->man.facingLeft = 1;
+            game->man.slowingDown = 0;
+        }
+        else if (state[SDL_SCANCODE_D])
+        {
+            game->man.dx += RUN_ACCEL_PER_SEC2 * dt;
+            if (game->man.dx > RUN_MAX_SPEED_PER_SEC)
+            {
+                game->man.dx = RUN_MAX_SPEED_PER_SEC;
+            }
+            game->man.facingLeft = 0;
+            game->man.slowingDown = 0;
+        }
+        else
+        {
+            game->man.animFrame = 0;
+            game->man.dx *= powf(RUN_FRICTION_DECAY_PER_TICK, dt * (float)PHYSICS_HZ);
+            game->man.slowingDown = 1;
+            if (fabsf(game->man.dx) < RUN_SNAP_ZERO_SPEED_PER_SEC)
+            {
+                game->man.dx = 0;
+            }
+        }
+    }
+
     if (game->statusState == STATUS_STATE_GAME)
     {
         if (!game->man.isDead)
         {
             // Man MOVEMENT
             Man *man = &game->man;
-            man->x += man->dx;
-            man->y += man->dy;
+            man->x += man->dx * dt;
+            man->y += man->dy * dt;
 
             if (man->dx != 0 && man->onLedge && !man->slowingDown)
             {
@@ -855,19 +1028,61 @@ void process2(GameState *game)
                     }
                 }
             }
-            man->dy += GRAVITY;
+            man->dy += GRAVITY_PER_SEC2 * dt;
         }
 
         // SECOND PLAYER _________________________________________________________________________________________________________________________
         if (game->multiPlayer)
         {
+            // Continuous held-key forces for `secondPlayer` -- relocated
+            // here from processEvents2() (Phase 11), same reasoning as
+            // `man` above.
+            {
+                const Uint8 *state = SDL_GetKeyboardState(NULL);
+
+                if (state[SDL_SCANCODE_UP])
+                {
+                    game->secondPlayer.dy -= RUNNER_JUMP_HOLD_ACCEL_PER_SEC2 * dt;
+                }
+                if (state[SDL_SCANCODE_LEFT])
+                {
+                    game->secondPlayer.dx -= RUN_ACCEL_PER_SEC2 * dt;
+                    if (game->secondPlayer.dx < -RUN_MAX_SPEED_PER_SEC)
+                    {
+                        game->secondPlayer.dx = -RUN_MAX_SPEED_PER_SEC;
+                    }
+                    game->secondPlayer.facingLeft = 1;
+                    game->secondPlayer.slowingDown = 0;
+                }
+                else if (state[SDL_SCANCODE_RIGHT])
+                {
+                    game->secondPlayer.dx += RUN_ACCEL_PER_SEC2 * dt;
+                    if (game->secondPlayer.dx > RUN_MAX_SPEED_PER_SEC)
+                    {
+                        game->secondPlayer.dx = RUN_MAX_SPEED_PER_SEC;
+                    }
+                    game->secondPlayer.facingLeft = 0;
+                    game->secondPlayer.slowingDown = 0;
+                }
+                else
+                {
+                    game->secondPlayer.animFrameSecond = 0;
+                    game->secondPlayer.dx *= powf(RUN_FRICTION_DECAY_PER_TICK, dt * (float)PHYSICS_HZ);
+                    game->secondPlayer.slowingDown = 1;
+                    if (fabsf(game->secondPlayer.dx) < RUN_SNAP_ZERO_SPEED_PER_SEC)
+                    {
+                        game->secondPlayer.dx = 0;
+                    }
+                }
+            }
+
             // Gated on the same shared death flag as `man` -- see
             // docs/runner-death-lifecycle.md: death is a shared, "pause the
             // world" event for both players in Runner (one gameLives pool).
             if (!game->man.isDead)
             {
-                game->secondPlayer.x += game->secondPlayer.dx;
-                game->secondPlayer.y += game->secondPlayer.dy;
+                game->secondPlayer.x += game->secondPlayer.dx * dt;
+                game->secondPlayer.y += game->secondPlayer.dy * dt;
 
                 if (game->secondPlayer.dx != 0 && game->secondPlayer.onLedge && !game->secondPlayer.slowingDown)
                 {
@@ -883,7 +1098,7 @@ void process2(GameState *game)
                         }
                     }
                 }
-                game->secondPlayer.dy += GRAVITY;
+                game->secondPlayer.dy += GRAVITY_PER_SEC2 * dt;
             }
         }
 

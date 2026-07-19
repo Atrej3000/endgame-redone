@@ -63,7 +63,7 @@ int processEvents(SDL_Window *window, GameState *game)
             case GAME_COMMAND_JUMP_PLAYER1:
                 if (game->man.onLedge)
                 {
-                    game->man.dy = -10;
+                    game->man.dy = -JUMP_SPEED_PER_SEC;
                     game->man.onLedge = 0;
 
                     Mix_VolumeChunk(game->jumpSound, 32);
@@ -73,7 +73,7 @@ int processEvents(SDL_Window *window, GameState *game)
             case GAME_COMMAND_JUMP_PLAYER2:
                 if (game->secondPlayer.onLedge)
                 {
-                    game->secondPlayer.dy = -10;
+                    game->secondPlayer.dy = -JUMP_SPEED_PER_SEC;
                     game->secondPlayer.onLedge = 0;
 
                     Mix_VolumeChunk(game->jumpSound, 32);
@@ -234,62 +234,11 @@ int processEvents(SDL_Window *window, GameState *game)
         game->CurrentSheetBoss %= 4;
     }
 
-    if (state[SDL_SCANCODE_W])
-    {
-        game->man.dy -= 0.2f;
-
-        //game->man.facingLeft = 1;
-        game->man.slowingDown = 0;
-
-        if (game->time % 6 == 0)
-        {
-            game->man.currentSpriteJump++;
-            game->man.currentSpriteJump %= 3;
-        }
-    }
-    if (state[SDL_SCANCODE_A])
-    {
-        game->man.dx -= 0.5;
-        if (game->man.dx < -6)
-        {
-            game->man.dx = -6;
-        }
-        game->man.facingLeft = 1;
-        game->man.slowingDown = 0;
-
-        if (game->time % 6 == 0)
-        {
-            game->man.currentSpriteRun++;
-            game->man.currentSpriteRun %= 4;
-        }
-    }
-    else if (state[SDL_SCANCODE_D])
-    {
-        game->man.dx += 0.5;
-        if (game->man.dx > 6)
-        {
-            game->man.dx = 6;
-        }
-        game->man.facingLeft = 0;
-        game->man.slowingDown = 0;
-
-        if (game->time % 6 == 0)
-        {
-            game->man.currentSpriteRun++;
-            game->man.currentSpriteRun %= 4;
-        }
-    }
-    else
-    {
-        game->man.dx *= 0.8f;
-        game->man.slowingDown = 1;
-        game->man.currentSpriteRun = 1;
-        //game->enemy.currentSpriteRun = 1;
-        if (fabsf(game->man.dx) < 0.1f)
-        {
-            game->man.dx = 0;
-        }
-    }
+    // Continuous held-key forces for `man` (horizontal accel/clamp, jump-hold
+    // thrust, friction/snap) moved to src/process.c (Phase 11, see
+    // docs/physics-timestep-map.md section 4) -- they now run at the fixed
+    // physics tick rate instead of the render rate. Discrete actions (jump
+    // trigger, shooting below) stay here, unchanged.
     if (state[SDL_SCANCODE_SPACE])
     {
         //game->shotCount++;
@@ -315,62 +264,8 @@ int processEvents(SDL_Window *window, GameState *game)
     // SECOND PLAYER
     if (game->multiPlayer)
     {
-        if (state[SDL_SCANCODE_UP])
-        {
-            game->secondPlayer.dy -= 0.2f;
-
-            //game->man.facingLeft = 1;
-            game->secondPlayer.slowingDown = 0;
-
-            if (game->time % 6 == 0)
-            {
-                game->secondPlayer.currentSpriteJump2++;
-                game->secondPlayer.currentSpriteJump2 %= 3;
-            }
-        }
-        if (state[SDL_SCANCODE_LEFT])
-        {
-            game->secondPlayer.dx -= 0.5;
-            if (game->secondPlayer.dx < -6)
-            {
-                game->secondPlayer.dx = -6;
-            }
-            game->secondPlayer.facingLeft = 1;
-            game->secondPlayer.slowingDown = 0;
-
-            if (game->time % 6 == 0)
-            {
-                game->secondPlayer.currentSpriteRun2++;
-                game->secondPlayer.currentSpriteRun2 %= 4;
-            }
-        }
-        else if (state[SDL_SCANCODE_RIGHT])
-        {
-            game->secondPlayer.dx += 0.5;
-            if (game->secondPlayer.dx > 6)
-            {
-                game->secondPlayer.dx = 6;
-            }
-            game->secondPlayer.facingLeft = 0;
-            game->secondPlayer.slowingDown = 0;
-
-            if (game->time % 6 == 0)
-            {
-                game->secondPlayer.currentSpriteRun2++;
-                game->secondPlayer.currentSpriteRun2 %= 4;
-            }
-        }
-        else
-        {
-            game->secondPlayer.dx *= 0.8f;
-            game->secondPlayer.slowingDown = 1;
-            game->secondPlayer.currentSpriteRun2 = 1;
-            //game->enemy.currentSpriteRun = 1;
-            if (fabsf(game->secondPlayer.dx) < 0.1f)
-            {
-                game->secondPlayer.dx = 0;
-            }
-        }
+        // Continuous held-key forces for `secondPlayer` moved to
+        // src/process.c (Phase 11) -- same reasoning as `man` above.
         if (state[SDL_SCANCODE_KP_0])
         {
             if (game->shotCountMultiplayer == 0)
@@ -640,84 +535,11 @@ int processEvents2(SDL_Window *window, GameState *game)
             break;
         }
     }
-    const Uint8 *state = SDL_GetKeyboardState(NULL);
-    if (state[SDL_SCANCODE_W])
-    {
-        game->man.dy -= 0.15f;
-    }
-
-    //    if (state[SDL_SCANCODE_ESCAPE]) {
-    //        game->menu_status = 1;
-    //    }
-    if (state[SDL_SCANCODE_A])
-    {
-        game->man.dx -= 0.5;
-        if (game->man.dx < -6)
-        {
-            game->man.dx = -6;
-        }
-        game->man.facingLeft = 1;
-        game->man.slowingDown = 0;
-    }
-    else if (state[SDL_SCANCODE_D])
-    {
-        game->man.dx += 0.5;
-        if (game->man.dx > 6)
-        {
-            game->man.dx = 6;
-        }
-        game->man.facingLeft = 0;
-        game->man.slowingDown = 0;
-    }
-    else
-    {
-        game->man.animFrame = 0;
-        game->man.dx *= 0.8f;
-        game->man.slowingDown = 1;
-        if (fabsf(game->man.dx) < 0.1f)
-        {
-            game->man.dx = 0;
-        }
-    }
-
-    if (state[SDL_SCANCODE_UP])
-    {
-        game->secondPlayer.dy -= 0.15f;
-    }
-
-    //    if (state[SDL_SCANCODE_ESCAPE]) {
-    //        game->menu_status = 1;
-    //    }
-    if (state[SDL_SCANCODE_LEFT])
-    {
-        game->secondPlayer.dx -= 0.5;
-        if (game->secondPlayer.dx < -6)
-        {
-            game->secondPlayer.dx = -6;
-        }
-        game->secondPlayer.facingLeft = 1;
-        game->secondPlayer.slowingDown = 0;
-    }
-    else if (state[SDL_SCANCODE_RIGHT])
-    {
-        game->secondPlayer.dx += 0.5;
-        if (game->secondPlayer.dx > 6)
-        {
-            game->secondPlayer.dx = 6;
-        }
-        game->secondPlayer.facingLeft = 0;
-        game->secondPlayer.slowingDown = 0;
-    }
-    else
-    {
-        game->secondPlayer.animFrameSecond = 0;
-        game->secondPlayer.dx *= 0.8f;
-        game->secondPlayer.slowingDown = 1;
-        if (fabsf(game->secondPlayer.dx) < 0.1f)
-        {
-            game->secondPlayer.dx = 0;
-        }
-    }
+    // Continuous held-key forces for `man`/`secondPlayer` (jump-hold thrust,
+    // horizontal accel/clamp, friction/snap) moved to src/process.c's
+    // process2() (Phase 11, see docs/physics-timestep-map.md section 4) --
+    // they now run at the fixed physics tick rate instead of the render
+    // rate.
 
     // if (state[SDL_SCANCODE_UP])
     // {
