@@ -304,7 +304,7 @@ void collisionDetect(GameState *game)
             // resting exactly on a ledge sits at my+mh == by (not > by), so
             // a strict current-position-only test would never re-fire while
             // at rest. See docs/collision-correctness-map.md section 3.
-            if (game->man.prevY + mh <= by && my + mh >= by && game->man.dy >= 0)
+            if (game->man.prevY + mh <= by && my + mh >= by && my < by + bh && game->man.dy >= 0)
             {
                 //correct y
                 game->man.y = by - mh;
@@ -429,7 +429,7 @@ void collisionDetect(GameState *game)
         if (mx + mw > bx && mx < bx + bw)
         {
             // Landing/resting: crossing-based, see the man loop above.
-            if (game->secondPlayer.prevY + mh <= by && my + mh >= by && game->secondPlayer.dy >= 0)
+            if (game->secondPlayer.prevY + mh <= by && my + mh >= by && my < by + bh && game->secondPlayer.dy >= 0)
             {
                 //correct y
                 game->secondPlayer.y = by - mh;
@@ -551,7 +551,7 @@ void collisionDetect(GameState *game)
                     // Landing/resting: crossing-based, see the man loop above.
                     // No onLedge=0 reset needed in this (duplicate) block --
                     // the first secondPlayer loop already reset it this tick.
-                    if (game->secondPlayer.prevY + mh <= by && my + mh >= by && game->secondPlayer.dy >= 0)
+                    if (game->secondPlayer.prevY + mh <= by && my + mh >= by && my < by + bh && game->secondPlayer.dy >= 0)
                     {
                         //correct y
                         game->secondPlayer.y = by - mh;
@@ -694,7 +694,7 @@ void collisionDetect2(GameState *game)
         {
             // Landing/resting: crossing-based, see collisionDetect()'s man
             // loop above.
-            if (game->man.prevY + mh <= by && my + mh >= by && game->man.dy >= 0)
+            if (game->man.prevY + mh <= by && my + mh >= by && my < by + bh && game->man.dy >= 0)
             {
                 //correct y
                 game->man.y = by - mh;
@@ -756,7 +756,7 @@ void collisionDetect2(GameState *game)
         if (mx + mw > bx && mx < bx + bw)
         {
             // Landing/resting: crossing-based, see the man loop above.
-            if (game->secondPlayer.prevY + mh <= by && my + mh >= by && game->secondPlayer.dy >= 0)
+            if (game->secondPlayer.prevY + mh <= by && my + mh >= by && my < by + bh && game->secondPlayer.dy >= 0)
             {
                 //correct y
                 game->secondPlayer.y = by - mh;

@@ -68,6 +68,21 @@ corrections (they zero a velocity and correct a position once, with nothing that
 reaffirmed every subsequent tick), so they are left as pure current-position threshold tests,
 unchanged.
 
+**A second landmine, found while writing the test for this exact scenario**: the ceiling and
+landing checks are separate `if` blocks, not `if`/`else if`, evaluated back-to-back for the same
+ledge in the same loop iteration. The original code relied on this being safe because its strict
+`my < by` landing condition could never be true immediately after a ceiling correction (which sets
+`my` to `by + bh`, i.e. *past* the ledge's top). The crossing-based rewrite's initial form
+(`prevY + mh <= by && my + mh >= by`) has no upper bound at all, so it re-fired immediately after
+a ceiling correction in the same iteration — `my` had just been set to `by + bh` (satisfying
+`my + mh >= by` trivially) and `dy` had just been zeroed by that same ceiling branch (satisfying
+the new `dy >= 0`), producing a landing correction directly contradicting the ceiling correction
+that just ran. Caught by the new test (`docs/verification/collision_correctness_test.c`), not
+assumed correct. **Fixed** by adding `my < by + bh` back to the landing condition — position must
+not already be at or past the ledge's *bottom* surface — which blocks the erroneous re-fire (since
+a just-corrected ceiling position sits exactly at `by + bh`) while still permitting every normal
+landing (which lands somewhere between `prevY` and `by + bh`, not past it).
+
 ## 4. No previous-position field exists; only `prevY` is added
 
 Confirmed by repo-wide grep (`prevX|prevY|lastX|lastY|oldX|oldY` across `src/*.c`/`inc/*.h`):

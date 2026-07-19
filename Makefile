@@ -272,6 +272,20 @@ mingw-inputtest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/inputtest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/inputtest.exe
 
+# Verifies player-vs-ledge collision correctness (Phase 13): walking off a
+# ledge clears onLedge (the core "reset grounded each step" bug fix),
+# resting continuously re-affirms onLedge=1 across multiple ticks (the
+# crossing-based landing check handling the exact-rest case), normal
+# falling-and-landing still works, and Runner's ceiling bump now clears
+# onLedge instead of incorrectly re-grounding the player. See
+# docs/verification/collision_correctness_test.c and
+# docs/collision-correctness-map.md.
+mingw-collisiontest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/collision_correctness_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/collisiontest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/collisiontest.exe
+
 # Dependency-light (stdlib-only) Python script. Override PYTHON on the
 # command line if python3 isn't on PATH (e.g. `make PYTHON="py -3" audit-repo`
 # on some Windows setups).
@@ -336,4 +350,4 @@ linux-smoketest: $(LINUX_BUILD_DIR)
 linux-clean:
 	rm -rf $(LINUX_BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean

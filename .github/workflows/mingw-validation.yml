@@ -117,6 +117,10 @@ jobs:
         shell: msys2 {0}
         run: make mingw-inputtest 2>&1 | tee inputtest.log
 
+      - name: Collision correctness test
+        shell: msys2 {0}
+        run: make mingw-collisiontest 2>&1 | tee collisiontest.log
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -135,6 +139,7 @@ jobs:
             groupingtest.log
             physicstest.log
             inputtest.log
+            collisiontest.log
           if-no-files-found: ignore
 
   # Windows CI, however thorough, cannot prove case-sensitive path
