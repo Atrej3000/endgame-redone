@@ -71,7 +71,7 @@ jobs:
         shell: msys2 {0}
         run: |
           count=$(grep -c "warning:" build.log || true)
-          echo "Warning count: $count (local baseline as of Phase 6: 167)"
+          echo "Warning count: $count (local baseline as of Phase 8: 161)"
 
       - name: Smoke test
         shell: msys2 {0}
@@ -106,3 +106,64 @@ jobs:
             frametest.log
             deathtest.log
           if-no-files-found: ignore
+
+  # Windows CI, however thorough, cannot prove case-sensitive path
+  # correctness -- Windows' filesystem accepts a wrong-case request
+  # silently. Linux ships a real case-sensitive filesystem, so this job is
+  # the actual proof that docs/asset-path-portability.md's corrected
+  # literals are right, not just statically plausible. See
+  # docs/asset-path-portability.md and docs/unused-code-assets-audit.md.
+  linux-asset-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # This step is the mandatory deliverable for this job and must pass:
+      # a real case-sensitive filesystem check of every asset-path literal.
+      - name: Repository usage integrity check (case-sensitive filesystem)
+        run: python3 scripts/audit_repository_usage.py
+
+      # Everything below is best-effort only (continue-on-error): an attempt
+      # to also prove the corrected paths load successfully through the
+      # real production loader on Linux, not just that they exist with the
+      # right case. This was authored without access to a Linux toolchain to
+      # test against, so its success is NOT assumed -- a failure here does
+      # not block this job or the PR, only the integrity check above does.
+      # The compat-include shim mirrors the same SDL2_image/SDL2_ttf/
+      # SDL2_mixer header-layout fix already proven necessary for the
+      # Windows/MinGW build (scripts/setup-mingw-sdl2.sh's compat-include),
+      # since most Linux distribution SDL2 packages are expected to ship the
+      # same flat SDL2/ header layout that required it there.
+      - name: Install SDL2 dev packages (best-effort)
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config \
+            libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libsdl2-mixer-dev
+
+      - name: Create compat-include shims (best-effort)
+        continue-on-error: true
+        run: |
+          mkdir -p /tmp/linux-compat-include/SDL2_image
+          mkdir -p /tmp/linux-compat-include/SDL2_ttf
+          mkdir -p /tmp/linux-compat-include/SDL2_mixer
+          printf '#pragma once\n#include <SDL2/SDL_image.h>\n' > /tmp/linux-compat-include/SDL2_image/SDL_image.h
+          printf '#pragma once\n#include <SDL2/SDL_ttf.h>\n' > /tmp/linux-compat-include/SDL2_ttf/SDL_ttf.h
+          printf '#pragma once\n#include <SDL2/SDL_mixer.h>\n' > /tmp/linux-compat-include/SDL2_mixer/SDL_mixer.h
+
+      - name: Build (best-effort)
+        continue-on-error: true
+        run: make linux LINUX_COMPAT_INCLUDE=/tmp/linux-compat-include
+
+      - name: Smoke test (best-effort)
+        continue-on-error: true
+        env:
+          # GitHub-hosted Linux runners have neither an audio device nor a
+          # display server -- SDL's "dummy" audio/video drivers make
+          # app_init()'s SDL_CreateWindow/Mix_OpenAudio calls succeed in a
+          # fully headless container instead of requiring real hardware.
+          # Not a code change, mirrors the Windows job's own
+          # SDL_AUDIODRIVER=dummy fix above.
+          SDL_AUDIODRIVER: dummy
+          SDL_VIDEODRIVER: dummy
+        run: make linux-smoketest LINUX_COMPAT_INCLUDE=/tmp/linux-compat-include

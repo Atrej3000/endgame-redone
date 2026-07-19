@@ -113,10 +113,10 @@ bool arcade_assets_load(GameState *game)
     ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_cloud07.png", &game->cloud7.sheetTextureCloud7);
     ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_cloud08.png", &game->cloud8.sheetTextureCloud8);
     ok = ok && load_texture(game->renderer, "./resource/images/background/Sunset_sun.png", &game->sheetTextureSun);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/Sunset_front.png", &game->sheetTextureBack2);
+    ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_front.png", &game->sheetTextureBack2);
     ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_train.bmp", &game->train.textureTrain);
-    ok = ok && load_texture(game->renderer, "./resource/images/terrain/brick_block.png", &game->brick_block);
-    ok = ok && load_texture(game->renderer, "./resource/images/terrain/copper_block.png", &game->copper_block);
+    ok = ok && load_texture(game->renderer, "./resource/images/terrain/Brick_block.png", &game->brick_block);
+    ok = ok && load_texture(game->renderer, "./resource/images/terrain/Copper_block.png", &game->copper_block);
 
     if (!ok)
     {

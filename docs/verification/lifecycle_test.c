@@ -52,6 +52,15 @@ int main(void)
     CHECK("bossTexture is non-NULL", game->bossTexture != NULL);
     CHECK("shared mult texture is non-NULL", game->mult != NULL);
 
+    // Named individually (not just covered by the blanket "load succeeded"
+    // check above) so a future case-sensitivity regression on any one of
+    // these three fields fails with an unambiguous assertion -- these are
+    // exactly the three fields whose load literals had confirmed casing
+    // defects, corrected in Phase 8 (see docs/asset-path-portability.md).
+    CHECK("sheetTextureBack2 (sunset_front.png) is non-NULL", game->sheetTextureBack2 != NULL);
+    CHECK("brick_block (Brick_block.png) is non-NULL", game->brick_block != NULL);
+    CHECK("copper_block (Copper_block.png) is non-NULL", game->copper_block != NULL);
+
     // Pointer equality is valid here because a second load must be a pure
     // no-op (the arcadeAssetsLoaded guard returns true immediately without
     // touching any field) -- if it reloaded, this would be a *different*

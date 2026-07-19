@@ -237,6 +237,17 @@ actively referenced (no consolidation candidate exists).
   "do not rename... assets merely for consistency" — renaming here would be a correctness fix, not
   a consistency one, but still a distinct class of change warranting its own reviewed phase).
   Documented here prominently so it isn't lost.
+
+  **Phase 8 resolution** (this discovery text is preserved above, unchanged, as the historical
+  record — this note only adds what happened next): all three literals were corrected in
+  `fix: correct exact casing of active asset paths` — `Sunset_front.png` → `sunset_front.png`,
+  `brick_block.png` → `Brick_block.png`, `copper_block.png` → `Copper_block.png` — each updated
+  to match the already-existing, unmodified tracked file (no file renamed; see
+  `docs/asset-path-portability.md` for the per-file canonical-naming evidence). Recurrence is now
+  prevented by `scripts/audit_repository_usage.py`'s case-sensitive component-by-component check,
+  which no longer allowlists these three paths, and by a new Linux CI job
+  (`linux-asset-validation` in `.github/workflows/mingw-validation.yml`) that runs the same check
+  against a genuinely case-sensitive filesystem on every PR.
 - **`resource/frameworks/` internal duplication — a real, quantifiable size opportunity, NOT acted
   on this phase**: 1,205 tracked file paths resolve to only 182 unique blobs (~63 MB of duplicate
   storage) — confirmed via SHA-256 hashing. This happened because the macOS `.framework` bundles'

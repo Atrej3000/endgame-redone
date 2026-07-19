@@ -1284,3 +1284,103 @@ commit.
   Python (no MSYS2 dependency needed, since the script only reads files). `make mingw` — 0 errors,
   161 warnings (unchanged). All six test targets pass.
 - Rollback: delete the script, the `audit-repo` Makefile target, and the CI step.
+
+## Pass 8 summary — fix case-sensitive asset paths + cross-platform resource validation (2026-07-19)
+
+Corrects the three case-mismatched asset-path literals Pass 7 found and deliberately deferred
+(`Sunset_front.png`, `brick_block.png`, `copper_block.png`), removes the temporary allowlist that
+was masking them, restructures `scripts/audit_repository_usage.py`'s output into explicit
+errors/known-exceptions/informational tiers with several new checks (regular-file, case-colliding
+sibling, backslash literal, duplicate-alias), adds three named lifecycle-test assertions for the
+three corrected fields, and adds a genuinely case-sensitive Linux CI job — since a Windows runner,
+however thorough, cannot prove case-sensitive path correctness by actually failing to load a file.
+Baseline confirmed before any edit: commit `8634928` (tag `refactor-pass-7-unused-cleanup`,
+created this pass), `make mingw` 0 errors/161 warnings, all eight existing local targets passing.
+
+### [2026-07-19] Map case-sensitive asset path defects
+- Phase: Pass 8 (commit `d49601f`)
+- File(s): new `docs/asset-path-portability.md`
+- Action: re-verified all three of Pass 7's confirmed mismatches directly against the current
+  tree; resolved the canonical-naming question per directory via sibling-file convention (git
+  history is uninformative — the whole asset tree was bulk-committed once at repo init, commit
+  `cfb7ca7`, so no rename history exists to consult); confirmed via a repo-wide search across
+  `src/*.c`, headers, test harnesses, the Makefile, the setup script, the CI workflow, and docs
+  that no additional mismatch of any kind exists (case, slash direction, repeated separators,
+  leading `./`, extension case, Unicode look-alikes, adjacent literal splits, path aliases).
+- Behavior impact: none (documentation only).
+- Verification performed: manual re-derivation of every claim in the doc directly from the
+  current tree (not carried over from Pass 7's summary text).
+- Rollback: delete the file.
+
+### [2026-07-19] Correct exact casing of active asset paths
+- Phase: Pass 8 (commit `590d359`)
+- File(s): `src/loadGame.c:116,118,119`
+- Before:
+  ```c
+  ok = ok && load_texture(game->renderer, "./resource/images/background/Sunset_front.png", &game->sheetTextureBack2);
+  ...
+  ok = ok && load_texture(game->renderer, "./resource/images/terrain/brick_block.png", &game->brick_block);
+  ok = ok && load_texture(game->renderer, "./resource/images/terrain/copper_block.png", &game->copper_block);
+  ```
+- After:
+  ```c
+  ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_front.png", &game->sheetTextureBack2);
+  ...
+  ok = ok && load_texture(game->renderer, "./resource/images/terrain/Brick_block.png", &game->brick_block);
+  ok = ok && load_texture(game->renderer, "./resource/images/terrain/Copper_block.png", &game->copper_block);
+  ```
+- Reasoning: each corrected literal now matches its already-existing, unmodified tracked file —
+  chosen over renaming the tracked files because it's the smaller, safer correction and matches
+  each directory's own naming convention (see `docs/asset-path-portability.md`). Zero file renames.
+- Behavior impact: none — same content, previously "working" only because Windows' filesystem is
+  case-insensitive; now also correct on case-sensitive macOS/Linux.
+- Verification performed: `make mingw` — 0 errors, 161 warnings (unchanged). All eight local
+  targets pass, including the strengthened lifecycle test's three new named assertions
+  confirming `sheetTextureBack2`/`brick_block`/`copper_block` all load non-NULL.
+- Rollback: `git revert 590d359`.
+
+### [2026-07-19] Strengthen repository asset-path audit
+- Phase: Pass 8 (commit `1389b84`)
+- File(s): `scripts/audit_repository_usage.py`, `docs/verification/lifecycle_test.c`
+- Action: restructured findings into three explicit tiers (errors / known exceptions /
+  informational) instead of a flat count; added a regular-file check, a same-directory
+  case-colliding-sibling check, a raw-literal backslash check, and a duplicate-alias tracker
+  (2+ literals resolving to the same canonical file, reported informationally, never as an
+  error); emptied `ALLOWLIST_ASSET_PATHS` now that the three entries it held are actually fixed;
+  added three named assertions to `lifecycle_test.c` (`sheetTextureBack2 (sunset_front.png)`,
+  `brick_block (Brick_block.png)`, `copper_block (Copper_block.png)`, all non-NULL) immediately
+  after the existing blanket `arcade_assets_load() succeeds` check.
+- Reasoning: a flat "0 findings" output can silently hide a masking allowlist entry forever; the
+  new tiered output makes it structurally impossible to hide an undiagnosed mismatch behind a
+  clean-looking result, and the duplicate-alias check turns a previously-invisible pattern
+  (multiple lazy-load guard sites referencing the same sound file) into visible, harmless
+  information instead of leaving it unexamined.
+- Verification performed: **runtime-verified** — script actually run against the corrected tree:
+  `Asset path errors: 0`, `Prototype errors: 0`, `Known exceptions: 0`, `Informational notices: 4`
+  (legitimate duplicate lazy-load-guard references: `menuMus.mp3` x3, `select.wav` x5,
+  `shoot.wav` x3, `jump.wav` x2), `Result: PASS`. `make mingw` — 0 errors, 161 warnings
+  (unchanged). All eight local targets pass.
+- Rollback: `git revert 1389b84`.
+
+### [2026-07-19] Validate asset paths on a case-sensitive runner
+- Phase: Pass 8 (commit `fce8ef8`)
+- File(s): `.github/workflows/mingw-validation.yml` (new `linux-asset-validation` job; warning
+  baseline comment updated 167→161), `Makefile` (new `linux`/`linux-smoketest`/`linux-clean`
+  targets, entirely separate `LINUX_*` variable family, zero changes to `all`/`mingw*`)
+- Action: added a second CI job on `ubuntu-latest` whose mandatory step runs the real
+  `audit_repository_usage.py` against a genuinely case-sensitive filesystem — the actual proof
+  the prior commit's corrections are right, not just statically plausible. A second, best-effort
+  part (every step `continue-on-error: true`) attempts a full additive Linux build + headless
+  smoke test via `apt-get`-installed SDL2 dev packages, a compat-include header shim mirroring
+  the one already proven necessary for the Windows/MinGW build, and SDL's dummy audio/video
+  drivers (GitHub-hosted Linux runners have neither audio hardware nor a display server).
+- Reasoning: the best-effort part was authored without access to a Linux toolchain to verify
+  against in this environment, so `continue-on-error` ensures an unverified assumption about
+  package names, header layout, or headless driver behavior cannot block the job or the PR — only
+  the mandatory case-sensitivity check can. The actual CI run on the PR is the deciding signal.
+- Verification performed: local build/test suite unaffected (`make -n linux` produces
+  syntactically valid, correctly-flagged commands; `make mingw` still 0 errors/161 warnings, all
+  eight targets pass). The workflow's actual Linux-runner result is reported in the pull request,
+  not assumed here.
+- Rollback: `git revert fce8ef8`; the Makefile Linux targets are harmless to keep regardless of
+  whether the CI job's best-effort steps ever succeed.
