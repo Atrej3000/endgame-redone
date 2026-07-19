@@ -1,31 +1,49 @@
 #!/usr/bin/env python3
-"""Repository usage integrity check -- see docs/unused-code-assets-audit.md.
+"""Repository usage integrity check -- see docs/unused-code-assets-audit.md and
+docs/asset-path-portability.md.
 
 Deterministic, dependency-light (Python 3 standard library only), run from the
 repository root. Two checks:
 
 1. Asset-path integrity: extracts every `resource/...`-shaped string literal
-   from src/*.c, confirms the file exists with EXACT case (a manual,
-   case-sensitive directory-listing comparison -- not os.path.exists, which
-   would silently succeed on a case-insensitive filesystem like Windows'
-   default even when the requested case doesn't match the file on disk).
-   Reports missing paths and casing mismatches with source file:line.
+   from src/*.c and validates it against the real tracked files:
+   - confirms the file exists with EXACT case, component by component (a
+     manual, case-sensitive directory-listing comparison -- not
+     os.path.exists/Path.exists(), which would silently succeed on a
+     case-insensitive filesystem like Windows' default even when the
+     requested case doesn't match the file on disk);
+   - confirms the resolved path is a regular file, not a directory;
+   - confirms no ambiguous case-colliding sibling exists in the same
+     directory (e.g. both `Foo.png` and `foo.png` present -- inherently
+     unsafe to resolve consistently across case-sensitive and
+     case-insensitive filesystems);
+   - confirms the raw literal contains no Windows-only backslash path
+     separator;
+   - reports (informationally, never as an error) when two or more distinct
+     string literals resolve to the same canonical file.
 2. Dangling-prototype check: confirms every non-static function prototype
    declared in inc/header.h has a matching definition somewhere in src/*.c.
 
 Neither check is proof against dynamic behavior this script cannot see (e.g.
 a path built at runtime via string concatenation) -- as of this writing no
 such construction exists anywhere in this codebase (confirmed by manual
-audit), so static extraction is dispositive here, but this script does not
-claim to prove that in general. Supports an explicit ALLOWLIST for paths or
-symbols that are known-fine despite not matching a literal/definition search
-(e.g. license files, documentation screenshots, packaging-only resources,
-intentionally dynamic references) -- currently empty, since none are needed
-after the Phase 7 cleanup; add entries here if a future addition needs one,
-with a comment explaining why.
+audit, docs/asset-path-portability.md), so static extraction is dispositive
+here, but this script does not claim to prove that in general.
+
+Findings are classified into three tiers:
+- ERRORS: cause a non-zero exit code. A real problem with no accepted
+  exception.
+- KNOWN EXCEPTIONS: an asset path or prototype explicitly listed in the
+  allowlists below. Reported, but do not fail the build -- use only for a
+  documented, deliberate, currently-empty-by-default reason (see the
+  allowlist comments). A real, undocumented mismatch is always an ERROR,
+  never silently downgraded.
+- INFORMATIONAL: never fail the build (e.g. duplicate aliases to the same
+  file). Reported for visibility only.
 
 Usage: python scripts/audit_repository_usage.py
-Exit code: 0 if all checks pass, 1 if any finding is reported.
+Exit code: 0 if (asset errors + prototype errors) == 0, 1 otherwise --
+regardless of how many known exceptions or informational notices exist.
 """
 import re
 import sys
@@ -36,21 +54,13 @@ SRC_DIR = REPO_ROOT / "src"
 HEADER_FILE = REPO_ROOT / "inc" / "header.h"
 
 # Paths (relative to repo root, forward slashes) that are known-fine despite
-# not being found by this script's static checks. These 3 are a CONFIRMED,
-# documented, pre-existing case-mismatch bug (docs/unused-code-assets-audit.md
-# section 8): the source requests lowercase-leading filenames but the files
-# on disk are capitalized. They resolve today only because Windows'
-# filesystem is case-insensitive, and would fail IMG_Load on case-sensitive
-# macOS/Linux, this project's stated primary target. Allowlisted here (not
-# silently ignored) so this script's other checks stay a meaningful gate
-# rather than always failing on a known issue -- fixing the casing is a
-# distinct bug-fix change, out of Phase 7's "remove unused content" charter,
-# left for a dedicated future phase.
-ALLOWLIST_ASSET_PATHS = {
-    "resource/images/background/Sunset_front.png",
-    "resource/images/terrain/brick_block.png",
-    "resource/images/terrain/copper_block.png",
-}
+# not matching this script's normal checks. Empty as of Phase 8 -- the three
+# case-mismatch bugs previously listed here were corrected (see
+# docs/asset-path-portability.md) rather than permanently excepted. Add an
+# entry here only for a genuinely deliberate, documented exception (e.g. a
+# path only ever reached through a runtime-constructed string this script
+# cannot see) -- never to silence an undiagnosed mismatch.
+ALLOWLIST_ASSET_PATHS = set()
 
 # Function names declared in header.h that are known-fine despite this
 # script not finding a matching definition (e.g. a platform-specific
@@ -63,6 +73,16 @@ ASSET_LITERAL_RE = re.compile(r'"([^"]*resource/[^"]*)"')
 PROTOTYPE_RE = re.compile(
     r'^\s*(?:[A-Za-z_][\w\s\*]*?)\s+([A-Za-z_]\w*)\s*\([^;{}]*\)\s*;\s*$'
 )
+
+
+class Findings:
+    """Accumulates errors / known exceptions / informational notices for one
+    check, each a list of human-readable strings."""
+
+    def __init__(self):
+        self.errors = []
+        self.known_exceptions = []
+        self.info = []
 
 
 def find_asset_references():
@@ -99,20 +119,79 @@ def case_sensitive_exists(rel_path):
     return current.exists()
 
 
+def case_colliding_sibling(rel_path):
+    """If rel_path's exact-case entry exists, check whether any OTHER entry
+    in the same directory differs only by case (e.g. both Foo.png and
+    foo.png present) -- an inherently ambiguous, unsafe-to-resolve-
+    consistently situation across case-sensitive and case-insensitive
+    filesystems. Returns the colliding sibling's name, or None."""
+    full_path = REPO_ROOT / rel_path
+    parent = full_path.parent
+    if not parent.is_dir():
+        return None
+    target_name = full_path.name
+    target_lower = target_name.lower()
+    try:
+        entries = [p.name for p in parent.iterdir()]
+    except OSError:
+        return None
+    for name in entries:
+        if name != target_name and name.lower() == target_lower:
+            return name
+    return None
+
+
 def check_asset_paths():
-    findings = []
+    findings = Findings()
+    canonical_to_sites = {}  # normalized_path -> [ "file:line", ... ]
+
     for c_file, line_no, raw, normalized in find_asset_references():
-        if normalized in ALLOWLIST_ASSET_PATHS:
+        site = f"{c_file}:{line_no}"
+
+        if "\\" in raw:
+            findings.errors.append(
+                f"{site}: Windows-only backslash path separator in literal {raw!r}"
+            )
             continue
+
+        if normalized in ALLOWLIST_ASSET_PATHS:
+            findings.known_exceptions.append(
+                f"{site}: allowlisted exception for {normalized!r} (see ALLOWLIST_ASSET_PATHS comment)"
+            )
+            continue
+
         if not case_sensitive_exists(normalized):
-            # Distinguish "missing entirely" from "exists, wrong case" for a
-            # clearer report.
             case_insensitive_hit = (REPO_ROOT / normalized).exists()
             kind = "casing mismatch" if case_insensitive_hit else "missing path"
-            findings.append(
-                f"{c_file}:{line_no}: {kind} -- literal {raw!r} "
-                f"(normalized: {normalized})"
+            findings.errors.append(
+                f"{site}: {kind} -- literal {raw!r} (normalized: {normalized})"
             )
+            continue
+
+        full_path = REPO_ROOT / normalized
+        if not full_path.is_file():
+            findings.errors.append(
+                f"{site}: resolved path {normalized!r} exists but is not a regular file"
+            )
+            continue
+
+        sibling = case_colliding_sibling(normalized)
+        if sibling is not None:
+            findings.errors.append(
+                f"{site}: {normalized!r} has an ambiguous case-colliding sibling "
+                f"({sibling!r} in the same directory)"
+            )
+            continue
+
+        canonical_to_sites.setdefault(normalized, []).append(site)
+
+    for normalized, sites in canonical_to_sites.items():
+        if len(sites) > 1:
+            findings.info.append(
+                f"{normalized!r} is referenced from {len(sites)} sites (harmless duplicate alias): "
+                + ", ".join(sites)
+            )
+
     return findings
 
 
@@ -146,38 +225,60 @@ def find_definitions():
 
 
 def check_dangling_prototypes():
-    findings = []
+    findings = Findings()
     definitions = find_definitions()
     for name in find_prototypes():
+        site = "inc/header.h"
         if name in ALLOWLIST_PROTOTYPES:
+            findings.known_exceptions.append(
+                f"{site}: allowlisted exception for prototype '{name}' (see ALLOWLIST_PROTOTYPES comment)"
+            )
             continue
         if name not in definitions:
-            findings.append(f"inc/header.h: prototype '{name}' has no matching definition in src/*.c")
+            findings.errors.append(
+                f"{site}: prototype '{name}' has no matching definition in src/*.c"
+            )
     return findings
 
 
+def _print_section(title, items):
+    if not items:
+        return
+    print(f"=== {title} ===")
+    for item in items:
+        print(item)
+    print()
+
+
 def main():
-    asset_findings = check_asset_paths()
-    prototype_findings = check_dangling_prototypes()
+    asset = check_asset_paths()
+    proto = check_dangling_prototypes()
 
-    if asset_findings:
-        print("=== Asset-path integrity findings ===")
-        for f in asset_findings:
-            print(f)
-        print()
+    _print_section("Asset path errors", asset.errors)
+    _print_section("Asset path known exceptions", asset.known_exceptions)
+    _print_section("Asset path informational notices", asset.info)
+    _print_section("Prototype errors", proto.errors)
+    _print_section("Prototype known exceptions", proto.known_exceptions)
 
-    if prototype_findings:
-        print("=== Dangling-prototype findings ===")
-        for f in prototype_findings:
-            print(f)
-        print()
+    asset_error_count = len(asset.errors)
+    proto_error_count = len(proto.errors)
+    known_exception_count = len(asset.known_exceptions) + len(proto.known_exceptions)
+    info_count = len(asset.info)
 
-    total = len(asset_findings) + len(prototype_findings)
-    if total == 0:
-        print("audit_repository_usage: all checks passed (0 findings)")
+    print(f"Asset path errors: {asset_error_count}")
+    print(f"Prototype errors: {proto_error_count}")
+    print(f"Known exceptions: {known_exception_count}")
+    print(f"Informational notices: {info_count}")
+
+    total_errors = asset_error_count + proto_error_count
+    if total_errors > 0:
+        print("Result: FAIL")
+        return 1
+    if known_exception_count > 0:
+        print("Result: PASS WITH KNOWN EXCEPTIONS")
         return 0
-    print(f"audit_repository_usage: {total} finding(s)")
-    return 1
+    print("Result: PASS")
+    return 0
 
 
 if __name__ == "__main__":
