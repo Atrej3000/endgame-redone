@@ -3,12 +3,14 @@
 
 void arcade_simulate(GameState *game, float dt)
 {
+    apply_arcade_player_forces(game, dt);
     process(game, dt);
     collisionDetect(game);
 }
 
 void runner_simulate(GameState *game, float dt)
 {
+    apply_runner_player_forces(game, dt);
     process2(game, dt);
     collisionDetect2(game);
 }

@@ -379,6 +379,7 @@ bool runner_assets_load(GameState *game);
 void runner_assets_unload(GameState *game);
 void runner_session_reset(GameState *game, GameMode mode);
 
+void apply_arcade_player_forces(GameState *game, float dt);
 void process(GameState *game, float dt);
 void collisionDetect(GameState *game);
 int processEvents(SDL_Window *window, GameState *game);
@@ -443,6 +444,7 @@ int  doRender_menu0(SDL_Renderer *renderer, GameState *game);
 void menu0_events(GameState *gameState);
 void collisionDetect2(GameState *game);
 void doRender2(SDL_Renderer *renderer, GameState *game);
+void apply_runner_player_forces(GameState *game, float dt);
 void process2(GameState *game, float dt);
 int processEvents2(SDL_Window *window, GameState *game);
 int doRender_leaderboard2(SDL_Renderer *renderer, GameState *game);
