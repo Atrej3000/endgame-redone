@@ -6,6 +6,7 @@ void arcade_simulate(GameState *game, float dt)
     capture_player_prev_y(game);
     consume_arcade_jump_requests(game);
     apply_arcade_player_forces(game, dt);
+    move_arcade_bullets(game);
     process(game, dt);
     collisionDetect(game);
 }
