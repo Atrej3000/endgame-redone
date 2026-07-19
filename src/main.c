@@ -26,10 +26,10 @@ int main()
     // run an enter-hook for at program start. calloc already zero-initializes
     // `scene` to APP_SCENE_MAIN_MENU (its first member); set explicitly here
     // for clarity rather than relying on that implicitly.
-    gameState->scene = APP_SCENE_MAIN_MENU;
+    gameState->app.scene = APP_SCENE_MAIN_MENU;
 
-    while (gameState->scene != APP_SCENE_QUIT) {
-        switch (gameState->scene) {
+    while (gameState->app.scene != APP_SCENE_QUIT) {
+        switch (gameState->app.scene) {
             case APP_SCENE_MAIN_MENU:
                 menu0_events(gameState);
                 doRender_menu0(renderer, gameState);

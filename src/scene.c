@@ -15,7 +15,7 @@ static void arcade_menu_enter(GameState *game, AppScene previous_scene)
     {
         load_menu1(game);
     }
-    if (!game->arcadeAssetsLoaded && !arcade_assets_load(game))
+    if (!game->assetFlags.arcadeAssetsLoaded && !arcade_assets_load(game))
     {
         fprintf(stderr, "arcade_menu_enter: asset load failed, returning to main menu\n");
         app_change_scene(game, APP_SCENE_MAIN_MENU);
@@ -29,7 +29,7 @@ static void runner_menu_enter(GameState *game, AppScene previous_scene)
     {
         load_menu2(game);
     }
-    if (!game->runnerAssetsLoaded && !runner_assets_load(game))
+    if (!game->assetFlags.runnerAssetsLoaded && !runner_assets_load(game))
     {
         fprintf(stderr, "runner_menu_enter: asset load failed, returning to main menu\n");
         app_change_scene(game, APP_SCENE_MAIN_MENU);
@@ -41,12 +41,12 @@ void app_change_scene(GameState *game, AppScene next_scene)
     if (next_scene < APP_SCENE_MAIN_MENU || next_scene > APP_SCENE_QUIT)
     {
         fprintf(stderr, "app_change_scene: invalid scene %d, forcing quit\n", (int)next_scene);
-        game->scene = APP_SCENE_QUIT;
+        game->app.scene = APP_SCENE_QUIT;
         return;
     }
 
-    AppScene previous_scene = game->scene;
-    game->scene = next_scene;
+    AppScene previous_scene = game->app.scene;
+    game->app.scene = next_scene;
 
     switch (next_scene)
     {

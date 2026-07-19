@@ -159,9 +159,9 @@ typedef struct
 
 // Top-level application scene. The single authoritative field driving all
 // screen routing -- see docs/scene-state-map.md for the full transition
-// table. game->scene is written ONLY inside app_change_scene() (src/scene.c);
-// every other file that changes scenes must call app_change_scene(), never
-// assign this field directly.
+// table. game->app.scene is written ONLY inside app_change_scene()
+// (src/scene.c); every other file that changes scenes must call
+// app_change_scene(), never assign this field directly.
 typedef enum AppScene
 {
     APP_SCENE_MAIN_MENU,
@@ -185,6 +185,31 @@ typedef enum GameMode
     GAME_MODE_SINGLE_PLAYER,
     GAME_MODE_MULTIPLAYER
 } GameMode;
+
+// Application/platform-level state, as opposed to gameplay state -- see
+// docs/gamestate-decomposition.md for the full field-by-field ownership
+// audit behind this grouping. `renderer` is owned/set once by app_init(),
+// nulled once by app_shutdown() (src/app.c); `scene` is written ONLY via
+// app_change_scene() (src/scene.c), with one documented bootstrap exception
+// in main.c. `window` deliberately has no field here: it was never a
+// GameState field (see inc/app.h's app_init() out-parameters) and adding it
+// now would introduce new state rather than migrate existing state.
+typedef struct AppContext
+{
+    SDL_Renderer *renderer;
+    AppScene scene;
+} AppContext;
+
+// Explicit asset-group lifecycle flags, grouped per
+// docs/gamestate-decomposition.md: write surface fully contained to the 3
+// loader + 3 unloader functions in src/loadGame.c (see the field-level
+// comment retained below).
+typedef struct AssetLifecycleFlags
+{
+    bool arcadeAssetsLoaded;
+    bool runnerAssetsLoaded;
+    bool sharedAssetsLoaded;
+} AssetLifecycleFlags;
 
 typedef struct
 {
@@ -274,23 +299,23 @@ typedef struct
     Mix_Music *menuMus, *battleMus, *runnerMus;
     Mix_Chunk *jumpSound, *kickSound, *select, *shootSound, *damageSound;
 
-    //Renderer
-    SDL_Renderer *renderer;
+    // Application/platform state (renderer + scene) -- see AppContext above
+    // and docs/gamestate-decomposition.md. Accessed as game->app.renderer /
+    // game->app.scene.
+    AppContext app;
 
-    // Explicit asset-group lifecycle flags. Each is set to true only after
-    // its entire group's loads succeed (see arcade_assets_load/
+    // Asset-group lifecycle flags (arcadeAssetsLoaded/runnerAssetsLoaded/
+    // sharedAssetsLoaded) -- see AssetLifecycleFlags above and
+    // docs/gamestate-decomposition.md. Each is set to true only after its
+    // entire group's loads succeed (see arcade_assets_load/
     // runner_assets_load/shared_assets_load, src/loadGame.c), and reset to
     // false by the matching *_assets_unload(). sharedAssetsLoaded covers the
     // handful of textures/font both modes load identically (mult, leaders,
     // pause, brick, death, font) -- see docs/game-session-lifecycle.md.
-    bool arcadeAssetsLoaded;
-    bool runnerAssetsLoaded;
-    bool sharedAssetsLoaded;
+    // Accessed as game->assetFlags.arcadeAssetsLoaded, etc.
+    AssetLifecycleFlags assetFlags;
 
-    // Authoritative scene -- write ONLY via app_change_scene() (src/scene.c).
-    AppScene scene;
-
-    // DEPRECATED: superseded by `scene` (AppScene) above. No longer read or
+    // DEPRECATED: superseded by `app.scene` (AppScene) above. No longer read or
     // written anywhere in active routing code as of the scene-state refactor;
     // kept declared (not deleted) per that phase's own scope rules. Safe to
     // remove entirely in a future phase.

@@ -44,7 +44,7 @@ int main(void)
         arcade_assets_load(game);
     }
     printf("SMOKE TEST: repeated load_menu1()+arcade_assets_load() x3 ok (bossTexture=%p arcadeAssetsLoaded=%d)\n",
-           (void *)game->bossTexture, game->arcadeAssetsLoaded);
+           (void *)game->bossTexture, game->assetFlags.arcadeAssetsLoaded);
     SDL_Texture *bossBefore = game->bossTexture;
     TTF_Font *fontBefore = game->font;
     arcade_assets_load(game);
@@ -59,7 +59,7 @@ int main(void)
         runner_assets_load(game);
     }
     printf("SMOKE TEST: repeated load_menu2()+runner_assets_load() x3 ok (star=%p runnerAssetsLoaded=%d)\n",
-           (void *)game->star, game->runnerAssetsLoaded);
+           (void *)game->star, game->assetFlags.runnerAssetsLoaded);
     SDL_Texture *starBefore = game->star;
     runner_assets_load(game);
     printf("SMOKE TEST: runner_assets_load() extra call -- star unchanged=%s\n",

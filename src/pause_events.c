@@ -21,7 +21,7 @@ int pause_events(GameState *gameState)
                 app_change_scene(gameState, APP_SCENE_MAIN_MENU);
                 break;
             case SDLK_ESCAPE:
-                app_change_scene(gameState, (gameState->scene == APP_SCENE_RUNNER_PAUSE)
+                app_change_scene(gameState, (gameState->app.scene == APP_SCENE_RUNNER_PAUSE)
                                                  ? APP_SCENE_RUNNER_GAME
                                                  : APP_SCENE_ARCADE_GAME);
                 Mix_PlayChannel(-1, gameState->select, 0);
