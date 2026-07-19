@@ -3,7 +3,7 @@
 docs/asset-path-portability.md.
 
 Deterministic, dependency-light (Python 3 standard library only), run from the
-repository root. Two checks:
+repository root. Three checks:
 
 1. Asset-path integrity: extracts every `resource/...`-shaped string literal
    from src/*.c and validates it against the real tracked files:
@@ -23,8 +23,16 @@ repository root. Two checks:
      string literals resolve to the same canonical file.
 2. Dangling-prototype check: confirms every non-static function prototype
    declared in inc/header.h has a matching definition somewhere in src/*.c.
+3. Duplicate-declaration check (added Phase 10): confirms no function name is
+   declared as a prototype in more than one inc/*.h file. header.h and the
+   focused headers (scene.h, frame.h, entity_spawn.h, input_command.h, app.h)
+   are each meant to be the single authoritative source for their own
+   declarations -- a regression guard against reintroducing an accidental
+   duplicate like the one found and fixed in Phase 10 (doRender's prototype
+   was, for unrelated historical reasons, duplicated twice within header.h
+   itself; see docs/gamestate-decomposition.md section 5).
 
-Neither check is proof against dynamic behavior this script cannot see (e.g.
+None of these checks are proof against dynamic behavior this script cannot see (e.g.
 a path built at runtime via string concatenation) -- as of this writing no
 such construction exists anywhere in this codebase (confirmed by manual
 audit, docs/asset-path-portability.md), so static extraction is dispositive
@@ -42,8 +50,9 @@ Findings are classified into three tiers:
   file). Reported for visibility only.
 
 Usage: python scripts/audit_repository_usage.py
-Exit code: 0 if (asset errors + prototype errors) == 0, 1 otherwise --
-regardless of how many known exceptions or informational notices exist.
+Exit code: 0 if (asset errors + prototype errors + duplicate-declaration
+errors) == 0, 1 otherwise -- regardless of how many known exceptions or
+informational notices exist.
 """
 import re
 import sys
@@ -51,6 +60,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = REPO_ROOT / "src"
+INC_DIR = REPO_ROOT / "inc"
 HEADER_FILE = REPO_ROOT / "inc" / "header.h"
 
 # Paths (relative to repo root, forward slashes) that are known-fine despite
@@ -68,6 +78,14 @@ ALLOWLIST_ASSET_PATHS = set()
 # Phase 7 -- every declared prototype has exactly one unconditional
 # definition.
 ALLOWLIST_PROTOTYPES = set()
+
+# Function names known-fine despite being declared as a prototype in more
+# than one inc/*.h file (e.g. a deliberate, documented transition-period
+# duplicate while callers migrate to a focused header -- see
+# docs/solid-gof-audit.md section 7.3 for the app_change_scene precedent from
+# Phase 9, since resolved in Phase 10). Empty as of Phase 10 -- every
+# declared prototype now has exactly one declaring header.
+ALLOWLIST_DUPLICATE_DECLARATIONS = set()
 
 ASSET_LITERAL_RE = re.compile(r'"([^"]*resource/[^"]*)"')
 PROTOTYPE_RE = re.compile(
@@ -241,6 +259,47 @@ def check_dangling_prototypes():
     return findings
 
 
+def find_header_prototypes():
+    """Yield (header_file, function_name) for every prototype-shaped line in
+    every inc/*.h file (not just header.h) -- deterministic, regex-based,
+    reusing PROTOTYPE_RE; no C parser."""
+    for h_file in sorted(INC_DIR.glob("*.h")):
+        text = h_file.read_text(encoding="utf-8", errors="replace")
+        for line in text.splitlines():
+            match = PROTOTYPE_RE.match(line)
+            if match:
+                yield h_file.relative_to(REPO_ROOT), match.group(1)
+
+
+def check_duplicate_declarations():
+    """Confirm no function name is declared as a prototype in more than one
+    inc/*.h file -- each header is meant to be the single authoritative
+    source for its own declarations. Matching by name alone (not full
+    signature text) is sufficient: C does not allow overloading, so the same
+    name declared twice across headers is always either a redundant
+    duplicate or a conflicting declaration the compiler would already
+    reject -- both worth flagging here."""
+    findings = Findings()
+    name_to_files = {}
+    for h_file, name in find_header_prototypes():
+        name_to_files.setdefault(name, set()).add(h_file)
+
+    for name, files in sorted(name_to_files.items()):
+        if len(files) <= 1:
+            continue
+        file_list = ", ".join(str(f) for f in sorted(files))
+        if name in ALLOWLIST_DUPLICATE_DECLARATIONS:
+            findings.known_exceptions.append(
+                f"'{name}' declared in {len(files)} headers ({file_list}) -- "
+                f"allowlisted exception (see ALLOWLIST_DUPLICATE_DECLARATIONS comment)"
+            )
+            continue
+        findings.errors.append(
+            f"'{name}' declared as a prototype in {len(files)} headers: {file_list}"
+        )
+    return findings
+
+
 def _print_section(title, items):
     if not items:
         return
@@ -253,24 +312,31 @@ def _print_section(title, items):
 def main():
     asset = check_asset_paths()
     proto = check_dangling_prototypes()
+    dupes = check_duplicate_declarations()
 
     _print_section("Asset path errors", asset.errors)
     _print_section("Asset path known exceptions", asset.known_exceptions)
     _print_section("Asset path informational notices", asset.info)
     _print_section("Prototype errors", proto.errors)
     _print_section("Prototype known exceptions", proto.known_exceptions)
+    _print_section("Duplicate declaration errors", dupes.errors)
+    _print_section("Duplicate declaration known exceptions", dupes.known_exceptions)
 
     asset_error_count = len(asset.errors)
     proto_error_count = len(proto.errors)
-    known_exception_count = len(asset.known_exceptions) + len(proto.known_exceptions)
+    dupe_error_count = len(dupes.errors)
+    known_exception_count = (
+        len(asset.known_exceptions) + len(proto.known_exceptions) + len(dupes.known_exceptions)
+    )
     info_count = len(asset.info)
 
     print(f"Asset path errors: {asset_error_count}")
     print(f"Prototype errors: {proto_error_count}")
+    print(f"Duplicate declaration errors: {dupe_error_count}")
     print(f"Known exceptions: {known_exception_count}")
     print(f"Informational notices: {info_count}")
 
-    total_errors = asset_error_count + proto_error_count
+    total_errors = asset_error_count + proto_error_count + dupe_error_count
     if total_errors > 0:
         print("Result: FAIL")
         return 1

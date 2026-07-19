@@ -217,6 +217,21 @@ mingw-commandtest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/commandtest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/commandtest.exe
 
+# Header self-containment check: each focused public header must compile
+# standalone in an otherwise empty translation unit -- no reliance on some
+# other header having been included first, no missing type, no implicit
+# declaration. -fsyntax-only parses and typechecks without generating code
+# or linking, since these files have no runtime behavior to exercise. See
+# docs/verification/header_only_*.c and docs/gamestate-decomposition.md
+# section 6.
+mingw-headertest: $(BUILD_DIR)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_app.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_scene.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_frame.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_entity_spawn.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_input_command.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	@echo "HEADER SELF-CONTAINMENT TEST: ALL PASS"
+
 # Dependency-light (stdlib-only) Python script. Override PYTHON on the
 # command line if python3 isn't on PATH (e.g. `make PYTHON="py -3" audit-repo`
 # on some Windows setups).
@@ -281,4 +296,4 @@ linux-smoketest: $(LINUX_BUILD_DIR)
 linux-clean:
 	rm -rf $(LINUX_BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-entityspawntest mingw-commandtest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean
