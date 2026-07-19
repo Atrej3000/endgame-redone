@@ -228,7 +228,11 @@ LINUX_WARN_FLAGS := -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion \
 LINUX_PKGS := sdl2 SDL2_image SDL2_ttf SDL2_mixer
 LINUX_COMPAT_INCLUDE :=
 LINUX_INCLUDES := -I $(INC) $(if $(LINUX_COMPAT_INCLUDE),-I $(LINUX_COMPAT_INCLUDE)) $(shell pkg-config --cflags $(LINUX_PKGS) 2>/dev/null)
-LINUX_LIBS := $(shell pkg-config --libs $(LINUX_PKGS) 2>/dev/null)
+# -lm is explicit (not just pulled in transitively via SDL2) because
+# src/random_sign.c calls pow(): modern Ubuntu's ld defaults to
+# --as-needed and no longer resolves a transitive libm dependency for you
+# ("DSO missing from command line"), unlike the MinGW toolchain used above.
+LINUX_LIBS := $(shell pkg-config --libs $(LINUX_PKGS) 2>/dev/null) -lm
 
 LINUX_BUILD_DIR := build-linux
 LINUX_EXEC := $(LINUX_BUILD_DIR)/endgame-linux
