@@ -33,6 +33,7 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
         make mingw-groupingtest  # non-interactive GameState nested-struct lifecycle check
         make mingw-physicstest   # non-interactive fixed-timestep player-physics check
         make mingw-inputtest     # non-interactive edge-triggered jump-request check
+        make mingw-collisiontest # non-interactive player-vs-ledge collision correctness check
         make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
         make audit-repo          # repository usage integrity check (asset paths + prototypes)
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
@@ -78,6 +79,13 @@ Architecture:
     exactly one jump regardless of how many physics ticks a real frame produces. Also documents a
     regression this pass found and fixed: Runner's jump impulse had been left unconverted (a bare
     `-10`, 60x too weak at the fixed-timestep integration) since the previous pass.
+    `docs/collision-correctness-map.md` documents the follow-on collision-correctness pass:
+    `onLedge` is now reset once per collision pass (before the ledge loop) instead of never, so
+    walking off a ledge's edge correctly leaves the player airborne instead of staying "grounded"
+    indefinitely; the landing check uses a new `Man.prevY` field to remain correct while a player
+    rests exactly on a surface; and Runner's ceiling bump now correctly clears `onLedge` instead of
+    re-grounding the player mid-air. Player-only (man/secondPlayer); enemy/boss/smart-enemy
+    collision is unchanged.
 
 Known platform limitations:
     - The default build targets macOS only (bundled `.framework`s under `resource/frameworks`,

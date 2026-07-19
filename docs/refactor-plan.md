@@ -1048,6 +1048,80 @@ projectile-ownership decisions, the assessment's own Phase 4); the Runner `SDLK_
 menu/pause raw event handling (not gameplay-physics input). Ready to start once a future phase is
 scoped specifically for one of these.
 
+## Phases executed in Pass 13 (collision correctness, player-only)
+
+Full evidence in `docs/collision-correctness-map.md`, written before any Pass 13 code edit.
+Baseline: commit `c7fb663` (tag `refactor-pre-collision-correctness`, `main` after Phase 12's
+PR #8 merge), `make mingw` 0 errors/145 warnings, all 11 existing local targets passing.
+Implements the physics assessment's own "Phase 3 — correct collisions: previous-position
+tracking, reset grounded each step, standardize hitboxes, fix Runner's ceiling `onLedge` bug" —
+already the designated home for the Runner bug per three prior-phase docs.
+
+### Phase 74 — Collision correctness map
+- Files: new `docs/collision-correctness-map.md`.
+- What was done: confirmed a real bug broader than the already-known Runner ceiling issue —
+  `onLedge` is never reset at the start of a collision pass in either mode, for either player, so
+  walking off a ledge's edge (no ceiling hit, no jump) never clears it. Found the landmine a naive
+  "reset each tick" would hit: the landing check's strict inequality can't re-fire while a player
+  rests exactly on a surface, so resetting `onLedge` without also fixing the check would
+  immediately un-ground anyone standing still. Designed the fix: a crossing-based landing test
+  using a new `Man.prevY` field, captured once per tick before any of that tick's mutations.
+  Scoped hitbox standardization narrowly: named the `48x48` literal the five touched blocks
+  already shared, without reconciling it against the other scattered hit-test/render sizes found
+  (`30x30`, `32x32`, `55x55`, `54x54`) — a gameplay-feel decision, not a correctness fix, listed as
+  deferred.
+- Rollback: delete the file.
+
+### Phase 75 — Previous-Y tracking and ledge hitbox constants
+- Files: `inc/header.h`, `src/collisionDetect.c`.
+- What was done: added `Man.prevY` and a new `capture_player_prev_y` function (not yet called from
+  anywhere); added `PLAYER_LEDGE_HITBOX_W`/`_H` (`48.0f`, not yet used at any check site). No
+  behavior change in this commit — the consuming logic lands in the next phase.
+- Validation: `make mingw` — 0 errors, 145 warnings (unchanged). All 11 local targets pass.
+- Rollback: `git revert`.
+
+### Phase 76 — Correct player ledge collision
+- Files: `inc/header.h`, `src/collisionDetect.c`, `src/frame.c`.
+- What was done: wired `capture_player_prev_y` into `arcade_simulate`/`runner_simulate` as the
+  first line of each. At all 5 player ledge-collision blocks (Arcade man, Arcade secondPlayer ×2,
+  Runner man, Runner secondPlayer): `onLedge` now resets to `0` once per collision pass (before
+  the 100-ledge loop, not inside it — resetting inside the loop would undo a landing just detected
+  against an earlier ledge); the landing check became crossing-based
+  (`prevY + mh <= by && my + mh >= by && my < by + bh && dy >= 0`); the bare `48, 48` literals
+  became `PLAYER_LEDGE_HITBOX_W`/`_H`. Runner's two ceiling branches (man, secondPlayer) had their
+  `onLedge = 1` corrected to `onLedge = 0`, matching Arcade — the long-documented bug.
+  Enemy/boss/smart-enemy ledge collision and the enemy-to-enemy self-collision loop are untouched
+  — same player-only narrowing as Phases 11/12.
+- Validation: `make mingw` — 0 errors, 145 warnings (unchanged). All 11 local targets pass.
+- Rollback: `git revert`.
+
+### Phase 77 — Collision correctness validation test
+- Files: new `docs/verification/collision_correctness_test.c`, `Makefile` (new
+  `mingw-collisiontest` target), `.github/workflows/mingw-validation.yml` (step + log-upload
+  path, both added in this same commit); `src/collisionDetect.c` fix; `docs/collision-correctness-map.md`
+  update.
+- What was done: (1) walking off a ledge clears `onLedge` — the core bug fix; (2) resting
+  continuously across multiple consecutive `collisionDetect`/`collisionDetect2` calls re-affirms
+  `onLedge=1`; (3) normal falling-and-landing still works; (4) Runner's ceiling bump clears
+  `onLedge` for both players (regression-fix proof); (5) `capture_player_prev_y` sets `prevY`
+  correctly. Caught a second landmine while writing test 4: the crossing-based landing check (as
+  landed in Phase 76) had no upper bound, so it fired a second time in the same loop iteration
+  immediately after a ceiling correction (which sets `my=by+bh, dy=0` — both satisfying the
+  landing condition as first written), undoing the correction that had just run. The original
+  strict `my < by` had prevented this implicitly; fixed by adding `my < by + bh` back to all 5
+  landing checks. Not assumed correct beforehand — caught by the test, fixed, documented.
+- Validation: `make mingw` — 0 errors, 145 warnings. All 12 local targets pass.
+- Rollback: `git revert`.
+
+**Pass 13 deferred items** (full reasoning in `docs/collision-correctness-map.md` section 7):
+enemy/boss/smart-enemy ledge collision and the enemy-to-enemy self-collision loop (same
+player-only narrowing as Phases 11/12); deduplicating the two secondPlayer-vs-ledge blocks into
+one (a real, pre-existing duplicate, its own already-deferred "Phase 10 — large paired-function
+deduplication" item); star-collision (`30×30`) and enemy/boss `collide2d()` hit sizes
+(`48×48`/`32×32` mixed); reconciling hit-test size with render size; making ceiling/side checks
+crossing-based (no persistent state to reaffirm there, unlike landing). Ready to start once a
+future phase is scoped specifically for one of these.
+
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
 **Pass 9 deferred items** (full reasoning in `docs/solid-gof-audit.md` section 9 and
