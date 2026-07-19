@@ -28,7 +28,24 @@ int main()
     // for clarity rather than relying on that implicitly.
     gameState->app.scene = APP_SCENE_MAIN_MENU;
 
+    // Fixed-timestep physics (Phase 11) -- see docs/physics-timestep-map.md.
+    // Real elapsed time is measured every loop iteration regardless of
+    // scene, so the timestamp stays accurate across scene changes; the
+    // accumulator itself only accrues time while a gameplay scene is
+    // active, so no backlog builds up while paused/in menus/leaderboards.
+    Uint64 perfFrequency = SDL_GetPerformanceFrequency();
+    Uint64 previousCounter = SDL_GetPerformanceCounter();
+    double accumulator = 0.0;
+
     while (gameState->app.scene != APP_SCENE_QUIT) {
+        Uint64 currentCounter = SDL_GetPerformanceCounter();
+        double frameTime = (double)(currentCounter - previousCounter) / (double)perfFrequency;
+        previousCounter = currentCounter;
+        if (frameTime > MAX_FRAME_TIME)
+        {
+            frameTime = MAX_FRAME_TIME;
+        }
+
         switch (gameState->app.scene) {
             case APP_SCENE_MAIN_MENU:
                 menu0_events(gameState);
@@ -41,8 +58,19 @@ int main()
                 break;
 
             case APP_SCENE_ARCADE_GAME:
-                arcade_frame(gameState, window, renderer);
+            {
+                accumulator += frameTime;
+                int steps = 0;
+                while (accumulator >= (double)PHYSICS_DT && steps < MAX_PHYSICS_STEPS_PER_FRAME)
+                {
+                    arcade_simulate(gameState, PHYSICS_DT);
+                    accumulator -= (double)PHYSICS_DT;
+                    steps++;
+                }
+                doRender(renderer, gameState);
+                processEvents(window, gameState);
                 break;
+            }
 
             case APP_SCENE_ARCADE_LEADERBOARD:
                 processEvents(window, gameState);
@@ -60,8 +88,22 @@ int main()
                 break;
 
             case APP_SCENE_RUNNER_GAME:
-                runner_frame(gameState, window, renderer);
+            {
+                accumulator += frameTime;
+                int steps = 0;
+                while (accumulator >= (double)PHYSICS_DT && steps < MAX_PHYSICS_STEPS_PER_FRAME)
+                {
+                    runner_simulate(gameState, PHYSICS_DT);
+                    accumulator -= (double)PHYSICS_DT;
+                    steps++;
+                }
+                doRender2(renderer, gameState);
+                runner_update_death(gameState); // see src/runner_death.c, docs/runner-death-lifecycle.md --
+                                                 // kept after doRender2, matching the pre-Phase-11
+                                                 // arcade_frame/runner_frame order exactly
+                processEvents2(window, gameState);
                 break;
+            }
 
             case APP_SCENE_RUNNER_LEADERBOARD:
                 processEvents2(window, gameState);
