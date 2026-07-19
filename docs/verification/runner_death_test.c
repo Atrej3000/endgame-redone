@@ -4,11 +4,12 @@
 // processEvents2/doRender2/runner_session_reset functions directly. See
 // docs/runner-death-lifecycle.md for the lifecycle this test guards against regressing.
 //
-// Test-only exception to the "game->scene is written only inside app_change_scene()" invariant
-// (see docs/scene-state-map.md): several cases below directly assign game->scene/game->gameLives
+// Test-only exception to the "game->app.scene is written only inside app_change_scene()" invariant
+// (see docs/scene-state-map.md): several cases below directly assign game->app.scene/game->gameLives
 // to set up a precondition. Production code must never do this -- only this test file does, and
 // only for setup.
 #include "app.h"
+#include "scene.h"
 #include "frame.h"
 
 static int failures = 0;
@@ -107,7 +108,7 @@ int main(void)
     game->man.x = 100;
     game->man.y = 200;
     game->gameLives = 1; // test-only precondition: last life
-    game->scene = APP_SCENE_RUNNER_GAME; // test-only precondition
+    game->app.scene = APP_SCENE_RUNNER_GAME; // test-only precondition
     game->x_score = 55;
     game->x_i = 0;
 
@@ -116,19 +117,19 @@ int main(void)
     // transition in processEvents2() is exercised too -- stop as soon as the scene actually
     // changes, mirroring what main.c's dispatch would do (it would stop calling runner_frame()
     // once the scene is no longer APP_SCENE_RUNNER_GAME).
-    for (int i = 0; i < 200 && game->scene == APP_SCENE_RUNNER_GAME; i++)
+    for (int i = 0; i < 200 && game->app.scene == APP_SCENE_RUNNER_GAME; i++)
     {
         runner_frame(game, window, renderer);
     }
 
     CHECK("game over: gameLives reached exactly 0", game->gameLives == 0);
-    CHECK("game over: correct scene transition", game->scene == APP_SCENE_RUNNER_MENU);
+    CHECK("game over: correct scene transition", game->app.scene == APP_SCENE_RUNNER_MENU);
     CHECK("game over: no respawn (isDead left at idle, not re-triggered)", game->man.isDead == 0);
     CHECK("game over: score persisted before transition", game->x_list[0] == 55 && game->x_i == 1);
 
     // Calling processEvents2() once more must not re-fire the transition (Phase 5 guard).
     processEvents2(window, game);
-    CHECK("game over: no repeated transition", game->scene == APP_SCENE_RUNNER_MENU);
+    CHECK("game over: no repeated transition", game->app.scene == APP_SCENE_RUNNER_MENU);
 
     // -------------------------------------------------------------------
     // 4. Pause freezes death progression; resume continues it correctly
@@ -136,7 +137,7 @@ int main(void)
     runner_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = 100;
     game->man.y = 200;
-    game->scene = APP_SCENE_RUNNER_GAME; // test-only precondition
+    game->app.scene = APP_SCENE_RUNNER_GAME; // test-only precondition
 
     runner_trigger_death(game);
     for (int i = 0; i < 20; i++)
@@ -145,7 +146,7 @@ int main(void)
     }
     int countdownBeforePause = game->deathCountdown;
 
-    game->scene = APP_SCENE_RUNNER_PAUSE; // test-only precondition
+    game->app.scene = APP_SCENE_RUNNER_PAUSE; // test-only precondition
     for (int i = 0; i < 5; i++)
     {
         doRender_pause(renderer, game);
@@ -183,7 +184,7 @@ int main(void)
     runner_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = 100;
     game->man.y = 200;
-    game->scene = APP_SCENE_RUNNER_GAME; // test-only precondition
+    game->app.scene = APP_SCENE_RUNNER_GAME; // test-only precondition
 
     runner_trigger_death(game);
     for (int i = 0; i < 15; i++)
@@ -220,7 +221,7 @@ int main(void)
     int isDead7 = game->man.isDead;
     int countdown7 = game->deathCountdown;
     int gameLives7 = game->gameLives;
-    AppScene scene7 = game->scene;
+    AppScene scene7 = game->app.scene;
 
     doRender2(renderer, game);
 
@@ -229,7 +230,7 @@ int main(void)
     CHECK("render purity: isDead unchanged", game->man.isDead == isDead7);
     CHECK("render purity: deathCountdown unchanged", game->deathCountdown == countdown7);
     CHECK("render purity: gameLives unchanged", game->gameLives == gameLives7);
-    CHECK("render purity: scene unchanged", game->scene == scene7);
+    CHECK("render purity: scene unchanged", game->app.scene == scene7);
 
     // -------------------------------------------------------------------
     // 8a. Left-edge fall respawn: x is clamped, not left negative (no re-trigger loop)

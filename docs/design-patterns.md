@@ -6,9 +6,18 @@ record of every pattern this project uses, recognizes as already present, or del
 
 ## Implemented this phase (Phase 9)
 
+**Terminology note (corrected in Phase 10)**: `enemy_spawn`/`smart_enemy_spawn`/`boss_spawn` were
+originally labeled "Factory Method" below. They are **not** a GoF Factory Method — that pattern
+requires a creator hierarchy where subclasses override which concrete product gets built
+polymorphically. These are focused, ordinary C creation functions (a "Simple Factory"-style
+helper, in the informal sense of that term, not a formal GoF pattern of its own). The simpler C
+approach was deliberately selected over emulating a strict Factory Method hierarchy — no creator
+interface, no subclassing, no function-pointer factory objects were added, and none should be.
+The table below is corrected accordingly; the implementation in `src/entity_spawn.c` is unchanged.
+
 | Pattern | Problem solved | Implementation | Why selected | Alternatives rejected |
 |---|---|---|---|---|
-| Factory Method | 10 call sites across `process.c`/`loadGame.c` hand-duplicated the same 5-6-field `Enemies` struct initialization, with no bounds check anywhere | `enemy_spawn`/`smart_enemy_spawn`/`boss_spawn` (`src/entity_spawn.c`, `inc/entity_spawn.h`) — bounds-checked, exact-field-matching creation functions | Centralizes the bounds check (a genuine new correctness guarantee) alongside the field-set invariant; gives each entity kind a distinct, named, testable creation entry point | A bare (non-bounds-checked) helper function — rejected, would deduplicate text but not add the missing safety check |
+| Simple Factory-style creation functions (not GoF Factory Method) | 10 call sites across `process.c`/`loadGame.c` hand-duplicated the same 5-6-field `Enemies` struct initialization, with no bounds check anywhere | `enemy_spawn`/`smart_enemy_spawn`/`boss_spawn` (`src/entity_spawn.c`, `inc/entity_spawn.h`) — bounds-checked, exact-field-matching creation functions | Centralizes the bounds check (a genuine new correctness guarantee) alongside the field-set invariant; gives each entity kind a distinct, named, testable creation entry point. A plain function was preferred over a polymorphic creator hierarchy — there is only one concrete "product" per entity kind, so Factory Method's core justification (letting subclasses choose the product) does not apply | A bare (non-bounds-checked) helper function — rejected, would deduplicate text but not add the missing safety check; a formal Factory Method hierarchy (creator interface + overridable factory method) — rejected, no polymorphic product selection exists to justify it |
 | Command (translation boundary, not queued objects) | `processEvents()`/`processEvents2()` independently hand-implement the same 5 keys meaning the same 5 actions; `menu0_events()` already hand-rolls a multi-key-to-one-action pattern | `GameCommand` enum + `translate_arcade_command`/`translate_runner_command`/`translate_menu_command` (`src/input_command.c`, `inc/input_command.h`) | Pure, synchronous keycode-to-action mapping, testable independent of each mode's differing side-effect bodies; no queue/heap allocation, so continuous input timing is untouched | Per-file helper function (rejected — doesn't remove the keycode-to-action mapping duplication itself); a real Command object with `execute()`/undo (rejected — no undo feature exists, no queuing need, explicitly disallowed by the task) |
 
 **Supporting SOLID extractions** (not GoF patterns, but part of this phase's scope):

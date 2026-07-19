@@ -15,7 +15,7 @@ void init_status_kills(GameState *game)
         SDL_DestroyTexture(game->label);
         game->label = NULL;
     }
-    game->label = SDL_CreateTextureFromSurface(game->renderer, tmp);
+    game->label = SDL_CreateTextureFromSurface(game->app.renderer, tmp);
     SDL_FreeSurface(tmp);
 
     if(game->multiPlayer)
@@ -33,7 +33,7 @@ void init_status_kills(GameState *game)
         SDL_DestroyTexture(game->labelMultiplayer);
         game->labelMultiplayer = NULL;
     }
-    game->labelMultiplayer = SDL_CreateTextureFromSurface(game->renderer, tmp);
+    game->labelMultiplayer = SDL_CreateTextureFromSurface(game->app.renderer, tmp);
     SDL_FreeSurface(tmp);
     }
 
@@ -41,7 +41,7 @@ void init_status_kills(GameState *game)
 
 void draw_status_kills(GameState *game)
 {
-    SDL_Renderer *renderer = game->renderer;
+    SDL_Renderer *renderer = game->app.renderer;
     SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
@@ -51,7 +51,7 @@ void draw_status_kills(GameState *game)
 
     if (game->multiPlayer)
     {
-    SDL_Renderer *renderer = game->renderer;
+    SDL_Renderer *renderer = game->app.renderer;
     SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);

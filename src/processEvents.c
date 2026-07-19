@@ -1,4 +1,5 @@
 #include "header.h"
+#include "scene.h"
 #include "input_command.h"
 
 int processEvents(SDL_Window *window, GameState *game)
@@ -509,7 +510,7 @@ int processEvents(SDL_Window *window, GameState *game)
             // Guard against overwriting a transition an earlier handler in
             // this same call (e.g. SDLK_q) already made -- see
             // docs/frame-pipeline-map.md's double-transition finding.
-            if (game->scene == APP_SCENE_ARCADE_GAME)
+            if (game->app.scene == APP_SCENE_ARCADE_GAME)
             {
                 app_change_scene(game, APP_SCENE_ARCADE_MENU);
             }
@@ -519,7 +520,7 @@ int processEvents(SDL_Window *window, GameState *game)
     {
         if (game->man.lives == 0 && game->secondPlayer.lives == 0)
         {
-            if (game->scene == APP_SCENE_ARCADE_GAME)
+            if (game->app.scene == APP_SCENE_ARCADE_GAME)
             {
                 app_change_scene(game, APP_SCENE_ARCADE_MENU);
             }
@@ -783,7 +784,7 @@ int processEvents2(SDL_Window *window, GameState *game)
         // itself is guarded against overwriting one an earlier handler in
         // this same call (e.g. SDLK_q) already made -- see
         // docs/frame-pipeline-map.md's double-transition finding.
-        if (game->scene == APP_SCENE_RUNNER_GAME)
+        if (game->app.scene == APP_SCENE_RUNNER_GAME)
         {
             app_change_scene(game, APP_SCENE_RUNNER_MENU);
         }

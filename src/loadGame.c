@@ -9,7 +9,7 @@
 // ---------------------------------------------------------------------------
 static bool shared_assets_load(GameState *game)
 {
-    if (game->sharedAssetsLoaded)
+    if (game->assetFlags.sharedAssetsLoaded)
     {
         return true;
     }
@@ -17,23 +17,23 @@ static bool shared_assets_load(GameState *game)
     bool ok = true;
     if (game->mult == NULL)
     {
-        ok = ok && load_texture(game->renderer, "./resource/images/backgrounds/mult.png", &game->mult);
+        ok = ok && load_texture(game->app.renderer, "./resource/images/backgrounds/mult.png", &game->mult);
     }
     if (game->leaders == NULL)
     {
-        ok = ok && load_texture(game->renderer, "./resource/images/backgrounds/leaders.jpg", &game->leaders);
+        ok = ok && load_texture(game->app.renderer, "./resource/images/backgrounds/leaders.jpg", &game->leaders);
     }
     if (game->pause == NULL)
     {
-        ok = ok && load_texture(game->renderer, "./resource/images/backgrounds/pause.jpg", &game->pause);
+        ok = ok && load_texture(game->app.renderer, "./resource/images/backgrounds/pause.jpg", &game->pause);
     }
     if (game->brick == NULL)
     {
-        ok = ok && load_texture(game->renderer, "./resource/images/terrain/Clay_block.png", &game->brick);
+        ok = ok && load_texture(game->app.renderer, "./resource/images/terrain/Clay_block.png", &game->brick);
     }
     if (game->death == NULL)
     {
-        ok = ok && load_texture(game->renderer, "./resource/images/main_hero/death/fire.png", &game->death);
+        ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/death/fire.png", &game->death);
     }
     if (game->font == NULL)
     {
@@ -41,7 +41,7 @@ static bool shared_assets_load(GameState *game)
     }
     if (game->manFrames[0] == NULL)
     {
-        ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)0.png", &game->manFrames[0]);
+        ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)0.png", &game->manFrames[0]);
     }
 
     if (!ok)
@@ -50,7 +50,7 @@ static bool shared_assets_load(GameState *game)
         return false;
     }
 
-    game->sharedAssetsLoaded = true;
+    game->assetFlags.sharedAssetsLoaded = true;
     return true;
 }
 
@@ -67,7 +67,7 @@ void shared_assets_unload(GameState *game)
         TTF_CloseFont(game->font);
         game->font = NULL;
     }
-    game->sharedAssetsLoaded = false;
+    game->assetFlags.sharedAssetsLoaded = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,40 +84,40 @@ bool arcade_assets_load(GameState *game)
         return false;
     }
 
-    if (game->arcadeAssetsLoaded)
+    if (game->assetFlags.arcadeAssetsLoaded)
     {
         return true;
     }
 
     bool ok = true;
     ok = ok && load_music("resource/sounds/battleMus.mp3", &game->battleMus);
-    ok = ok && load_texture(game->renderer, "./resource/images/enemies/boss.png", &game->bossTexture);
-    ok = ok && load_texture(game->renderer, "./resource/images/bullets/bullet_fireball.png", &game->bulletTexture);
-    ok = ok && load_texture(game->renderer, "./resource/images/bullets/bullet_fireball2.png", &game->secondBulletTexture);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/Run_(32x32).png", &game->secondPlayer.sheetTextureRun2);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/jump/Double_Jump_(32x32).png", &game->secondPlayer.sheetTextureJump2);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/enemies/boss.png", &game->bossTexture);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/bullets/bullet_fireball.png", &game->bulletTexture);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/bullets/bullet_fireball2.png", &game->secondBulletTexture);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/Run_(32x32).png", &game->secondPlayer.sheetTextureRun2);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/jump/Double_Jump_(32x32).png", &game->secondPlayer.sheetTextureJump2);
 
     // manFrames[0] is loaded by shared_assets_load() above -- both modes
     // load the byte-for-byte identical path (see docs/game-session-lifecycle.md),
     // so it belongs in the shared bucket, not here.
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/Run_(32x32).png", &game->man.sheetTextureRun);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/jump/Double_Jump_(32x32).png", &game->man.sheetTextureJump);
-    ok = ok && load_texture(game->renderer, "./resource/images/enemies/shroom_Run(32x32).png", &game->enemy.sheetTextureRun);
-    ok = ok && load_texture(game->renderer, "./resource/images/enemies/turtle_Run(44x26).png", &game->enemy.sheetTextureRun2);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/Sunset.png", &game->sheetTextureBack);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_cloud01.png", &game->cloud1.sheetTextureCloud1);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_cloud02.png", &game->cloud2.sheetTextureCloud2);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_cloud03.png", &game->cloud3.sheetTextureCloud3);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_cloud04.png", &game->cloud4.sheetTextureCloud4);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_cloud05.png", &game->cloud5.sheetTextureCloud5);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_cloud06.png", &game->cloud6.sheetTextureCloud6);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_cloud07.png", &game->cloud7.sheetTextureCloud7);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_cloud08.png", &game->cloud8.sheetTextureCloud8);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/Sunset_sun.png", &game->sheetTextureSun);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_front.png", &game->sheetTextureBack2);
-    ok = ok && load_texture(game->renderer, "./resource/images/background/sunset_train.bmp", &game->train.textureTrain);
-    ok = ok && load_texture(game->renderer, "./resource/images/terrain/Brick_block.png", &game->brick_block);
-    ok = ok && load_texture(game->renderer, "./resource/images/terrain/Copper_block.png", &game->copper_block);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/Run_(32x32).png", &game->man.sheetTextureRun);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/jump/Double_Jump_(32x32).png", &game->man.sheetTextureJump);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/enemies/shroom_Run(32x32).png", &game->enemy.sheetTextureRun);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/enemies/turtle_Run(44x26).png", &game->enemy.sheetTextureRun2);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/background/Sunset.png", &game->sheetTextureBack);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/background/sunset_cloud01.png", &game->cloud1.sheetTextureCloud1);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/background/sunset_cloud02.png", &game->cloud2.sheetTextureCloud2);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/background/sunset_cloud03.png", &game->cloud3.sheetTextureCloud3);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/background/sunset_cloud04.png", &game->cloud4.sheetTextureCloud4);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/background/sunset_cloud05.png", &game->cloud5.sheetTextureCloud5);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/background/sunset_cloud06.png", &game->cloud6.sheetTextureCloud6);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/background/sunset_cloud07.png", &game->cloud7.sheetTextureCloud7);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/background/sunset_cloud08.png", &game->cloud8.sheetTextureCloud8);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/background/Sunset_sun.png", &game->sheetTextureSun);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/background/sunset_front.png", &game->sheetTextureBack2);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/background/sunset_train.bmp", &game->train.textureTrain);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/terrain/Brick_block.png", &game->brick_block);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/terrain/Copper_block.png", &game->copper_block);
 
     if (!ok)
     {
@@ -125,7 +125,7 @@ bool arcade_assets_load(GameState *game)
         return false;
     }
 
-    game->arcadeAssetsLoaded = true;
+    game->assetFlags.arcadeAssetsLoaded = true;
     return true;
 }
 
@@ -157,7 +157,7 @@ void arcade_assets_unload(GameState *game)
     destroy_texture(&game->copper_block);
     // manFrames[0] intentionally left alone -- owned by shared_assets_unload()
     // (see docs/game-session-lifecycle.md).
-    game->arcadeAssetsLoaded = false;
+    game->assetFlags.arcadeAssetsLoaded = false;
 }
 
 void arcade_session_reset(GameState *game, GameMode mode)
@@ -346,42 +346,42 @@ bool runner_assets_load(GameState *game)
         return false;
     }
 
-    if (game->runnerAssetsLoaded)
+    if (game->assetFlags.runnerAssetsLoaded)
     {
         return true;
     }
 
     bool ok = true;
     ok = ok && load_music("resource/sounds/runnerMus.mp3", &game->runnerMus);
-    ok = ok && load_texture(game->renderer, "./resource/images/backgrounds/fon.png", &game->fon);
-    ok = ok && load_texture(game->renderer, "./resource/images/traps/spike_head.png", &game->star);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/backgrounds/fon.png", &game->fon);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/traps/spike_head.png", &game->star);
 
     // manFrames[0] is loaded by shared_assets_load() above -- see
     // arcade_assets_load()'s comment.
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)1.png", &game->manFrames[1]);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)2.png", &game->manFrames[2]);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)3.png", &game->manFrames[3]);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)4.png", &game->manFrames[4]);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)5.png", &game->manFrames[5]);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)6.png", &game->manFrames[6]);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)7.png", &game->manFrames[7]);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)8.png", &game->manFrames[8]);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)9.png", &game->manFrames[9]);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)10.png", &game->manFrames[10]);
-    ok = ok && load_texture(game->renderer, "./resource/images/main_hero/run/V_g(rn)11.png", &game->manFrames[11]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)1.png", &game->manFrames[1]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)2.png", &game->manFrames[2]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)3.png", &game->manFrames[3]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)4.png", &game->manFrames[4]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)5.png", &game->manFrames[5]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)6.png", &game->manFrames[6]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)7.png", &game->manFrames[7]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)8.png", &game->manFrames[8]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)9.png", &game->manFrames[9]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)10.png", &game->manFrames[10]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)11.png", &game->manFrames[11]);
 
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/V_g(rn)0.png", &game->secondPlayerFrames[0]);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/V_g(rn)1.png", &game->secondPlayerFrames[1]);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/V_g(rn)2.png", &game->secondPlayerFrames[2]);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/V_g(rn)3.png", &game->secondPlayerFrames[3]);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/V_g(rn)4.png", &game->secondPlayerFrames[4]);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/V_g(rn)5.png", &game->secondPlayerFrames[5]);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/V_g(rn)6.png", &game->secondPlayerFrames[6]);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/V_g(rn)7.png", &game->secondPlayerFrames[7]);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/V_g(rn)8.png", &game->secondPlayerFrames[8]);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/V_g(rn)9.png", &game->secondPlayerFrames[9]);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/V_g(rn)10.png", &game->secondPlayerFrames[10]);
-    ok = ok && load_texture(game->renderer, "./resource/images/secondplayer/run/V_g(rn)11.png", &game->secondPlayerFrames[11]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/V_g(rn)0.png", &game->secondPlayerFrames[0]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/V_g(rn)1.png", &game->secondPlayerFrames[1]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/V_g(rn)2.png", &game->secondPlayerFrames[2]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/V_g(rn)3.png", &game->secondPlayerFrames[3]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/V_g(rn)4.png", &game->secondPlayerFrames[4]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/V_g(rn)5.png", &game->secondPlayerFrames[5]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/V_g(rn)6.png", &game->secondPlayerFrames[6]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/V_g(rn)7.png", &game->secondPlayerFrames[7]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/V_g(rn)8.png", &game->secondPlayerFrames[8]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/V_g(rn)9.png", &game->secondPlayerFrames[9]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/V_g(rn)10.png", &game->secondPlayerFrames[10]);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/V_g(rn)11.png", &game->secondPlayerFrames[11]);
 
     if (!ok)
     {
@@ -389,7 +389,7 @@ bool runner_assets_load(GameState *game)
         return false;
     }
 
-    game->runnerAssetsLoaded = true;
+    game->assetFlags.runnerAssetsLoaded = true;
     return true;
 }
 
@@ -408,7 +408,7 @@ void runner_assets_unload(GameState *game)
     }
     // manFrames[0] intentionally left alone -- owned by shared_assets_unload()
     // (see docs/game-session-lifecycle.md).
-    game->runnerAssetsLoaded = false;
+    game->assetFlags.runnerAssetsLoaded = false;
 }
 
 // Death-state fields (isDead, deathCountdown, and the players' position/velocity these two

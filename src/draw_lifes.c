@@ -2,7 +2,7 @@
 
 void draw_status_lives2(GameState *game)
 {
-    SDL_Renderer *renderer = game->renderer;
+    SDL_Renderer *renderer = game->app.renderer;
     SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 
     // Clear screen

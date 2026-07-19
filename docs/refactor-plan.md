@@ -61,10 +61,17 @@ in one pass — a smaller, stable, verified refactor beats a large unfinished re
 | 49 | Case-sensitive Linux CI job (`linux-asset-validation`) | **Done — Pass 8** |
 | 50 | Additive Linux build target (`make linux`/`linux-smoketest`, best-effort, not locally verified) | Attempted — Pass 8, CI result is the deciding signal |
 | 51 | Evidence-based SOLID/GoF architecture audit (`docs/solid-gof-audit.md`, `docs/dependency-map.md`) | **Done — Pass 9** |
-| 52 | Factory Method: centralize enemy/smart-enemy/boss spawn invariants (`src/entity_spawn.c`) | **Done — Pass 9** |
+| 52 | Simple Factory-style creation functions (not GoF Factory Method — see Pass 10 terminology correction): centralize enemy/smart-enemy/boss spawn invariants (`src/entity_spawn.c`) | **Done — Pass 9** |
 | 53 | ISP: extract focused `inc/scene.h`/`inc/frame.h` headers | **Done — Pass 9** |
 | 54 | Command: discrete-action input translation (`src/input_command.c`) for `processEvents`/`processEvents2`/`menu0_events` | **Done — Pass 9** |
 | 55 | DIP consistency fix: route `load_menu.c` through the checked `load_texture()` loader | **Done — Pass 9** |
+| 56 | GameState/header ownership audit (`docs/gamestate-decomposition.md`) — memory-layout safety verification + field-by-field group selection | **Done — Pass 10** |
+| 57 | Terminology correction: entity-spawn functions relabeled Simple Factory-style, not GoF Factory Method | **Done — Pass 10** |
+| 58 | Complete `app_change_scene()` header migration (single authoritative declaration in `scene.h`); remove accidental `doRender` prototype duplicate | **Done — Pass 10** |
+| 59 | Header self-containment tests (`mingw-headertest`) for all 5 focused headers | **Done — Pass 10** |
+| 60 | Static duplicate-declaration check added to `audit_repository_usage.py` | **Done — Pass 10** |
+| 61 | `GameState` nested structs: `AppContext` (renderer+scene) and `AssetLifecycleFlags` | **Done — Pass 10** |
+| 62 | GameState grouping lifecycle test (`mingw-groupingtest`) | **Done — Pass 10** |
 
 ## Phases executed in Pass 1
 
@@ -768,6 +775,81 @@ Locator/DI container/ECS.
 - Validation: `make mingw` — 0 errors, 161 warnings. All 10 local targets pass.
 - Rollback: `git revert`.
 
+## Phases executed in Pass 10 (incremental GameState decomposition and header isolation)
+
+Full evidence in `docs/gamestate-decomposition.md`, written before any Pass 10 code edit.
+Baseline: commit `81dda1e` (tag `refactor-pre-gamestate-decomposition`, `main` after Phase 9's
+PR #5 merge), `make mingw` 0 errors/161 warnings, all 8 existing local targets passing.
+
+### Phase 56 — GameState ownership audit
+- Files: new `docs/gamestate-decomposition.md`.
+- What was done: field-by-field `GameState` inventory (owner, lifecycle, init/reset/destroy
+  points, candidate group); memory-layout safety verification (exactly one `sizeof(GameState)`
+  site, zero memcpy/memset/casts/pointer-arithmetic/offsetof/file-I-O/whole-struct-memcmp) —
+  nested structs confirmed safe to introduce; exact access-site counts for every candidate group;
+  rationale for selecting `AppContext`/`AssetLifecycleFlags` over audio fields (lifecycle not
+  centralized) and Arcade/Runner session data (large/high-risk, explicitly discouraged as a first
+  choice). Also found an accidental, pre-existing verbatim duplicate of `doRender`'s prototype
+  inside `header.h` itself.
+- Rollback: delete the file.
+
+### Phase 57 — Terminology correction
+- Files: `docs/design-patterns.md`, `docs/solid-gof-audit.md`.
+- What was done: `enemy_spawn`/`smart_enemy_spawn`/`boss_spawn` were labeled "Factory Method" in
+  Phase 9's docs. Corrected to "Simple Factory-style creation function" — no creator hierarchy, no
+  subclassing, no polymorphic product selection exists or was added; the simpler C approach was
+  deliberately chosen. `src/entity_spawn.c`/`inc/entity_spawn.h` unchanged (documentation-only).
+- Rollback: `git revert`.
+
+### Phase 58 — Complete scene interface migration
+- Files: `inc/header.h`, `src/menu_events.c`, `src/pause_events.c`, `src/processEvents.c`, plus 4
+  test harnesses that call `app_change_scene`/`arcade_frame`/`runner_frame` directly.
+- What was done: the 3 remaining callers of `app_change_scene()` now include `scene.h` directly;
+  `header.h`'s duplicate prototype (deliberately left since Phase 9) is removed — `scene.h` is now
+  the single authoritative declaration. Also removed an accidental, unrelated verbatim duplicate
+  of `doRender`'s prototype found inside `header.h` itself during the audit.
+- Validation: `make mingw` — 0 errors, 161 warnings. All 8 local targets pass.
+- Rollback: `git revert`.
+
+### Phase 59-60 — Header self-containment tests + static duplicate-declaration check
+- Files: new `docs/verification/header_only_{app,scene,frame,entity_spawn,input_command}.c`,
+  `Makefile` (new `mingw-headertest` target), `scripts/audit_repository_usage.py`.
+- What was done: one tiny translation unit per focused header, each compiled with
+  `-fsyntax-only` (parse + typecheck, no codegen/link) to confirm the header compiles standalone
+  with no reliance on inclusion order. Extended the audit script with a new check scanning every
+  `inc/*.h` file for duplicate function-prototype declarations — a regression guard against
+  reintroducing an accidental duplicate like the `doRender` one found this phase.
+- Validation: `make mingw-headertest` passes (0 warnings/errors on all 5 headers); `audit-repo`
+  reports `Duplicate declaration errors: 0`.
+- Rollback: `git revert`.
+
+### Phase 61 — GameState nested structs: AppContext + AssetLifecycleFlags
+- Files: `inc/header.h` (both struct definitions), and every file with a migrated access site:
+  `app.c`, `scene.c`, `loadGame.c`, `load_menu.c`, `kills_score.c`, `X_score.c`,
+  `x_list_leader.c`, `status.c`, `draw_lifes.c`, `main.c`, `menu_events.c`, `pause_events.c`,
+  `processEvents.c`, and 5 `docs/verification/*.c` test files.
+- What was done: `AppContext { renderer; scene; }` (field `app`) and `AssetLifecycleFlags
+  { arcadeAssetsLoaded; runnerAssetsLoaded; sharedAssetsLoaded; }` (field `assetFlags`) — the two
+  cleanest, most centrally-owned groups found in the audit. `window` deliberately excluded (never
+  a `GameState` field). Both nested-struct migrations landed in one commit rather than the two
+  originally planned: `loadGame.c`, `scene.c`, `header.h`, and 3 test files are touched by both
+  migrations, and a clean hunk-level split risked an intermediate non-compiling state — documented
+  as a deliberate, transparent deviation from the original commit sequence. Every access site is a
+  pure mechanical rename (`game->renderer` → `game->app.renderer`, etc.), zero logic change.
+- Behavior impact: none — confirmed by the full regression suite plus the new grouping test.
+- Validation: `make mingw` — 0 errors, 161 warnings. All 9 local targets pass.
+- Rollback: `git revert` (reverts both groups together).
+
+### Phase 62 — GameState grouping lifecycle test
+- Files: new `docs/verification/gamestate_grouping_test.c`, `Makefile` (new
+  `mingw-groupingtest` target).
+- What was done: verifies both new nested structs are correctly zero-initialized via the existing
+  `calloc`, explicitly writable through the real production functions
+  (`app_change_scene`/`arcade_assets_load`/`arcade_assets_unload`), reset/cleaned-up correctly, and
+  that unrelated `GameState` fields remain untouched by either group's operations.
+- Validation: `make mingw` — 0 errors, 161 warnings. All 10 local targets pass.
+- Rollback: `git revert`.
+
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
 **Pass 9 deferred items** (full reasoning in `docs/solid-gof-audit.md` section 9 and
@@ -779,6 +861,16 @@ abstraction ceiling); unifying the 9 scattered lazy-SFX-reload sites into the
 further header decomposition beyond `scene.h`/`frame.h`/`entity_spawn.h`/`input_command.h`. Ready
 to start once a future phase is scoped specifically for one of these, each independently, not
 combined.
+
+**Pass 10 deferred items** (full reasoning in `docs/gamestate-decomposition.md` section 3):
+Arcade/Runner session-data grouping (entities, score, timers — real candidate clusters exist but
+span many files with both read and write access from simulation/collision/event-handling code,
+much larger and higher-risk than either Pass 10 group); audio-resource grouping (`menuMus`/
+`jumpSound`/etc. — lifecycle still not centralized, same reason Pass 9 deferred it); leaderboard/
+HUD/menu-state grouping (smaller field count but more scattered ownership, needs its own cleanup
+first); the deprecated `menu_status`/`menu0_status` fields (flagged safe-to-remove since Phase 7,
+still not removed — out of every phase's charter so far). Ready to start once a future phase picks
+one of these specifically.
 
 **Phase 5 — `doRender2` state mutation. Done in Pass 5** (see below) — the original plan assumed
 merging the mutation into `process2()`'s existing (separately broken) `deathCountdown` mechanism;

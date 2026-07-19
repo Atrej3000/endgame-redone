@@ -92,7 +92,7 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
     }
     if (game)
     {
-        game->renderer = NULL;
+        game->app.renderer = NULL;
     }
 
     // 7. window
@@ -171,7 +171,7 @@ bool app_init(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **outRen
         app_shutdown(outGame, outWindow, outRenderer);
         return false;
     }
-    game->renderer = *outRenderer;
+    game->app.renderer = *outRenderer;
 
     if (TTF_Init() != 0)
     {

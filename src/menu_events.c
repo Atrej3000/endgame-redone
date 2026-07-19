@@ -1,4 +1,5 @@
 #include "header.h"
+#include "scene.h"
 #include "input_command.h"
 
 void menu_events(GameState *gameState)
@@ -13,7 +14,7 @@ void menu_events(GameState *gameState)
     {
         if (event.type == SDL_KEYDOWN)
         {
-        bool isRunner = (gameState->scene == APP_SCENE_RUNNER_MENU);
+        bool isRunner = (gameState->app.scene == APP_SCENE_RUNNER_MENU);
         switch (event.key.keysym.sym) {
             case SDLK_SPACE:
                 // Already at this menu; no scene change.

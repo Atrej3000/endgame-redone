@@ -6,12 +6,13 @@
 // docs/frame-pipeline-map.md for the findings this test guards against
 // regressing.
 //
-// Test-only exception to the "game->scene is written only inside
+// Test-only exception to the "game->app.scene is written only inside
 // app_change_scene()" invariant (see docs/scene-state-map.md): a few cases
-// below directly assign game->scene/game->statusState to set up a
+// below directly assign game->app.scene/game->statusState to set up a
 // precondition. Production code must never do this -- only this test file
 // does, and only for setup.
 #include "app.h"
+#include "scene.h"
 #include "frame.h"
 
 static int failures = 0;
@@ -55,7 +56,7 @@ int main(void)
     int manLives1 = game->man.lives, gameLives1 = game->gameLives;
     int tempScore1 = game->tempScore, killsScore1 = game->kills_score;
     float enemy0x1 = game->enemyValues[0].x;
-    AppScene scene1 = game->scene;
+    AppScene scene1 = game->app.scene;
     int time1 = game->time;
 
     doRender(renderer, game);
@@ -67,7 +68,7 @@ int main(void)
     CHECK("doRender(): tempScore unchanged", game->tempScore == tempScore1);
     CHECK("doRender(): kills_score unchanged", game->kills_score == killsScore1);
     CHECK("doRender(): enemyValues[0].x unchanged", game->enemyValues[0].x == enemy0x1);
-    CHECK("doRender(): scene unchanged", game->scene == scene1);
+    CHECK("doRender(): scene unchanged", game->app.scene == scene1);
     CHECK("doRender(): time unchanged", game->time == time1);
 
     // -------------------------------------------------------------------
@@ -84,7 +85,7 @@ int main(void)
     int gameLives2 = game->gameLives;
     int manIsDead2 = game->man.isDead;
     int xScore2 = game->x_score;
-    AppScene scene2 = game->scene;
+    AppScene scene2 = game->app.scene;
 
     doRender2(renderer, game);
 
@@ -93,7 +94,7 @@ int main(void)
     CHECK("doRender2(): gameLives unchanged (mutation no longer runs here)", game->gameLives == gameLives2);
     CHECK("doRender2(): man.isDead unchanged (mutation no longer runs here)", game->man.isDead == manIsDead2);
     CHECK("doRender2(): x_score unchanged", game->x_score == xScore2);
-    CHECK("doRender2(): scene unchanged", game->scene == scene2);
+    CHECK("doRender2(): scene unchanged", game->app.scene == scene2);
 
     // -------------------------------------------------------------------
     // 3. Death-mutation relocation -- runner_frame() end to end still
@@ -101,7 +102,7 @@ int main(void)
     // inside it.
     // -------------------------------------------------------------------
     runner_session_reset(game, GAME_MODE_SINGLE_PLAYER);
-    game->scene = APP_SCENE_RUNNER_GAME; // test-only precondition
+    game->app.scene = APP_SCENE_RUNNER_GAME; // test-only precondition
     game->statusState = STATUS_STATE_GAME;
     game->man.isDead = 1;
     game->man.x = 100; // keep away from the x<0/y>=719 fall-death checks
@@ -125,7 +126,7 @@ int main(void)
     // 4. Double scene-transition guard -- Runner
     // -------------------------------------------------------------------
     runner_session_reset(game, GAME_MODE_SINGLE_PLAYER);
-    game->scene = APP_SCENE_RUNNER_GAME; // test-only precondition
+    game->app.scene = APP_SCENE_RUNNER_GAME; // test-only precondition
     game->gameLives = 0;
     game->x_score = 42;
     game->x_i = 0;
@@ -133,14 +134,14 @@ int main(void)
     processEvents2(window, game);
 
     CHECK("processEvents2(): game-over transition fires when scene is still RUNNER_GAME",
-          game->scene == APP_SCENE_RUNNER_MENU);
+          game->app.scene == APP_SCENE_RUNNER_MENU);
     CHECK("processEvents2(): score persisted to x_list", game->x_list[0] == 42);
     CHECK("processEvents2(): x_i incremented", game->x_i == 1);
 
     // Simulate a transition having already happened earlier in the same
     // call (e.g. SDLK_q) -- the guard must not overwrite it, but the score
     // must still be saved.
-    game->scene = APP_SCENE_MAIN_MENU; // test-only precondition
+    game->app.scene = APP_SCENE_MAIN_MENU; // test-only precondition
     game->gameLives = 0;
     game->x_score = 77;
     game->x_i = 5;
@@ -148,7 +149,7 @@ int main(void)
     processEvents2(window, game);
 
     CHECK("processEvents2(): guard does not overwrite an already-changed scene",
-          game->scene == APP_SCENE_MAIN_MENU);
+          game->app.scene == APP_SCENE_MAIN_MENU);
     CHECK("processEvents2(): score still persisted even when the guard skips the transition",
           game->x_list[5] == 77);
     CHECK("processEvents2(): x_i still incremented even when the guard skips the transition",
@@ -158,21 +159,21 @@ int main(void)
     // 5. Double scene-transition guard -- Arcade
     // -------------------------------------------------------------------
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
-    game->scene = APP_SCENE_ARCADE_GAME; // test-only precondition
+    game->app.scene = APP_SCENE_ARCADE_GAME; // test-only precondition
     game->man.lives = 0;
 
     processEvents(window, game);
 
     CHECK("processEvents(): game-over transition fires when scene is still ARCADE_GAME",
-          game->scene == APP_SCENE_ARCADE_MENU);
+          game->app.scene == APP_SCENE_ARCADE_MENU);
 
-    game->scene = APP_SCENE_MAIN_MENU; // test-only precondition, simulating an earlier q press
+    game->app.scene = APP_SCENE_MAIN_MENU; // test-only precondition, simulating an earlier q press
     game->man.lives = 0;
 
     processEvents(window, game);
 
     CHECK("processEvents(): guard does not overwrite an already-changed scene",
-          game->scene == APP_SCENE_MAIN_MENU);
+          game->app.scene == APP_SCENE_MAIN_MENU);
 
     // -------------------------------------------------------------------
     // 6. Animation wrap/idle -- process() (Arcade man.animFrame)
@@ -248,7 +249,7 @@ int main(void)
     // 8. Pause purity -- repeated pause-scene calls never mutate gameplay
     // -------------------------------------------------------------------
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
-    game->scene = APP_SCENE_ARCADE_PAUSE; // test-only precondition
+    game->app.scene = APP_SCENE_ARCADE_PAUSE; // test-only precondition
     game->tempScore = 777;                // sentinel
     game->man.x = 321;                    // sentinel
 
@@ -260,7 +261,7 @@ int main(void)
 
     CHECK("pause: repeated calls never mutate tempScore", game->tempScore == 777);
     CHECK("pause: repeated calls never mutate man.x", game->man.x == 321);
-    CHECK("pause: repeated calls never leave pause on their own", game->scene == APP_SCENE_ARCADE_PAUSE);
+    CHECK("pause: repeated calls never leave pause on their own", game->app.scene == APP_SCENE_ARCADE_PAUSE);
 
     app_shutdown(&game, &window, &renderer);
 
