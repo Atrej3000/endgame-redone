@@ -1,6 +1,8 @@
 #include "header.h"
 #include "entity_spawn.h"
 
+// Fixed pool (Phase 14, see docs/projectile-correctness-map.md): no
+// malloc/free -- a shot claims the first inactive slot in place.
 void addBullet(GameState *game, float x, float y, float dx)
 {
 
@@ -11,7 +13,7 @@ void addBullet(GameState *game, float x, float y, float dx)
     int found = -1;
     for (int i = 0; i < MAX_BULLETS; i++)
     {
-        if (game->bullets[i] == NULL)
+        if (!game->bullets[i].active)
         {
             found = i;
             Mix_VolumeChunk(game->shootSound, 32);
@@ -22,20 +24,17 @@ void addBullet(GameState *game, float x, float y, float dx)
     if (found >= 0)
     {
         int i = found;
-        game->bullets[i] = malloc(sizeof(Bullet));
-        game->bullets[i]->x = x;
-        game->bullets[i]->y = y;
-        game->bullets[i]->dx = dx;
+        game->bullets[i].x = x;
+        game->bullets[i].y = y;
+        game->bullets[i].dx = dx;
+        game->bullets[i].prevX = x;
+        game->bullets[i].active = true;
     }
 }
 
 void removeBullet(GameState *game, int i)
 {
-    if (game->bullets[i])
-    {
-        free(game->bullets[i]);
-        game->bullets[i] = NULL;
-    }
+    game->bullets[i].active = false;
 }
 
 void addSecondBullet(GameState *game, float x, float y, float dx)
@@ -46,7 +45,7 @@ void addSecondBullet(GameState *game, float x, float y, float dx)
     int found = -1;
     for (int i = 0; i < MAX_BULLETS; i++)
     {
-        if (game->secondBullets[i] == NULL)
+        if (!game->secondBullets[i].active)
         {
             found = i;
             Mix_VolumeChunk(game->shootSound, 32);
@@ -57,19 +56,67 @@ void addSecondBullet(GameState *game, float x, float y, float dx)
     if (found >= 0)
     {
         int i = found;
-        game->secondBullets[i] = malloc(sizeof(Bullet));
-        game->secondBullets[i]->x = x;
-        game->secondBullets[i]->y = y;
-        game->secondBullets[i]->dx = dx;
+        game->secondBullets[i].x = x;
+        game->secondBullets[i].y = y;
+        game->secondBullets[i].dx = dx;
+        game->secondBullets[i].prevX = x;
+        game->secondBullets[i].active = true;
     }
 }
 
 void removeSecondBullet(GameState *game, int i)
 {
-    if (game->secondBullets[i])
+    game->secondBullets[i].active = false;
+}
+
+// Moves every active bullet exactly once per tick (Phase 14, see
+// docs/projectile-correctness-map.md) -- called by arcade_simulate()
+// (src/frame.c) before process(), which previously re-ran this same
+// movement up to 113 times per tick (once per enemy/smart-enemy/boss
+// collision-loop iteration). Captures prevX before moving, for the swept
+// collision test in process()'s own collision loops.
+//
+// Normalizes dx to +-BULLET_SPEED_PER_TICK by sign, not a max-clamp: the
+// legacy per-application clamp (0.1) was smaller than the spawn dx (+-3),
+// so it always shrank toward the bound regardless of direction; the new
+// bound (11.3, chosen to preserve the legacy steady-state speed -- see the
+// constant's own comment in inc/header.h) is *larger* than the spawn dx, so
+// a max-clamp would never fire and the bullet would silently move at the
+// spawn speed (3/tick) instead of the intended, speed-preserving one.
+// Normalizing by sign reproduces the old code's actual effect (spawn
+// direction, fixed magnitude every tick) regardless of which bound is
+// bigger.
+void move_arcade_bullets(GameState *game)
+{
+    for (int i = 0; i < MAX_BULLETS; i++)
     {
-        free(game->secondBullets[i]);
-        game->secondBullets[i] = NULL;
+        if (game->bullets[i].active)
+        {
+            game->bullets[i].prevX = game->bullets[i].x;
+            game->bullets[i].dx = (game->bullets[i].dx >= 0) ? BULLET_SPEED_PER_TICK : -BULLET_SPEED_PER_TICK;
+            game->bullets[i].x += game->bullets[i].dx;
+            if ((game->bullets[i].x < 0) || (game->bullets[i].x > 1280))
+            {
+                removeBullet(game, i);
+            }
+        }
+    }
+
+    if (game->multiPlayer)
+    {
+        for (int i = 0; i < MAX_BULLETS; i++)
+        {
+            if (game->secondBullets[i].active)
+            {
+                game->secondBullets[i].prevX = game->secondBullets[i].x;
+                game->secondBullets[i].dx = (game->secondBullets[i].dx >= 0) ? BULLET_SPEED_PER_TICK : -BULLET_SPEED_PER_TICK;
+                game->secondBullets[i].x += game->secondBullets[i].dx;
+                if ((game->secondBullets[i].x < 0) || (game->secondBullets[i].x > 1280))
+                {
+                    removeSecondBullet(game, i);
+                }
+            }
+        }
     }
 }
 
@@ -260,20 +307,17 @@ void process(GameState *game, float dt)
     for (int j = 0; j < NUM_ENEMIES; j++)
     {
         for (int i = 0; i < MAX_BULLETS; i++)
-            if (game->bullets[i])
+            if (game->bullets[i].active)
             {
-                game->bullets[i]->unvisible = 0;
-                game->bullets[i]->x += game->bullets[i]->dx;
-                if (game->bullets[i]->dx > 0.1)
-                {
-                    game->bullets[i]->dx = 0.1;
-                }
-                if (game->bullets[i]->dx < -0.1)
-                {
-                    game->bullets[i]->dx = -0.1;
-                }
-                if (game->bullets[i]->x > game->enemyValues[j].x && game->bullets[i]->x < game->enemyValues[j].x + 40 &&
-                    game->bullets[i]->y > game->enemyValues[j].y && game->bullets[i]->y < game->enemyValues[j].y + 50)
+                // Swept collision (Phase 14): the bullet's path this tick
+                // (prevX -> x), not just its end-of-tick position, is
+                // tested against the target -- movement itself now happens
+                // once per tick in move_arcade_bullets(), not here. See
+                // docs/projectile-correctness-map.md section 6.
+                float bx0 = fminf(game->bullets[i].prevX, game->bullets[i].x);
+                float bx1 = fmaxf(game->bullets[i].prevX, game->bullets[i].x);
+                if (bx1 > game->enemyValues[j].x && bx0 < game->enemyValues[j].x + 40 &&
+                    game->bullets[i].y > game->enemyValues[j].y && game->bullets[i].y < game->enemyValues[j].y + 50)
                 {
                     Mix_PlayChannel(-1, game->damageSound, 0);
 
@@ -281,31 +325,22 @@ void process(GameState *game, float dt)
                     game->enemyValues[j].visible = 0;
                     game->kills_score++;
                     game->tempScore++;
-                    game->bullets[i]->unvisible = 1;
-                }
-                if ((game->bullets[i]->x < 0) || (game->bullets[i]->x > 1280) || game->bullets[i]->unvisible)
                     removeBullet(game, i);
+                }
             }
     }
 
     for (int j = 0; j < NUM_SMART_ENEMIES; j++)
     {
         for (int i = 0; i < MAX_BULLETS; i++)
-            if (game->bullets[i])
+            if (game->bullets[i].active)
             {
                 {
-                    game->bullets[i]->unvisible = 0;
-                    game->bullets[i]->x += game->bullets[i]->dx;
-                    if (game->bullets[i]->dx > 0.1)
-                    {
-                        game->bullets[i]->dx = 0.1;
-                    }
-                    if (game->bullets[i]->dx < -0.1)
-                    {
-                        game->bullets[i]->dx = -0.1;
-                    }
-                    if (game->bullets[i]->x > game->smartEnemies[j].x && game->bullets[i]->x < game->smartEnemies[j].x + 40 &&
-                        game->bullets[i]->y > game->smartEnemies[j].y && game->bullets[i]->y < game->smartEnemies[j].y + 50)
+                    // Swept collision (Phase 14) -- see the enemy loop above.
+                    float bx0 = fminf(game->bullets[i].prevX, game->bullets[i].x);
+                    float bx1 = fmaxf(game->bullets[i].prevX, game->bullets[i].x);
+                    if (bx1 > game->smartEnemies[j].x && bx0 < game->smartEnemies[j].x + 40 &&
+                        game->bullets[i].y > game->smartEnemies[j].y && game->bullets[i].y < game->smartEnemies[j].y + 50)
                     {
                         game->smartEnemies[j].countShots++;
                         if (game->smartEnemies[j].countShots > 5)
@@ -320,10 +355,8 @@ void process(GameState *game, float dt)
                             game->tempScore += 5;
                             game->kills_score += 5;
                         }
-                        game->bullets[i]->unvisible = 1;
-                    }
-                    if ((game->bullets[i]->x < 0) || (game->bullets[i]->x > 1280) || game->bullets[i]->unvisible)
                         removeBullet(game, i);
+                    }
                 }
             }
     }
@@ -331,21 +364,14 @@ void process(GameState *game, float dt)
     for (int j = 0; j < 2; j++)
     {
         for (int i = 0; i < MAX_BULLETS; i++)
-            if (game->bullets[i])
+            if (game->bullets[i].active)
             {
                 {
-                    game->bullets[i]->unvisible = 0;
-                    game->bullets[i]->x += game->bullets[i]->dx;
-                    if (game->bullets[i]->dx > 0.1)
-                    {
-                        game->bullets[i]->dx = 0.1;
-                    }
-                    if (game->bullets[i]->dx < -0.1)
-                    {
-                        game->bullets[i]->dx = -0.1;
-                    }
-                    if (game->bullets[i]->x > game->boss[j].x && game->bullets[i]->x < game->boss[j].x + 40 &&
-                        game->bullets[i]->y > game->boss[j].y && game->bullets[i]->y < game->boss[j].y + 50)
+                    // Swept collision (Phase 14) -- see the enemy loop above.
+                    float bx0 = fminf(game->bullets[i].prevX, game->bullets[i].x);
+                    float bx1 = fmaxf(game->bullets[i].prevX, game->bullets[i].x);
+                    if (bx1 > game->boss[j].x && bx0 < game->boss[j].x + 40 &&
+                        game->bullets[i].y > game->boss[j].y && game->bullets[i].y < game->boss[j].y + 50)
                     {
                         game->boss[j].countShots++;
                         if (game->boss[j].countShots > 30)
@@ -356,10 +382,8 @@ void process(GameState *game, float dt)
                             game->tempScore += 10;
                             game->kills_score += 10;
                         }
-                        game->bullets[i]->unvisible = 1;
-                    }
-                    if ((game->bullets[i]->x < 0) || (game->bullets[i]->x > 1280) || game->bullets[i]->unvisible)
                         removeBullet(game, i);
+                    }
                 }
             }
     }
@@ -372,30 +396,21 @@ void process(GameState *game, float dt)
         {
             for (int i = 0; i < MAX_BULLETS; i++)
             {
-                if (game->secondBullets[i])
+                if (game->secondBullets[i].active)
                 {
-                    game->secondBullets[i]->unvisible = 0;
-                    game->secondBullets[i]->x += game->secondBullets[i]->dx;
-                    if (game->secondBullets[i]->dx > 0.1)
-                    {
-                        game->secondBullets[i]->dx = 0.1;
-                    }
-                    if (game->secondBullets[i]->dx < -0.1)
-                    {
-                        game->secondBullets[i]->dx = -0.1;
-                    }
-                    if (game->secondBullets[i]->x > game->enemyValues[j].x && game->secondBullets[i]->x < game->enemyValues[j].x + 40 &&
-                        game->secondBullets[i]->y > game->enemyValues[j].y && game->secondBullets[i]->y < game->enemyValues[j].y + 50)
+                    // Swept collision (Phase 14) -- see the bullets[] loops above.
+                    float bx0 = fminf(game->secondBullets[i].prevX, game->secondBullets[i].x);
+                    float bx1 = fmaxf(game->secondBullets[i].prevX, game->secondBullets[i].x);
+                    if (bx1 > game->enemyValues[j].x && bx0 < game->enemyValues[j].x + 40 &&
+                        game->secondBullets[i].y > game->enemyValues[j].y && game->secondBullets[i].y < game->enemyValues[j].y + 50)
                     {
                         Mix_PlayChannel(-1, game->damageSound, 0);
                         game->enemyValues[j].y = 1000;
                         game->enemyValues[j].visible = 0;
                         game->kills_score_multi++;
                         game->tempScore++;
-                        game->secondBullets[i]->unvisible = 1;
-                    }
-                    if ((game->secondBullets[i]->x < 0) || (game->secondBullets[i]->x > 1280) || game->secondBullets[i]->unvisible)
                         removeSecondBullet(game, i);
+                    }
                 }
             }
         }
@@ -403,21 +418,14 @@ void process(GameState *game, float dt)
         for (int j = 0; j < NUM_SMART_ENEMIES; j++)
         {
             for (int i = 0; i < MAX_BULLETS; i++)
-                if (game->secondBullets[i])
+                if (game->secondBullets[i].active)
                 {
                     {
-                        game->secondBullets[i]->unvisible = 0;
-                        game->secondBullets[i]->x += game->secondBullets[i]->dx;
-                        if (game->secondBullets[i]->dx > 0.1)
-                        {
-                            game->secondBullets[i]->dx = 0.1;
-                        }
-                        if (game->secondBullets[i]->dx < -0.1)
-                        {
-                            game->secondBullets[i]->dx = -0.1;
-                        }
-                        if (game->secondBullets[i]->x > game->smartEnemies[j].x && game->secondBullets[i]->x < game->smartEnemies[j].x + 40 &&
-                            game->secondBullets[i]->y > game->smartEnemies[j].y && game->secondBullets[i]->y < game->smartEnemies[j].y + 50)
+                        // Swept collision (Phase 14) -- see the bullets[] loops above.
+                        float bx0 = fminf(game->secondBullets[i].prevX, game->secondBullets[i].x);
+                        float bx1 = fmaxf(game->secondBullets[i].prevX, game->secondBullets[i].x);
+                        if (bx1 > game->smartEnemies[j].x && bx0 < game->smartEnemies[j].x + 40 &&
+                            game->secondBullets[i].y > game->smartEnemies[j].y && game->secondBullets[i].y < game->smartEnemies[j].y + 50)
                         {
                             game->smartEnemies[j].countShots++;
                             if (game->smartEnemies[j].countShots > 5)
@@ -428,31 +436,22 @@ void process(GameState *game, float dt)
                                 game->kills_score_multi += 5;
                                 game->tempScore += 5;
                             }
-                            game->secondBullets[i]->unvisible = 1;
-                        }
-                        if ((game->secondBullets[i]->x < 0) || (game->secondBullets[i]->x > 1280) || game->secondBullets[i]->unvisible)
                             removeSecondBullet(game, i);
+                        }
                     }
                 }
         }
         for (int j = 0; j < 2; j++)
         {
             for (int i = 0; i < MAX_BULLETS; i++)
-                if (game->secondBullets[i])
+                if (game->secondBullets[i].active)
                 {
                     {
-                        game->secondBullets[i]->unvisible = 0;
-                        game->secondBullets[i]->x += game->secondBullets[i]->dx;
-                        if (game->secondBullets[i]->dx > 0.1)
-                        {
-                            game->secondBullets[i]->dx = 0.1;
-                        }
-                        if (game->secondBullets[i]->dx < -0.1)
-                        {
-                            game->secondBullets[i]->dx = -0.1;
-                        }
-                        if (game->secondBullets[i]->x > game->boss[j].x && game->secondBullets[i]->x < game->boss[j].x + 40 &&
-                            game->secondBullets[i]->y > game->boss[j].y && game->secondBullets[i]->y < game->boss[j].y + 50)
+                        // Swept collision (Phase 14) -- see the bullets[] loops above.
+                        float bx0 = fminf(game->secondBullets[i].prevX, game->secondBullets[i].x);
+                        float bx1 = fmaxf(game->secondBullets[i].prevX, game->secondBullets[i].x);
+                        if (bx1 > game->boss[j].x && bx0 < game->boss[j].x + 40 &&
+                            game->secondBullets[i].y > game->boss[j].y && game->secondBullets[i].y < game->boss[j].y + 50)
                         {
                             game->boss[j].countShots++;
                             if (game->boss[j].countShots > 30)
@@ -463,10 +462,8 @@ void process(GameState *game, float dt)
                                 game->kills_score_multi += 10;
                                 game->tempScore += 10;
                             }
-                            game->secondBullets[i]->unvisible = 1;
-                        }
-                        if ((game->secondBullets[i]->x < 0) || (game->secondBullets[i]->x > 1280) || game->secondBullets[i]->unvisible)
                             removeSecondBullet(game, i);
+                        }
                     }
                 }
         }

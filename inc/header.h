@@ -85,6 +85,14 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define PLAYER_LEDGE_HITBOX_W 48.0f
 #define PLAYER_LEDGE_HITBOX_H 48.0f
 
+// Bullet speed, per tick (Phase 14, see docs/projectile-correctness-map.md):
+// preserves the legacy steady-state effective displacement (0.1, the old
+// per-application clamp, times 113, the old total loop-executions-per-tick
+// from the triple-movement bug) now that movement applies exactly once per
+// tick instead of up to 113 times. Fixes the architecture without silently
+// making bullets ~113x slower than every player has already experienced.
+#define BULLET_SPEED_PER_TICK 11.3f
+
 typedef struct
 {
     float x, y, w, h;
@@ -95,10 +103,17 @@ typedef struct
     SDL_Texture *sheetTextureRun, *sheetTextureRun2;
 } Enemies;
 
-typedef struct 
+// Pool slot (Phase 14, see docs/projectile-correctness-map.md): `active`
+// replaces the old NULL-pointer-means-empty convention; `prevX` is captured
+// once per tick, before this tick's move, for the swept-collision test.
+// No `unvisible` field -- traced fully and confirmed redundant with
+// `active` (a hit always deactivated the same tick it was detected, never
+// a delayed-despawn signal).
+typedef struct
 {
     float x, y, dx;
-    int unvisible;
+    float prevX;
+    bool active;
 } Bullet;
 
 
@@ -303,8 +318,10 @@ typedef struct
     Cloud7 cloud7;
     Cloud8 cloud8;
 
-    Bullet *bullets[MAX_BULLETS];
-    Bullet *secondBullets[MAX_BULLETS];
+    // Fixed pool (Phase 14) -- value arrays, not pointer arrays; see the
+    // Bullet struct comment above and docs/projectile-correctness-map.md.
+    Bullet bullets[MAX_BULLETS];
+    Bullet secondBullets[MAX_BULLETS];
 
     //Stars
     Star stars[100];
@@ -416,6 +433,7 @@ void runner_session_reset(GameState *game, GameMode mode);
 void capture_player_prev_y(GameState *game);
 void consume_arcade_jump_requests(GameState *game);
 void apply_arcade_player_forces(GameState *game, float dt);
+void move_arcade_bullets(GameState *game);
 void process(GameState *game, float dt);
 void collisionDetect(GameState *game);
 int processEvents(SDL_Window *window, GameState *game);

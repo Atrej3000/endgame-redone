@@ -34,6 +34,7 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
         make mingw-physicstest   # non-interactive fixed-timestep player-physics check
         make mingw-inputtest     # non-interactive edge-triggered jump-request check
         make mingw-collisiontest # non-interactive player-vs-ledge collision correctness check
+        make mingw-projectiletest # non-interactive bullet pool/movement/swept-collision check
         make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
         make audit-repo          # repository usage integrity check (asset paths + prototypes)
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
@@ -86,6 +87,13 @@ Architecture:
     rests exactly on a surface; and Runner's ceiling bump now correctly clears `onLedge` instead of
     re-grounding the player mid-air. Player-only (man/secondPlayer); enemy/boss/smart-enemy
     collision is unchanged.
+    `docs/projectile-correctness-map.md` documents the follow-on projectile-correctness pass
+    (Arcade-only): bullets moved up to 113x per tick due to three separate collision loops each
+    re-running the same movement (not "3x" as earlier docs framed it); bullets are now a fixed
+    value-array pool (no per-shot malloc/free) that moves exactly once per tick via
+    `move_arcade_bullets()`, using a speed-preserving `BULLET_SPEED_PER_TICK` constant so the fix
+    doesn't silently make bullets ~113x slower, plus a `prevX`-based swept-collision test so a
+    fast bullet can't tunnel through a target within one tick.
 
 Known platform limitations:
     - The default build targets macOS only (bundled `.framework`s under `resource/frameworks`,

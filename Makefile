@@ -286,6 +286,20 @@ mingw-collisiontest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/collisiontest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/collisiontest.exe
 
+# Verifies projectile correctness (Phase 14): pool spawn/despawn (no
+# malloc/free, other slots untouched), move-once-per-step (a bullet moves by
+# exactly BULLET_SPEED_PER_TICK per call, not the old 113x-per-tick bug),
+# swept collision (a bullet whose prevX->x path crosses a target registers a
+# hit even when its end-of-tick position alone would miss), and an
+# end-to-end process() regression check. See
+# docs/verification/projectile_correctness_test.c and
+# docs/projectile-correctness-map.md.
+mingw-projectiletest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/projectile_correctness_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/projectiletest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/projectiletest.exe
+
 # Dependency-light (stdlib-only) Python script. Override PYTHON on the
 # command line if python3 isn't on PATH (e.g. `make PYTHON="py -3" audit-repo`
 # on some Windows setups).
@@ -350,4 +364,4 @@ linux-smoketest: $(LINUX_BUILD_DIR)
 linux-clean:
 	rm -rf $(LINUX_BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest mingw-projectiletest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean

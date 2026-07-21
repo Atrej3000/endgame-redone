@@ -109,10 +109,10 @@ void doRender(SDL_Renderer *renderer, GameState *game)
 
         // BUllets
         for (int i = 0; i < MAX_BULLETS; i++)
-            if (game->bullets[i] && game->bullets[i]->unvisible == 0)
+            if (game->bullets[i].active)
             {
                 SDL_Rect srcRect = {32 * game->CurrentSheetBullet, 0, 32, 32};
-                SDL_Rect rect = {game->bullets[i]->x, game->bullets[i]->y, 32, 32};
+                SDL_Rect rect = {game->bullets[i].x, game->bullets[i].y, 32, 32};
                 SDL_RenderCopyEx(renderer, game->bulletTexture, &srcRect, &rect, 0, NULL, (game->man.facingLeft == 1));
             }
 
@@ -120,10 +120,10 @@ void doRender(SDL_Renderer *renderer, GameState *game)
         {
             for (int i = 0; i < MAX_BULLETS; i++)
             {
-                if (game->secondBullets[i] && game->secondBullets[i]->unvisible == 0)
+                if (game->secondBullets[i].active)
                 {
                     SDL_Rect srcRect = {32 * game->CurrentSheetBullet2, 0, 32, 32};
-                    SDL_Rect rect = {game->secondBullets[i]->x, game->secondBullets[i]->y, 32, 32};
+                    SDL_Rect rect = {game->secondBullets[i].x, game->secondBullets[i].y, 32, 32};
                     SDL_RenderCopyEx(renderer, game->secondBulletTexture, &srcRect, &rect, 0, NULL, (game->secondPlayer.facingLeft == 1));
                 }
             }

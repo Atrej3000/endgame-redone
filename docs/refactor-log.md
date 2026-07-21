@@ -1846,3 +1846,81 @@ mingw` 0 errors/145 warnings, all 11 existing local targets passing. Full eviden
 - Verification performed: `make mingw` — 0 errors, 145 warnings. All 12 local targets pass (12/12
   new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
 - Rollback: `git revert 5da8602`.
+
+## Pass 14 summary — projectile correctness, Arcade-only (2026-07-20)
+
+Implements the physics assessment's own "Phase 4 — correct projectiles: move bullets once per
+step, swept collision, projectile pool." Corrects the magnitude of the already-documented bullet
+triple-movement bug: the real per-tick multiplier is `101+10+2=113` (once per
+enemy/smart-enemy/boss collision-loop iteration), not "3" — prior docs named the loop kinds
+correctly but never counted total executions. Converts bullets from individually-`malloc`'d
+pointer arrays to a fixed value-array pool, fixes the movement bug with a speed-preserving
+constant (rather than silently accepting a ~113× slowdown), and adds swept collision using a new
+`prevX` field mirroring Phase 13's own `prevY` design. Baseline confirmed before any edit: commit
+`c9ff171` (tag `refactor-pre-projectile-correctness`), `make mingw` 0 errors/145 warnings, all 12
+existing local targets passing. Full evidence in `docs/projectile-correctness-map.md`.
+
+### [2026-07-20] Map projectile correctness
+- Phase: Pass 14 (commit `76e7ed8`)
+- File(s): new `docs/projectile-correctness-map.md`
+- Action: corrected the bullet triple-movement bug's magnitude (113×/tick, not 3×) with an exact
+  derivation; derived the legacy steady-state speed (`0.1 × 113 = 11.3 px/tick`) to preserve;
+  traced `unvisible`'s full lifecycle and confirmed it's redundant with an explicit `active` flag;
+  designed the pool conversion, the `BULLET_SPEED_PER_TICK` constant, and the `prevX`-based swept
+  collision test.
+- Behavior impact: none (documentation only).
+- Verification performed: manual re-derivation of every claim directly from the current tree.
+- Rollback: delete the file.
+
+### [2026-07-20] Convert bullets to a fixed pool
+- Phase: Pass 14 (commit `49c6dac`)
+- File(s): `inc/header.h`, `src/process.c`, `src/doRender.c`, `docs/verification/lifecycle_test.c`
+- Action: `Bullet` gains `prevX`/`active`, loses `unvisible`; `bullets`/`secondBullets` change from
+  `Bullet*[MAX_BULLETS]` to `Bullet[MAX_BULLETS]`. `addBullet`/`addSecondBullet` claim the first
+  inactive slot in place — no `malloc`; `removeBullet`/`removeSecondBullet` set `active = false`
+  — no `free`. The existing `arcade_session_reset`/`app_shutdown` cleanup loops need no changes —
+  the new body is a drop-in replacement for the old one. Storage representation only: bullets
+  still move up to 113× per tick in this commit, documented plainly as an intentional
+  intermediate step, not an oversight. Updates `lifecycle_test.c`'s two `bullets[0]` assertions
+  for the new value-type comparison — the only existing test touching bullets.
+- Behavior impact: none beyond the storage representation.
+- Verification performed: `make mingw` — 0 errors, 145 warnings (unchanged). All 12 local targets
+  pass.
+- Rollback: `git revert 49c6dac`.
+
+### [2026-07-20] Move bullets once per step with swept collision
+- Phase: Pass 14 (commits `d413fb2`, `ee07fd0`)
+- File(s): `inc/header.h`, `src/process.c`, `src/frame.c`
+- Action: new `move_arcade_bullets`, called from `arcade_simulate` before `process` — the only
+  place bullets now move or get clamped. The 6 collision loops (3 single-player + 3 multiplayer
+  mirror) drop their movement/clamp/off-screen-despawn code; their point-based hit test becomes a
+  segment-vs-rect swept test using the bullet's `prevX`. Hit-response logic unchanged.
+- Error caught and fixed before the test was written (commit `ee07fd0`, immediately after
+  `d413fb2`): the first version reused the legacy clamp's *shape* (a max-clamp), which only
+  shrinks `dx` when already larger than the bound — correct for the old bound (`0.1`, smaller
+  than spawn `dx=±3`) but silently inert for the new bound (`11.3`, larger than spawn `dx`), which
+  would have left bullets moving at the spawn speed instead of the intended speed-preserving one.
+  Fixed by normalizing `dx` to `±BULLET_SPEED_PER_TICK` by sign instead of clamping a magnitude.
+- Warning count: 145 → 121 (a decrease, not a suppression). Removing the 12 bare-double-literal
+  clamp blocks (`0.1`/`-0.1` against `float` fields, 2 warnings each = 24) in favor of the
+  float-suffixed `BULLET_SPEED_PER_TICK` eliminates the `-Wdouble-promotion`/`-Wfloat-conversion`
+  pairs those triggered; the new code introduces no new warnings.
+- Verification performed: `make mingw` — 0 errors, 121 warnings. All 12 local targets pass.
+- Rollback: `git revert ee07fd0 d413fb2`.
+
+### [2026-07-20] Validate projectile correctness
+- Phase: Pass 14 (commit `e12884e`)
+- File(s): new `docs/verification/projectile_correctness_test.c`, `Makefile` (new
+  `mingw-projectiletest` target), `.github/workflows/mingw-validation.yml` (step + log-upload path
+  added in the same commit)
+- Action: (1) pool spawn/despawn — `addBullet` claims the first inactive slot with `prevX`
+  initialized to the spawn position, `removeBullet` deactivates without disturbing other slots;
+  (2) move-once-per-step — one `move_arcade_bullets` call moves a bullet by exactly
+  `BULLET_SPEED_PER_TICK` in the spawned direction, a second call moves it the same fixed distance
+  again; (3) swept collision — a bullet whose `prevX → x` span crosses a target's rect registers
+  a hit even though its end-of-tick position alone would miss under the old point-only test;
+  (4) an end-to-end `process()` regression check confirms a bullet crossing an enemy via the real
+  pipeline still kills it and increments `kills_score`.
+- Verification performed: `make mingw` — 0 errors, 121 warnings. All 13 local targets pass (15/15
+  new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert e12884e`.

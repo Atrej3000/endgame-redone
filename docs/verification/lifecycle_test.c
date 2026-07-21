@@ -140,7 +140,7 @@ int main(void)
     game->man.x = 12345;
     game->enemyValues[0].x = 54321;
     addBullet(game, 10.0f, 20.0f, 3.0f);
-    CHECK("addBullet() created a live bullet (setup)", game->bullets[0] != NULL);
+    CHECK("addBullet() created a live bullet (setup)", game->bullets[0].active);
 
     SDL_Texture *bossBeforeReset = game->bossTexture;
     bool arcadeLoadedBeforeReset = game->assetFlags.arcadeAssetsLoaded;
@@ -152,7 +152,7 @@ int main(void)
     CHECK("session reset: man.lives back to 3", game->man.lives == 3);
     CHECK("session reset: man.x back to starting position", game->man.x == 320 - 40);
     CHECK("session reset: enemyValues[0].x back to 640", game->enemyValues[0].x == 640);
-    CHECK("session reset: bullets[0] freed and nulled (no leak)", game->bullets[0] == NULL);
+    CHECK("session reset: bullets[0] deactivated (no leak)", !game->bullets[0].active);
     CHECK("session reset does not touch asset pointers (bossTexture unchanged)", game->bossTexture == bossBeforeReset);
     CHECK("session reset does not touch loaded flags", game->assetFlags.arcadeAssetsLoaded == arcadeLoadedBeforeReset);
 
