@@ -286,6 +286,13 @@ typedef struct AssetLifecycleFlags
     bool sharedAssetsLoaded;
 } AssetLifecycleFlags;
 
+// Continuous held-key state (Phase 17, see docs/input-snapshot-architecture-map.md), captured
+// exactly once per real frame -- before the fixed-step accumulator loop runs -- by
+// input_capture_arcade()/input_capture_runner() (src/input_snapshot.c). apply_arcade_player_forces()/
+// apply_runner_player_forces() and processEvents()'s shoot check read these fields instead of
+// calling SDL_GetKeyboardState() themselves, so every physics tick and event-poll a given real
+// frame produces sees the identical held-key state that frame captured.
+//
 // Edge-triggered discrete-input request flags, separated from the fixed-tick
 // simulation that consumes them -- see docs/input-simulation-separation-map.md
 // (Phase 12; the physics assessment's own "Phase 2 -- separate input and
@@ -302,6 +309,15 @@ typedef struct AssetLifecycleFlags
 // not how many jumps it can produce.
 typedef struct InputState
 {
+    bool moveLeftPlayer1;
+    bool moveRightPlayer1;
+    bool jumpHeldPlayer1;
+    bool shootHeldPlayer1;
+    bool moveLeftPlayer2;
+    bool moveRightPlayer2;
+    bool jumpHeldPlayer2;
+    bool shootHeldPlayer2;
+
     int jumpBufferTicksPlayer1;
     int jumpBufferTicksPlayer2;
 } InputState;
