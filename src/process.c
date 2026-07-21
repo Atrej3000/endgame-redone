@@ -199,15 +199,18 @@ void consume_arcade_jump_requests(GameState *game)
 // tick rate. Kept as its own function, separate from process() itself
 // (Phase 11, see docs/physics-timestep-map.md section 4): process() must
 // remain callable directly with a manually-set dx/dy/slowingDown, unaffected
-// by real keyboard state, for docs/verification/*.c's existing direct-call
-// tests to keep working -- if this logic lived inside process() itself,
-// every call would silently re-read (and in a headless test, always-absent)
-// keyboard state and overwrite whatever the test had just set up.
+// by keyboard state, for docs/verification/*.c's existing direct-call tests
+// to keep working -- if this logic lived inside process() itself, every call
+// would silently re-read (and overwrite) whatever the test had just set up.
+//
+// Reads game->input's continuous fields (Phase 17, see
+// docs/input-snapshot-architecture-map.md) instead of calling
+// SDL_GetKeyboardState() itself -- main.c captures one snapshot per real
+// frame, before the fixed-step loop runs, so every physics tick a frame
+// produces sees identical held-key state.
 void apply_arcade_player_forces(GameState *game, float dt)
 {
-    const Uint8 *state = SDL_GetKeyboardState(NULL);
-
-    bool manJumpHeld = state[SDL_SCANCODE_W];
+    bool manJumpHeld = game->input.jumpHeldPlayer1;
     if (manJumpHeld)
     {
         //game->man.facingLeft = 1;
@@ -229,7 +232,7 @@ void apply_arcade_player_forces(GameState *game, float dt)
     }
     game->man.jumpKeyHeldLastTick = manJumpHeld;
 
-    if (state[SDL_SCANCODE_A])
+    if (game->input.moveLeftPlayer1)
     {
         game->man.dx -= RUN_ACCEL_PER_SEC2 * dt;
         if (game->man.dx < -RUN_MAX_SPEED_PER_SEC)
@@ -245,7 +248,7 @@ void apply_arcade_player_forces(GameState *game, float dt)
             game->man.currentSpriteRun %= 4;
         }
     }
-    else if (state[SDL_SCANCODE_D])
+    else if (game->input.moveRightPlayer1)
     {
         game->man.dx += RUN_ACCEL_PER_SEC2 * dt;
         if (game->man.dx > RUN_MAX_SPEED_PER_SEC)
@@ -275,7 +278,7 @@ void apply_arcade_player_forces(GameState *game, float dt)
 
     if (game->multiPlayer)
     {
-        bool secondPlayerJumpHeld = state[SDL_SCANCODE_UP];
+        bool secondPlayerJumpHeld = game->input.jumpHeldPlayer2;
         if (secondPlayerJumpHeld)
         {
             //game->man.facingLeft = 1;
@@ -294,7 +297,7 @@ void apply_arcade_player_forces(GameState *game, float dt)
         }
         game->secondPlayer.jumpKeyHeldLastTick = secondPlayerJumpHeld;
 
-        if (state[SDL_SCANCODE_LEFT])
+        if (game->input.moveLeftPlayer2)
         {
             game->secondPlayer.dx -= RUN_ACCEL_PER_SEC2 * dt;
             if (game->secondPlayer.dx < -RUN_MAX_SPEED_PER_SEC)
@@ -310,7 +313,7 @@ void apply_arcade_player_forces(GameState *game, float dt)
                 game->secondPlayer.currentSpriteRun2 %= 4;
             }
         }
-        else if (state[SDL_SCANCODE_RIGHT])
+        else if (game->input.moveRightPlayer2)
         {
             game->secondPlayer.dx += RUN_ACCEL_PER_SEC2 * dt;
             if (game->secondPlayer.dx > RUN_MAX_SPEED_PER_SEC)
@@ -1111,13 +1114,15 @@ void consume_runner_jump_requests(GameState *game)
 // tick rate. Kept separate from process2() itself, same reasoning as
 // apply_arcade_player_forces() above (Phase 11, see
 // docs/physics-timestep-map.md section 4): process2() must remain callable
-// directly with a manually-set dx/dy/slowingDown, unaffected by real
-// keyboard state, for docs/verification/*.c's existing direct-call tests.
+// directly with a manually-set dx/dy/slowingDown, unaffected by keyboard
+// state, for docs/verification/*.c's existing direct-call tests.
+//
+// Reads game->input's continuous fields (Phase 17, see
+// docs/input-snapshot-architecture-map.md) instead of calling
+// SDL_GetKeyboardState() itself -- see apply_arcade_player_forces() above.
 void apply_runner_player_forces(GameState *game, float dt)
 {
-    const Uint8 *state = SDL_GetKeyboardState(NULL);
-
-    bool manJumpHeld = state[SDL_SCANCODE_W];
+    bool manJumpHeld = game->input.jumpHeldPlayer1;
     if (!manJumpHeld && game->man.jumpKeyHeldLastTick && game->man.dy < -JUMP_CUT_SPEED_PER_SEC)
     {
         // Variable jump height -- see apply_arcade_player_forces()'s man
@@ -1126,7 +1131,7 @@ void apply_runner_player_forces(GameState *game, float dt)
     }
     game->man.jumpKeyHeldLastTick = manJumpHeld;
 
-    if (state[SDL_SCANCODE_A])
+    if (game->input.moveLeftPlayer1)
     {
         game->man.dx -= RUN_ACCEL_PER_SEC2 * dt;
         if (game->man.dx < -RUN_MAX_SPEED_PER_SEC)
@@ -1136,7 +1141,7 @@ void apply_runner_player_forces(GameState *game, float dt)
         game->man.facingLeft = 1;
         game->man.slowingDown = 0;
     }
-    else if (state[SDL_SCANCODE_D])
+    else if (game->input.moveRightPlayer1)
     {
         game->man.dx += RUN_ACCEL_PER_SEC2 * dt;
         if (game->man.dx > RUN_MAX_SPEED_PER_SEC)
@@ -1159,14 +1164,14 @@ void apply_runner_player_forces(GameState *game, float dt)
 
     if (game->multiPlayer)
     {
-        bool secondPlayerJumpHeld = state[SDL_SCANCODE_UP];
+        bool secondPlayerJumpHeld = game->input.jumpHeldPlayer2;
         if (!secondPlayerJumpHeld && game->secondPlayer.jumpKeyHeldLastTick && game->secondPlayer.dy < -JUMP_CUT_SPEED_PER_SEC)
         {
             game->secondPlayer.dy = -JUMP_CUT_SPEED_PER_SEC;
         }
         game->secondPlayer.jumpKeyHeldLastTick = secondPlayerJumpHeld;
 
-        if (state[SDL_SCANCODE_LEFT])
+        if (game->input.moveLeftPlayer2)
         {
             game->secondPlayer.dx -= RUN_ACCEL_PER_SEC2 * dt;
             if (game->secondPlayer.dx < -RUN_MAX_SPEED_PER_SEC)
@@ -1176,7 +1181,7 @@ void apply_runner_player_forces(GameState *game, float dt)
             game->secondPlayer.facingLeft = 1;
             game->secondPlayer.slowingDown = 0;
         }
-        else if (state[SDL_SCANCODE_RIGHT])
+        else if (game->input.moveRightPlayer2)
         {
             game->secondPlayer.dx += RUN_ACCEL_PER_SEC2 * dt;
             if (game->secondPlayer.dx > RUN_MAX_SPEED_PER_SEC)

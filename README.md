@@ -36,6 +36,7 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
         make mingw-collisiontest # non-interactive player-vs-ledge collision correctness check
         make mingw-projectiletest # non-interactive bullet pool/movement/swept-collision check
         make mingw-gamefeeltest  # non-interactive coyote-time/jump-buffer/variable-height check
+        make mingw-inputsnapshottest # non-interactive input snapshot capture/isolation check
         make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
         make audit-repo          # repository usage integrity check (asset paths + prototypes)
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
@@ -105,11 +106,18 @@ Architecture:
     variable jump height (release early while still rising fast for a short hop, hold through for
     the full arc) -- which also removes a quirk where holding the jump key while grounded added
     thrust regardless.
-    `docs/optimization-map.md` documents the final pass, "optimization": a static
+    `docs/optimization-map.md` documents the assessment's last named pass, "optimization": a static
     algorithmic-complexity audit of every hot loop (the bullet-vs-target collision loops in
     `process()` are the largest, at 113,000 checks/tick single-player) plus the opt-in
     `ENDGAME_PERF_LOG` timing instrumentation above -- deliberately no speculative loop changes,
     since no real profiling data exists yet to justify one.
+    `docs/input-snapshot-architecture-map.md` documents the first of four follow-on phases split
+    out of a proposed target frame architecture (input snapshot isolation, AI/forces separation,
+    collision ordering, render interpolation): held-key state is now captured exactly once per
+    real frame, before the fixed-step physics loop runs, instead of `apply_arcade_player_forces`/
+    `apply_runner_player_forces` calling `SDL_GetKeyboardState()` live from inside that loop (which
+    could re-sample keyboard state a non-deterministic number of times per frame). Jump requests
+    were already correctly isolated by Phase 12/15's edge-triggered buffering and needed no change.
 
 Known platform limitations:
     - The default build targets macOS only (bundled `.framework`s under `resource/frameworks`,

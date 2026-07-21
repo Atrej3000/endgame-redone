@@ -107,7 +107,6 @@ int processEvents(SDL_Window *window, GameState *game)
             break;
         }
     }
-    const Uint8 *state = SDL_GetKeyboardState(NULL);
     //BULLETS
     if (game->time % 1 == 0)
     {
@@ -228,7 +227,12 @@ int processEvents(SDL_Window *window, GameState *game)
     // docs/physics-timestep-map.md section 4) -- they now run at the fixed
     // physics tick rate instead of the render rate. Discrete actions (jump
     // trigger, shooting below) stay here, unchanged.
-    if (state[SDL_SCANCODE_SPACE])
+    //
+    // Reads game->input.shootHeldPlayer1 (Phase 17, see
+    // docs/input-snapshot-architecture-map.md) instead of calling
+    // SDL_GetKeyboardState() itself -- main.c captures one snapshot per real
+    // frame; the shotCount cooldown logic below is unchanged.
+    if (game->input.shootHeldPlayer1)
     {
         //game->shotCount++;
         if (game->shotCount == 0)
@@ -255,7 +259,7 @@ int processEvents(SDL_Window *window, GameState *game)
     {
         // Continuous held-key forces for `secondPlayer` moved to
         // src/process.c (Phase 11) -- same reasoning as `man` above.
-        if (state[SDL_SCANCODE_KP_0])
+        if (game->input.shootHeldPlayer2)
         {
             if (game->shotCountMultiplayer == 0)
             {

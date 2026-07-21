@@ -1326,6 +1326,82 @@ real evidence any of them cost a noticeable fraction of a frame budget; gatherin
 data with `ENDGAME_PERF_LOG=1` on a machine with a display is the natural next step before any of
 that is considered. Ready to start once real numbers exist.
 
+## Phases executed in Pass 17 (input snapshot isolation)
+
+Full evidence in `docs/input-snapshot-architecture-map.md`, written before any Pass 17 code edit.
+Baseline: commit `b94e363` (tag `refactor-pre-input-snapshot`, `main` after Phase 16's PR #12
+merge), `make mingw` 0 errors/121 warnings, all 14 existing local targets passing. Implements
+Phase 17 of the user's proposed target frame architecture (`poll events → build input snapshot →
+fixed-step loop → render`) — the first of four phases split out from that proposal (17 input
+snapshot isolation, 18 AI/forces separation, 19 collision ordering, 20 render interpolation).
+
+### Phase 88 — Input snapshot architecture map
+- Files: new `docs/input-snapshot-architecture-map.md`.
+- What was done: confirmed `apply_arcade_player_forces`/`apply_runner_player_forces`
+  (`src/process.c`) each call `SDL_GetKeyboardState()` directly, inside the fixed-step path — a
+  real frame producing multiple physics ticks re-samples live keyboard state a non-deterministic
+  number of times. Confirmed jump was already correctly isolated via Phase 12/15's edge-triggered
+  `InputState` buffer fields, needing no change. Documents five simplifications adopted over the
+  originally proposed capture API (no new function parameters, no `input_begin_frame()`, no event
+  wrapper functions, no release/request edge fields, left-wins precedence preserved rather than
+  redefined), each backed by the audit evidence for why the simpler shape already satisfies every
+  stated invariant.
+- Rollback: delete the file.
+
+### Phase 89 — Input snapshot capture helpers
+- Files: `inc/header.h`, new `inc/input_snapshot.h`, new `src/input_snapshot.c`, new
+  `docs/verification/header_only_input_snapshot.c`, `Makefile` (`mingw-headertest` target gains
+  the new header's self-containment check).
+- What was done: expanded `InputState` with 6 continuous held-key fields (movement/jump-held/
+  shoot-held for both players), alongside the existing edge-triggered jump-buffer ints. New
+  `input_capture_arcade()`/`input_capture_runner()` are pure functions reading a caller-supplied
+  `SDL_GetKeyboardState()` array into `InputState` — not yet wired into gameplay in this commit.
+- Behavior impact: none (nothing new is called yet; all 14 existing targets pass unchanged).
+- Validation: `make mingw` — 0 errors, 121 warnings (unchanged, no warnings from the new file).
+  All 14 local targets pass. `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert`.
+
+### Phase 90 — Route player input through the snapshot
+- Files: `src/main.c`, `src/process.c`, `src/processEvents.c`, `src/loadGame.c`,
+  `docs/verification/game_feel_test.c`.
+- What was done: `main()` calls `SDL_GetKeyboardState()` exactly once per real frame, before the
+  fixed-step accumulator loop, and calls `input_capture_arcade()`/`input_capture_runner()` to
+  populate `gameState->input`. `apply_arcade_player_forces`/`apply_runner_player_forces` and
+  `processEvents()`'s shoot check read `game->input.*` instead of calling
+  `SDL_GetKeyboardState()` themselves — every physics tick and event-poll a given real frame
+  produces now sees identical held-key state. `arcade_session_reset()`/`runner_session_reset()`
+  explicitly zero the 6 new fields alongside the existing jump-buffer resets. Updated
+  `game_feel_test.c`'s header comment (no assertion/call-site change needed): its
+  `apply_*_player_forces()` calls now see a deterministic "no key held" state via session-reset's
+  explicit zeroing, not a headless-SDL side effect.
+- Behavior impact: preserving — same branch structure, same left-wins precedence, same
+  variable-jump-height release-cut logic, same shoot cooldown, just reading a frame-frozen
+  snapshot instead of live SDL state.
+- Validation: `make mingw` — 0 errors, 121 warnings (unchanged). All 14 local targets pass,
+  including the updated `game_feel_test.c`. `py -3 scripts/audit_repository_usage.py` —
+  `Result: PASS`.
+- Rollback: `git revert`.
+
+### Phase 91 — Input snapshot validation test
+- Files: new `docs/verification/input_snapshot_test.c`, `Makefile` (new
+  `mingw-inputsnapshottest` target), `.github/workflows/mingw-validation.yml` (step + log-upload
+  path added in the same commit).
+- What was done: verifies (1) `input_capture_arcade`/`input_capture_runner` set exactly the right
+  fields from a fabricated key array, including that `input_capture_runner` leaves the shoot
+  fields untouched; (2) a simulated multi-tick real frame applies held movement on every tick but
+  the release-cut only once, since capture happens once per frame, not once per tick; (3) the
+  pre-existing left-wins precedence on simultaneous left+right holds, now explicit and tested;
+  (4) player 1/2 fields don't cross-mutate; (5) session reset clears every new field, both modes.
+- Validation: `make mingw` — 0 errors, 121 warnings (unchanged). All 15 local targets pass (20/20
+  new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert`.
+
+**Pass 17 deferred items** (full reasoning in `docs/input-snapshot-architecture-map.md` section
+5): AI/enemy input or physics (Phase 18); collision-ordering changes (Phase 19); render
+interpolation (Phase 20); shoot cooldown/rate redesign, projectile mechanics, key rebinding, or
+controller support; pause/quit/scene-selection handling (confirmed structurally separate already,
+stays outside the gameplay input snapshot). Ready to start Phase 18 once this PR merges.
+
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
 **Pass 9 deferred items** (full reasoning in `docs/solid-gof-audit.md` section 9 and
