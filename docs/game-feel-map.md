@@ -104,13 +104,14 @@ within its buffer window." `processEvents()`/`processEvents2()`'s `GAME_COMMAND_
 cases set it to `JUMP_BUFFER_TICKS` (previously `= true`).
 
 **Coyote time + jump buffering**, both inside `consume_arcade_jump_requests`/
-`consume_runner_jump_requests`, run every tick:
+`consume_runner_jump_requests`, run every tick — **the jump-fire check runs before this tick's
+coyote refresh/decay, not after** (an off-by-one caught while writing
+`docs/verification/game_feel_test.c`, not shipped: decaying first would consume the counter's last
+usable value — e.g. `coyoteTicksRemaining == 1` entering the call — before the check ever saw it,
+incorrectly denying a jump on the coyote window's final valid tick):
 ```c
-// Coyote time: refreshed while grounded, counts down while airborne.
-if (game->man.onLedge) { game->man.coyoteTicksRemaining = COYOTE_TICKS; }
-else if (game->man.coyoteTicksRemaining > 0) { game->man.coyoteTicksRemaining--; }
-
-// Jump buffering, gated by coyote-or-grounded.
+// Jump buffering, gated by coyote-or-grounded (checked using this tick's
+// *incoming* coyoteTicksRemaining, before it decays below).
 if (game->input.jumpBufferTicksPlayer1 > 0)
 {
     if (game->man.onLedge || game->man.coyoteTicksRemaining > 0)
@@ -126,6 +127,11 @@ if (game->input.jumpBufferTicksPlayer1 > 0)
         game->input.jumpBufferTicksPlayer1--; // still pending; expires after JUMP_BUFFER_TICKS
     }
 }
+
+// Coyote time: refreshed while grounded, decays while airborne -- for
+// *next* tick's check.
+if (game->man.onLedge) { game->man.coyoteTicksRemaining = COYOTE_TICKS; }
+else if (game->man.coyoteTicksRemaining > 0) { game->man.coyoteTicksRemaining--; }
 ```
 A jump pressed slightly before landing persists for `JUMP_BUFFER_TICKS` ticks and fires the
 instant the player becomes grounded or is still within coyote range; if neither happens before the

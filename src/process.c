@@ -130,25 +130,15 @@ void move_arcade_bullets(GameState *game)
 // pressed slightly before landing. Zeroing coyoteTicksRemaining the instant a
 // jump fires prevents a second buffered request from also succeeding within
 // the same still-open coyote window (an unintended free double-jump).
+//
+// The jump-fire check runs BEFORE this tick's coyote refresh/decay, not
+// after: coyoteTicksRemaining reflects "grace ticks left as of last tick's
+// grounding state" and must still be usable on the very tick it counts down
+// to its last value, not consumed by the decrement before the check ever
+// sees it (an off-by-one caught while writing docs/verification/game_feel_test.c,
+// fixed here, not shipped).
 void consume_arcade_jump_requests(GameState *game)
 {
-    if (game->man.onLedge)
-    {
-        game->man.coyoteTicksRemaining = COYOTE_TICKS;
-    }
-    else if (game->man.coyoteTicksRemaining > 0)
-    {
-        game->man.coyoteTicksRemaining--;
-    }
-    if (game->secondPlayer.onLedge)
-    {
-        game->secondPlayer.coyoteTicksRemaining = COYOTE_TICKS;
-    }
-    else if (game->secondPlayer.coyoteTicksRemaining > 0)
-    {
-        game->secondPlayer.coyoteTicksRemaining--;
-    }
-
     if (game->input.jumpBufferTicksPlayer1 > 0)
     {
         if (game->man.onLedge || game->man.coyoteTicksRemaining > 0)
@@ -183,6 +173,23 @@ void consume_arcade_jump_requests(GameState *game)
         {
             game->input.jumpBufferTicksPlayer2--;
         }
+    }
+
+    if (game->man.onLedge)
+    {
+        game->man.coyoteTicksRemaining = COYOTE_TICKS;
+    }
+    else if (game->man.coyoteTicksRemaining > 0)
+    {
+        game->man.coyoteTicksRemaining--;
+    }
+    if (game->secondPlayer.onLedge)
+    {
+        game->secondPlayer.coyoteTicksRemaining = COYOTE_TICKS;
+    }
+    else if (game->secondPlayer.coyoteTicksRemaining > 0)
+    {
+        game->secondPlayer.coyoteTicksRemaining--;
     }
 }
 
@@ -1040,25 +1047,10 @@ void process(GameState *game, float dt)
 // Phase 11's timestep conversion, producing a jump 60x weaker than intended
 // at the fixed-timestep integration now in use -- this function uses
 // JUMP_SPEED_PER_SEC, matching Arcade and header.h's own documented intent.
+// See consume_arcade_jump_requests()'s comment above for why the jump-fire
+// check runs before this tick's coyote refresh/decay, not after.
 void consume_runner_jump_requests(GameState *game)
 {
-    if (game->man.onLedge)
-    {
-        game->man.coyoteTicksRemaining = COYOTE_TICKS;
-    }
-    else if (game->man.coyoteTicksRemaining > 0)
-    {
-        game->man.coyoteTicksRemaining--;
-    }
-    if (game->secondPlayer.onLedge)
-    {
-        game->secondPlayer.coyoteTicksRemaining = COYOTE_TICKS;
-    }
-    else if (game->secondPlayer.coyoteTicksRemaining > 0)
-    {
-        game->secondPlayer.coyoteTicksRemaining--;
-    }
-
     if (game->input.jumpBufferTicksPlayer1 > 0)
     {
         if (game->man.onLedge || game->man.coyoteTicksRemaining > 0)
@@ -1093,6 +1085,23 @@ void consume_runner_jump_requests(GameState *game)
         {
             game->input.jumpBufferTicksPlayer2--;
         }
+    }
+
+    if (game->man.onLedge)
+    {
+        game->man.coyoteTicksRemaining = COYOTE_TICKS;
+    }
+    else if (game->man.coyoteTicksRemaining > 0)
+    {
+        game->man.coyoteTicksRemaining--;
+    }
+    if (game->secondPlayer.onLedge)
+    {
+        game->secondPlayer.coyoteTicksRemaining = COYOTE_TICKS;
+    }
+    else if (game->secondPlayer.coyoteTicksRemaining > 0)
+    {
+        game->secondPlayer.coyoteTicksRemaining--;
     }
 }
 
