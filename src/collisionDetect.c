@@ -1,4 +1,5 @@
 #include "header.h"
+#include "collision_pipeline.h"
 
 // Captures each player's y at the start of this tick, before
 // consume_*_jump_requests/apply_*_player_forces/process(2) move it -- see
@@ -653,17 +654,11 @@ void collisionDetect(GameState *game)
 
 void collisionDetect2(GameState *game)
 {
-    for (int i  = 0; i < 100; i++)
-    {
-        if (collide2d(game->man.x, game->man.y, game->stars[i].x, game->stars[i].y, 30, 30, 30, 30))
-        {
-            runner_trigger_death(game);
-        }
-        if (collide2d(game->secondPlayer.x, game->secondPlayer.y, game->stars[i].x, game->stars[i].y, 30, 30, 30, 30))
-        {
-            runner_trigger_death(game);
-        }
-    }
+    // Hazard contact (Phase 19, see docs/collision-ordering-map.md) --
+    // extracted verbatim into src/collision_pipeline.c, same position
+    // (deliberately still before ledge resolution below -- see the map
+    // doc's Mismatch B for why this order is preserved, not reordered).
+    resolve_runner_hazard_contact(game);
     //Check for collision wit any ledges (brick blocks)
     // Reset grounded each step -- see docs/collision-correctness-map.md.
     game->man.onLedge = 0;
