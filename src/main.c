@@ -37,6 +37,19 @@ int main()
     Uint64 previousCounter = SDL_GetPerformanceCounter();
     double accumulator = 0.0;
 
+    // Opt-in performance logging (Phase 16, see docs/optimization-map.md) --
+    // off unless ENDGAME_PERF_LOG is set, in which case a summary line prints
+    // once per real second. Every perfLoggingEnabled-gated block below is
+    // pure measurement: none of it changes accumulator, steps, or any
+    // simulate()/render() call, so disabled behavior is bit-for-bit identical
+    // to before this phase.
+    bool perfLoggingEnabled = (getenv("ENDGAME_PERF_LOG") != NULL);
+    double perfPhysicsTimeAccum = 0.0;
+    double perfRenderTimeAccum = 0.0;
+    double perfLogTimer = 0.0;
+    int perfPhysicsStepsThisSecond = 0;
+    int perfRenderCallsThisSecond = 0;
+
     while (gameState->app.scene != APP_SCENE_QUIT) {
         Uint64 currentCounter = SDL_GetPerformanceCounter();
         double frameTime = (double)(currentCounter - previousCounter) / (double)perfFrequency;
@@ -44,6 +57,27 @@ int main()
         if (frameTime > MAX_FRAME_TIME)
         {
             frameTime = MAX_FRAME_TIME;
+        }
+
+        if (perfLoggingEnabled)
+        {
+            perfLogTimer += frameTime;
+            if (perfLogTimer >= PERF_LOG_INTERVAL_SEC)
+            {
+                double physicsMs = (perfPhysicsStepsThisSecond > 0)
+                    ? (perfPhysicsTimeAccum / perfPhysicsStepsThisSecond) * 1000.0
+                    : 0.0;
+                double renderMs = (perfRenderCallsThisSecond > 0)
+                    ? (perfRenderTimeAccum / perfRenderCallsThisSecond) * 1000.0
+                    : 0.0;
+                printf("[perf] ticks=%d physics_ms=%.3f render_ms=%.3f\n",
+                       perfPhysicsStepsThisSecond, physicsMs, renderMs);
+                perfPhysicsTimeAccum = 0.0;
+                perfRenderTimeAccum = 0.0;
+                perfPhysicsStepsThisSecond = 0;
+                perfRenderCallsThisSecond = 0;
+                perfLogTimer = 0.0;
+            }
         }
 
         switch (gameState->app.scene) {
@@ -61,13 +95,28 @@ int main()
             {
                 accumulator += frameTime;
                 int steps = 0;
+                Uint64 perfPhysicsStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;
                 while (accumulator >= (double)PHYSICS_DT && steps < MAX_PHYSICS_STEPS_PER_FRAME)
                 {
                     arcade_simulate(gameState, PHYSICS_DT);
                     accumulator -= (double)PHYSICS_DT;
                     steps++;
                 }
+                if (perfLoggingEnabled)
+                {
+                    Uint64 perfPhysicsEnd = SDL_GetPerformanceCounter();
+                    perfPhysicsTimeAccum += (double)(perfPhysicsEnd - perfPhysicsStart) / (double)perfFrequency;
+                    perfPhysicsStepsThisSecond += steps;
+                }
+
+                Uint64 perfRenderStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;
                 doRender(renderer, gameState);
+                if (perfLoggingEnabled)
+                {
+                    Uint64 perfRenderEnd = SDL_GetPerformanceCounter();
+                    perfRenderTimeAccum += (double)(perfRenderEnd - perfRenderStart) / (double)perfFrequency;
+                    perfRenderCallsThisSecond++;
+                }
                 processEvents(window, gameState);
                 break;
             }
@@ -91,13 +140,28 @@ int main()
             {
                 accumulator += frameTime;
                 int steps = 0;
+                Uint64 perfPhysicsStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;
                 while (accumulator >= (double)PHYSICS_DT && steps < MAX_PHYSICS_STEPS_PER_FRAME)
                 {
                     runner_simulate(gameState, PHYSICS_DT);
                     accumulator -= (double)PHYSICS_DT;
                     steps++;
                 }
+                if (perfLoggingEnabled)
+                {
+                    Uint64 perfPhysicsEnd = SDL_GetPerformanceCounter();
+                    perfPhysicsTimeAccum += (double)(perfPhysicsEnd - perfPhysicsStart) / (double)perfFrequency;
+                    perfPhysicsStepsThisSecond += steps;
+                }
+
+                Uint64 perfRenderStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;
                 doRender2(renderer, gameState);
+                if (perfLoggingEnabled)
+                {
+                    Uint64 perfRenderEnd = SDL_GetPerformanceCounter();
+                    perfRenderTimeAccum += (double)(perfRenderEnd - perfRenderStart) / (double)perfFrequency;
+                    perfRenderCallsThisSecond++;
+                }
                 runner_update_death(gameState); // see src/runner_death.c, docs/runner-death-lifecycle.md --
                                                  // kept after doRender2, matching the pre-Phase-11
                                                  // arcade_frame/runner_frame order exactly
