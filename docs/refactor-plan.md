@@ -1402,6 +1402,72 @@ interpolation (Phase 20); shoot cooldown/rate redesign, projectile mechanics, ke
 controller support; pause/quit/scene-selection handling (confirmed structurally separate already,
 stays outside the gameplay input snapshot). Ready to start Phase 18 once this PR merges.
 
+## Phases executed in Pass 18 (AI/forces separation)
+
+Full evidence in `docs/ai-forces-separation-map.md`, written before any Pass 18 code edit.
+Baseline: commit `8258ba0` (tag `refactor-pre-ai-forces-separation`, `main` after Phase 17's
+PR #13 merge), `make mingw` 0 errors/121 warnings, all 15 existing local targets passing.
+Implements the second of four phases split out from the user's proposed target frame
+architecture: 17 input snapshot isolation (done), **18 (this one) AI/forces separation**, 19
+collision ordering, 20 render interpolation — framed by the user as a structural extraction only,
+no change to enemy speeds, jump behavior, targeting rules, collision ordering, hitboxes, spawn
+logic, pathfinding, or render interpolation.
+
+### Phase 92 — AI/forces separation map
+- Files: new `docs/ai-forces-separation-map.md`.
+- What was done: confirmed boss/regular-enemy/smart-enemy movement in `process()` integrates
+  position using the velocity decided on a previous tick, then adjusts velocity for the next tick
+  — decide and integrate are interleaved by design, not accidentally fused. This ruled out a
+  literal 4-function decide/apply/integrate split (would change effective speed/timing by one
+  tick, or require a new "pending" state field — both real behavior changes). Confirmed
+  `process2()` (Runner) has zero AI-driven entities. Documents the safe alternative: extract each
+  entity type's movement into its own named function (mirroring Phase 11's
+  `apply_arcade_player_forces` extraction), plus isolate the one piece that *is* safely
+  extractable as a true "decide intent" step — the multiplayer smart-enemy nearest-target
+  comparison.
+- Rollback: delete the file.
+
+### Phase 93 — Extract boss/enemy/smart-enemy movement into src/ai_forces.c
+- Files: new `inc/ai_forces.h`, new `src/ai_forces.c`, `src/process.c`, new
+  `docs/verification/header_only_ai_forces.c`, `Makefile` (`mingw-headertest` target).
+- What was done: moved boss/regular-enemy/smart-enemy movement (previously
+  `process.c:636-923`) verbatim into `move_boss_entities()`, `move_regular_enemies()`,
+  `move_smart_enemies()` — same statement order and arithmetic, no behavior change. `process()`
+  now calls the three functions at the exact same point. Added `smart_enemy_select_target()`,
+  replicating the exact `pow()`-based nearest-target comparison the multiplayer smart-enemy chase
+  used to do inline — now reusable and independently testable. The confirmed pre-existing
+  multiplayer chase asymmetry (its inner `while` loop omits an `x += dx` line the single-player
+  version has) is preserved exactly, not fixed, per this phase's narrow scope.
+- Behavior impact: none — a structural extraction only.
+- Validation: `make mingw` — 0 errors, 121 warnings (unchanged; confirmed the ~26 warnings that
+  moved from `process.c` to `ai_forces.c` are the same lines relocated, not new ones). All 15
+  local targets pass, including `projectile_correctness_test.c` (calls `process()` directly with
+  enemy data, asserting bullet-collision behavior that runs *before* the extracted movement
+  blocks) unchanged. `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert`.
+
+### Phase 94 — AI/forces separation validation test
+- Files: new `docs/verification/ai_forces_test.c`, `Makefile` (new `mingw-aiforcestest` target),
+  `.github/workflows/mingw-validation.yml` (step + log-upload path added in the same commit).
+- What was done: the first-ever test assertions in this repository on the actual AI movement math
+  (previously untested) — boss/regular-enemy band-steering (both directions), gravity clamps, and
+  horizontal wraparound; smart-enemy single-player hop-impulse-and-steer chase;
+  `smart_enemy_select_target()` picking the nearer of two players in multiplayer and always `man`
+  in single-player; and that `process()` still delegates to the extracted functions correctly.
+  Assertions use the exact same float literals/expressions the production code uses, so
+  comparisons are bit-exact, not tolerance-based.
+- Validation: `make mingw` — 0 errors, 121 warnings (unchanged). All 16 local targets pass (15/15
+  new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert`.
+
+**Pass 18 deferred items** (full reasoning in `docs/ai-forces-separation-map.md` section 4):
+merging the multiplayer smart-enemy chase's two duplicated (and asymmetric) bodies into one — a
+real, evidence-backed simplification opportunity, deliberately not done since it would change
+which exact lines run for the multiplayer path; any change to `collisionDetect()`/
+`collisionDetect2()` (Phase 19's collision-ordering scope); converting boss/enemy/smart-enemy
+movement to fixed-timestep per-second units (already a deliberately deferred, separate item since
+Phase 11). Ready to start Phase 19 once this PR merges.
+
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
 **Pass 9 deferred items** (full reasoning in `docs/solid-gof-audit.md` section 9 and

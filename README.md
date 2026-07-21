@@ -37,6 +37,7 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
         make mingw-projectiletest # non-interactive bullet pool/movement/swept-collision check
         make mingw-gamefeeltest  # non-interactive coyote-time/jump-buffer/variable-height check
         make mingw-inputsnapshottest # non-interactive input snapshot capture/isolation check
+        make mingw-aiforcestest  # non-interactive boss/enemy/smart-enemy movement check
         make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
         make audit-repo          # repository usage integrity check (asset paths + prototypes)
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
@@ -118,6 +119,12 @@ Architecture:
     `apply_runner_player_forces` calling `SDL_GetKeyboardState()` live from inside that loop (which
     could re-sample keyboard state a non-deterministic number of times per frame). Jump requests
     were already correctly isolated by Phase 12/15's edge-triggered buffering and needed no change.
+    `docs/ai-forces-separation-map.md` documents the second follow-on phase, AI/forces separation:
+    boss/regular-enemy/smart-enemy movement (previously fused inline inside `process()`) is now
+    extracted into `src/ai_forces.c` (`move_boss_entities()`/`move_regular_enemies()`/
+    `move_smart_enemies()`), a structural extraction with no behavior change, plus
+    `smart_enemy_select_target()` isolating the one piece of the movement logic that's a true,
+    standalone "decide intent" step (which of two players a smart enemy chases in multiplayer).
 
 Known platform limitations:
     - The default build targets macOS only (bundled `.framework`s under `resource/frameworks`,
