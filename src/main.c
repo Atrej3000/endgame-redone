@@ -2,6 +2,7 @@
 #include "app.h"
 #include "scene.h"
 #include "frame.h"
+#include "input_snapshot.h"
 
 int main()
 {
@@ -59,6 +60,14 @@ int main()
             frameTime = MAX_FRAME_TIME;
         }
 
+        // Input snapshot (Phase 17, see docs/input-snapshot-architecture-map.md):
+        // read live keyboard state exactly once per real frame, here, outside
+        // the fixed-step physics loop -- input_capture_arcade()/
+        // input_capture_runner() (below) populate gameState->input's
+        // continuous fields from this single snapshot, so every physics tick
+        // and event-poll this frame produces sees identical held-key state.
+        const Uint8 *keyboardState = SDL_GetKeyboardState(NULL);
+
         if (perfLoggingEnabled)
         {
             perfLogTimer += frameTime;
@@ -93,6 +102,7 @@ int main()
 
             case APP_SCENE_ARCADE_GAME:
             {
+                input_capture_arcade(&gameState->input, keyboardState);
                 accumulator += frameTime;
                 int steps = 0;
                 Uint64 perfPhysicsStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;
@@ -138,6 +148,7 @@ int main()
 
             case APP_SCENE_RUNNER_GAME:
             {
+                input_capture_runner(&gameState->input, keyboardState);
                 accumulator += frameTime;
                 int steps = 0;
                 Uint64 perfPhysicsStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;

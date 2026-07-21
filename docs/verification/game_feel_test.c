@@ -5,13 +5,15 @@
 // apply_arcade_player_forces()/apply_runner_player_forces() directly with
 // hand-set GameState fields. See docs/game-feel-map.md.
 //
-// apply_*_player_forces() call real SDL_GetKeyboardState(), which in this
-// headless environment always reports "no keys pressed" -- exploited here
-// (same technique other docs/verification/*.c tests already rely on) to
-// exercise the variable-jump-height release-cut deterministically: with the
-// real key state always unpressed, setting Man.jumpKeyHeldLastTick = true
-// before a call always represents "held last tick, released this tick" --
-// the exact release edge the cut logic looks for.
+// apply_*_player_forces() read game->input's continuous fields (Phase 17,
+// see docs/input-snapshot-architecture-map.md) instead of calling
+// SDL_GetKeyboardState() themselves. arcade_session_reset()/
+// runner_session_reset() explicitly zero those fields, so every call below
+// sees jumpHeldPlayer1/2 == false ("no key held") deterministically --
+// exploited here to exercise the variable-jump-height release-cut: with the
+// held state always false, setting Man.jumpKeyHeldLastTick = true before a
+// call always represents "held last tick, released this tick" -- the exact
+// release edge the cut logic looks for.
 //
 // Test-only exception to the "game->app.scene is written only inside
 // app_change_scene()" invariant: not needed here -- this test never touches

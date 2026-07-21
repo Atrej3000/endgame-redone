@@ -190,6 +190,20 @@ void arcade_session_reset(GameState *game, GameMode mode)
     game->input.jumpBufferTicksPlayer1 = 0;
     game->input.jumpBufferTicksPlayer2 = 0;
 
+    // Clear the continuous-input snapshot too (Phase 17, see
+    // docs/input-snapshot-architecture-map.md) -- defensive, not strictly
+    // required since input_capture_arcade() always overwrites these fields
+    // before any consumer reads them each frame, but keeps a session-reset
+    // state fully deterministic rather than relying on that ordering.
+    game->input.moveLeftPlayer1 = false;
+    game->input.moveRightPlayer1 = false;
+    game->input.jumpHeldPlayer1 = false;
+    game->input.shootHeldPlayer1 = false;
+    game->input.moveLeftPlayer2 = false;
+    game->input.moveRightPlayer2 = false;
+    game->input.jumpHeldPlayer2 = false;
+    game->input.shootHeldPlayer2 = false;
+
     game->train.x = 0;
     game->train.y = 440;
 
@@ -451,6 +465,18 @@ void runner_session_reset(GameState *game, GameMode mode)
     // docs/game-feel-map.md (Phase 15).
     game->input.jumpBufferTicksPlayer1 = 0;
     game->input.jumpBufferTicksPlayer2 = 0;
+
+    // Clear the continuous-input snapshot too (Phase 17, see
+    // docs/input-snapshot-architecture-map.md) -- see the identical block in
+    // arcade_session_reset() above for the rationale.
+    game->input.moveLeftPlayer1 = false;
+    game->input.moveRightPlayer1 = false;
+    game->input.jumpHeldPlayer1 = false;
+    game->input.shootHeldPlayer1 = false;
+    game->input.moveLeftPlayer2 = false;
+    game->input.moveRightPlayer2 = false;
+    game->input.jumpHeldPlayer2 = false;
+    game->input.shootHeldPlayer2 = false;
 
     if (game->multiPlayer)
     {
