@@ -71,8 +71,9 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define JUMP_SPEED_PER_SEC 600.0f             // was dy = -10/frame (one-shot impulse)
 #define RUN_ACCEL_PER_SEC2 1800.0f            // was dx += 0.5f/frame
 #define RUN_MAX_SPEED_PER_SEC 360.0f          // was clamp to +-6/frame
-#define ARCADE_JUMP_HOLD_ACCEL_PER_SEC2 720.0f  // was dy -= 0.2f/frame (Arcade)
-#define RUNNER_JUMP_HOLD_ACCEL_PER_SEC2 540.0f  // was dy -= 0.15f/frame (Runner)
+// ARCADE_JUMP_HOLD_ACCEL_PER_SEC2/RUNNER_JUMP_HOLD_ACCEL_PER_SEC2 (the old
+// continuous jump-hold-thrust constants) were removed in Phase 15 -- see
+// docs/game-feel-map.md. Replaced by JUMP_CUT_SPEED_PER_SEC below.
 #define RUN_FRICTION_DECAY_PER_TICK 0.8f      // unchanged multiplicative factor
 #define RUN_SNAP_ZERO_SPEED_PER_SEC 6.0f      // was fabsf(dx) < 0.1f/frame
 

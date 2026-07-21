@@ -187,8 +187,8 @@ void consume_arcade_jump_requests(GameState *game)
 }
 
 // Continuous held-key forces for Arcade's `man`/`secondPlayer` (horizontal
-// accel/clamp, jump-hold thrust, friction/snap) -- called by
-// arcade_simulate() (src/frame.c) before process(), at the fixed physics
+// accel/clamp, friction/snap) plus variable-jump-height release-cut -- called
+// by arcade_simulate() (src/frame.c) before process(), at the fixed physics
 // tick rate. Kept as its own function, separate from process() itself
 // (Phase 11, see docs/physics-timestep-map.md section 4): process() must
 // remain callable directly with a manually-set dx/dy/slowingDown, unaffected
@@ -200,10 +200,9 @@ void apply_arcade_player_forces(GameState *game, float dt)
 {
     const Uint8 *state = SDL_GetKeyboardState(NULL);
 
-    if (state[SDL_SCANCODE_W])
+    bool manJumpHeld = state[SDL_SCANCODE_W];
+    if (manJumpHeld)
     {
-        game->man.dy -= ARCADE_JUMP_HOLD_ACCEL_PER_SEC2 * dt;
-
         //game->man.facingLeft = 1;
         game->man.slowingDown = 0;
 
@@ -213,6 +212,16 @@ void apply_arcade_player_forces(GameState *game, float dt)
             game->man.currentSpriteJump %= 3;
         }
     }
+    else if (game->man.jumpKeyHeldLastTick && game->man.dy < -JUMP_CUT_SPEED_PER_SEC)
+    {
+        // Variable jump height (Phase 15, see docs/game-feel-map.md):
+        // released the jump key while still rising fast -- cut the ascent
+        // short, giving a shorter hop for a tap and the full
+        // JUMP_SPEED_PER_SEC arc for a held press.
+        game->man.dy = -JUMP_CUT_SPEED_PER_SEC;
+    }
+    game->man.jumpKeyHeldLastTick = manJumpHeld;
+
     if (state[SDL_SCANCODE_A])
     {
         game->man.dx -= RUN_ACCEL_PER_SEC2 * dt;
@@ -259,10 +268,9 @@ void apply_arcade_player_forces(GameState *game, float dt)
 
     if (game->multiPlayer)
     {
-        if (state[SDL_SCANCODE_UP])
+        bool secondPlayerJumpHeld = state[SDL_SCANCODE_UP];
+        if (secondPlayerJumpHeld)
         {
-            game->secondPlayer.dy -= ARCADE_JUMP_HOLD_ACCEL_PER_SEC2 * dt;
-
             //game->man.facingLeft = 1;
             game->secondPlayer.slowingDown = 0;
 
@@ -272,6 +280,13 @@ void apply_arcade_player_forces(GameState *game, float dt)
                 game->secondPlayer.currentSpriteJump2 %= 3;
             }
         }
+        else if (game->secondPlayer.jumpKeyHeldLastTick && game->secondPlayer.dy < -JUMP_CUT_SPEED_PER_SEC)
+        {
+            // Variable jump height -- see the man block above.
+            game->secondPlayer.dy = -JUMP_CUT_SPEED_PER_SEC;
+        }
+        game->secondPlayer.jumpKeyHeldLastTick = secondPlayerJumpHeld;
+
         if (state[SDL_SCANCODE_LEFT])
         {
             game->secondPlayer.dx -= RUN_ACCEL_PER_SEC2 * dt;
@@ -1081,8 +1096,9 @@ void consume_runner_jump_requests(GameState *game)
     }
 }
 
-// Continuous held-key forces for Runner's `man`/`secondPlayer` -- called by
-// runner_simulate() (src/frame.c) before process2(), at the fixed physics
+// Continuous held-key forces for Runner's `man`/`secondPlayer` (horizontal
+// accel/clamp, friction/snap) plus variable-jump-height release-cut -- called
+// by runner_simulate() (src/frame.c) before process2(), at the fixed physics
 // tick rate. Kept separate from process2() itself, same reasoning as
 // apply_arcade_player_forces() above (Phase 11, see
 // docs/physics-timestep-map.md section 4): process2() must remain callable
@@ -1092,10 +1108,15 @@ void apply_runner_player_forces(GameState *game, float dt)
 {
     const Uint8 *state = SDL_GetKeyboardState(NULL);
 
-    if (state[SDL_SCANCODE_W])
+    bool manJumpHeld = state[SDL_SCANCODE_W];
+    if (!manJumpHeld && game->man.jumpKeyHeldLastTick && game->man.dy < -JUMP_CUT_SPEED_PER_SEC)
     {
-        game->man.dy -= RUNNER_JUMP_HOLD_ACCEL_PER_SEC2 * dt;
+        // Variable jump height -- see apply_arcade_player_forces()'s man
+        // block, docs/game-feel-map.md.
+        game->man.dy = -JUMP_CUT_SPEED_PER_SEC;
     }
+    game->man.jumpKeyHeldLastTick = manJumpHeld;
+
     if (state[SDL_SCANCODE_A])
     {
         game->man.dx -= RUN_ACCEL_PER_SEC2 * dt;
@@ -1129,10 +1150,13 @@ void apply_runner_player_forces(GameState *game, float dt)
 
     if (game->multiPlayer)
     {
-        if (state[SDL_SCANCODE_UP])
+        bool secondPlayerJumpHeld = state[SDL_SCANCODE_UP];
+        if (!secondPlayerJumpHeld && game->secondPlayer.jumpKeyHeldLastTick && game->secondPlayer.dy < -JUMP_CUT_SPEED_PER_SEC)
         {
-            game->secondPlayer.dy -= RUNNER_JUMP_HOLD_ACCEL_PER_SEC2 * dt;
+            game->secondPlayer.dy = -JUMP_CUT_SPEED_PER_SEC;
         }
+        game->secondPlayer.jumpKeyHeldLastTick = secondPlayerJumpHeld;
+
         if (state[SDL_SCANCODE_LEFT])
         {
             game->secondPlayer.dx -= RUN_ACCEL_PER_SEC2 * dt;
