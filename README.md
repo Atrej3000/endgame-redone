@@ -38,6 +38,7 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
         make mingw-gamefeeltest  # non-interactive coyote-time/jump-buffer/variable-height check
         make mingw-inputsnapshottest # non-interactive input snapshot capture/isolation check
         make mingw-aiforcestest  # non-interactive boss/enemy/smart-enemy movement check
+        make mingw-collisionorderingtest # non-interactive hazard/game-over-transition check
         make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
         make audit-repo          # repository usage integrity check (asset paths + prototypes)
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
@@ -125,6 +126,14 @@ Architecture:
     `move_smart_enemies()`), a structural extraction with no behavior change, plus
     `smart_enemy_select_target()` isolating the one piece of the movement logic that's a true,
     standalone "decide intent" step (which of two players a smart enemy chases in multiplayer).
+    `docs/collision-ordering-map.md` documents the third follow-on phase, collision ordering: six
+    collision/hazard/transition concerns (bullet hits, Arcade body-contact hazards and game-over
+    transition, Runner star/fall hazards and game-over transition) are extracted into
+    `src/collision_pipeline.c`, matching a proposed target pipeline's own vocabulary -- no call
+    site moved, no arithmetic changed. Documents why two of the found "reversed" orderings (world-
+    solid resolution must run after movement, not before, or the player visibly tunnels through
+    geometry for a tick; Runner's hazard-before-ledge order and death-timing are already correct)
+    are preserved rather than "fixed."
 
 Known platform limitations:
     - The default build targets macOS only (bundled `.framework`s under `resource/frameworks`,

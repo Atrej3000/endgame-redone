@@ -2185,3 +2185,63 @@ documentation commit.
 - Verification performed: `make mingw` — 0 errors, 121 warnings (unchanged). All 16 local targets
   pass (15/15 new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
 - Rollback: `git revert 77a4e1c`.
+
+## Pass 19 summary — collision ordering (2026-07-21)
+
+Baseline: commit `1ea9a06` (tag `refactor-pre-collision-ordering`, `main` after Phase 18's PR #14
+merge), `make mingw` 0 errors/121 warnings, all 16 existing local targets passing. Implements the
+third of four phases split out from the user's proposed target frame architecture (17 input
+snapshot isolation, 18 AI/forces separation, 19 collision ordering [this pass], 20 render
+interpolation) — target sequence "world-solid resolution → body-contact hazards → projectile hits
+→ deaths and score consequences → scene transitions." Full evidence in
+`docs/collision-ordering-map.md`, written before any Pass 19 code edit. Three commits: `fc5b069`
+(audit doc), `90bcb91` (extraction), `89ce64b` (test + CI), plus this documentation commit.
+
+### [2026-07-21] Map collision ordering
+- Phase: Pass 19 (commit `fc5b069`)
+- File(s): new `docs/collision-ordering-map.md`
+- Action: full audit of every collision/hazard/consequence/transition site in both Arcade and
+  Runner modes, comparing actual execution order against the target's 5-stage sequence. Found
+  three "reversed" orderings — Arcade's projectile hits run before world-solid resolution within a
+  tick (must stay this way, or the player visibly tunnels through geometry for a tick); Runner's
+  `collisionDetect2()` checks hazard contact before ledge resolution (no demonstrated defect
+  either way, flagged and preserved); both modes' hazard/transition logic runs at a different
+  cadence than world-solid/projectile-hits (Runner's `runner_update_death()` render-then-resolve
+  ordering confirmed intentional and already tested; unifying the cadence split deferred, would be
+  a real timing change). Documents the safe extraction alternative instead.
+- Behavior impact: none (documentation only).
+- Verification performed: `make mingw` — 0 errors, 121 warnings (unchanged, no code touched). All
+  16 local targets pass. `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: delete `docs/collision-ordering-map.md`.
+
+### [2026-07-21] Extract collision/hazard/transition resolution into src/collision_pipeline.c
+- Phase: Pass 19 (commit `90bcb91`)
+- File(s): new `inc/collision_pipeline.h`, new `src/collision_pipeline.c`, `src/process.c`,
+  `src/processEvents.c`, `src/collisionDetect.c`, new
+  `docs/verification/header_only_collision_pipeline.c`, `Makefile` (`mingw-headertest` target)
+- Action: moved six collision/hazard/transition concerns verbatim into a new focused module —
+  `resolve_projectile_hits()`, `resolve_arcade_hazards()`, `resolve_arcade_game_over_transition()`,
+  `resolve_runner_hazard_contact()` (still called before ledge resolution, order preserved),
+  `check_runner_fall_hazard()`, `resolve_runner_game_over_transition()`. No call site moved, no
+  arithmetic changed.
+- Behavior impact: none — a structural extraction only.
+- Verification performed: `make mingw` — 0 errors, 121 warnings (unchanged). All 16 local targets
+  pass, including `frame_pipeline_test.c` (double-transition guards, render purity) and
+  `runner_death_test.c` (single-shot death lifecycle end-to-end) unchanged.
+  `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert 90bcb91`.
+
+### [2026-07-21] Validate collision ordering
+- Phase: Pass 19 (commit `89ce64b`)
+- File(s): new `docs/verification/collision_pipeline_test.c`, `Makefile` (new
+  `mingw-collisionorderingtest` target), `.github/workflows/mingw-validation.yml` (step +
+  log-upload path added in the same commit)
+- Action: the first-ever direct-call test assertions on the Arcade hazard/game-over-transition
+  logic and the Runner fall-hazard/game-over-transition logic — previously only reachable via a
+  full `processEvents()`/`processEvents2()` call with a real event loop. Covers body-contact
+  hazards (enemy/boss/smartEnemy, both players), reached-bottom kill/score/game-over interaction,
+  fall-off-screen, the Arcade/Runner double-transition guards, Runner star-contact triggering the
+  death lifecycle, and a direct-call sanity check on `resolve_projectile_hits()`.
+- Verification performed: `make mingw` — 0 errors, 121 warnings (unchanged). All 17 local targets
+  pass (20/20 new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert 89ce64b`.
