@@ -61,6 +61,11 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define MAX_FRAME_TIME 0.25
 #define MAX_PHYSICS_STEPS_PER_FRAME 5
 
+// Opt-in performance logging (Phase 16, see docs/optimization-map.md): how
+// often, in real seconds, main() prints a physics/render timing summary when
+// the ENDGAME_PERF_LOG environment variable is set. No effect otherwise.
+#define PERF_LOG_INTERVAL_SEC 1.0
+
 // Player-only physics constants, converted from the previous per-frame
 // values to per-second units (velocity: old x60; acceleration: old x3600 --
 // see docs/physics-timestep-map.md section 3 for the derivation and the

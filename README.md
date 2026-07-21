@@ -40,6 +40,9 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
         make audit-repo          # repository usage integrity check (asset paths + prototypes)
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
     regeneratable, third-party/build artifacts.
+    Set `ENDGAME_PERF_LOG=1` (any value) before running `endgame-mingw.exe`/`make mingw-run` to
+    print a `[perf] ticks=... physics_ms=... render_ms=...` summary once per real second -- see
+    `docs/optimization-map.md`. Off by default; zero added cost when unset.
 
 Linux (additive, best-effort; see Known platform limitations below):
     `make linux` and `make linux-smoketest` build the same production sources against
@@ -102,6 +105,11 @@ Architecture:
     variable jump height (release early while still rising fast for a short hop, hold through for
     the full arc) -- which also removes a quirk where holding the jump key while grounded added
     thrust regardless.
+    `docs/optimization-map.md` documents the final pass, "optimization": a static
+    algorithmic-complexity audit of every hot loop (the bullet-vs-target collision loops in
+    `process()` are the largest, at 113,000 checks/tick single-player) plus the opt-in
+    `ENDGAME_PERF_LOG` timing instrumentation above -- deliberately no speculative loop changes,
+    since no real profiling data exists yet to justify one.
 
 Known platform limitations:
     - The default build targets macOS only (bundled `.framework`s under `resource/frameworks`,

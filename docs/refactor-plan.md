@@ -1279,6 +1279,53 @@ possible without a display in this environment — documented as reasonable star
 double-jump, air-dash, wall-jump, or any feel mechanic beyond the assessment's named three. Ready
 to start once a future phase is scoped specifically for one of these.
 
+## Phases executed in Pass 16 (optimization)
+
+Full evidence in `docs/optimization-map.md`, written before any Pass 16 code edit. Baseline:
+commit `7ed5259` (tag `refactor-pre-optimization`, `main` after Phase 15's PR #11 merge), `make
+mingw` 0 errors/121 warnings, all 14 existing local targets passing. Implements the physics
+assessment's own last phase, "optimization" — unlike Phases 1-5, this one has no demonstrated bug;
+whether any loop is actually slow depends on real gameplay load this environment has no display to
+measure, so this pass adds a measurement tool and a static complexity audit rather than
+speculative loop changes.
+
+### Phase 86 — Optimization map
+- Files: new `docs/optimization-map.md`.
+- What was done: confirmed no profiling/timing infrastructure exists anywhere beyond the raw
+  `SDL_GetPerformanceCounter` calls the Phase 11 accumulator already uses (and discards). Computed
+  the real, static iteration counts for every hot loop from the actual array-size constants: the
+  bullet-vs-target collision loops in `process()` are the largest by an order of magnitude
+  (113,000 checks/tick single-player, 226,000 multiplayer), followed by the ledge/self-collision
+  loops in `collisionDetect()` (~11,600/tick), with the render loops walking the full 1000-slot
+  bullet array and 100-slot ledge array every real frame. Documents explicitly why no loop is
+  restructured based on this alone — no real evidence any of them is an actual bottleneck, and
+  guessing would repeat the premature-optimization mistake the assessment's own framing warns
+  against.
+- Rollback: delete the file.
+
+### Phase 87 — Add opt-in performance logging
+- Files: `inc/header.h`, `src/main.c`.
+- What was done: `main()` gains timing instrumentation around the fixed-tick physics loop and
+  `doRender()`/`doRender2()` in both gameplay scenes, active only when the `ENDGAME_PERF_LOG`
+  environment variable is set. Once per real second, prints physics ticks, average physics-tick
+  time, and average render time (milliseconds). Every measurement is purely additive — no existing
+  line changes; with logging disabled (the default), the only added cost is one `getenv` call at
+  startup and unentered branches.
+- Behavior impact: none when disabled (confirmed: 0 new warnings attributed to `main.c`, full
+  existing suite passes unchanged). When enabled, prints real timing data to the console.
+- Validation: `make mingw` — 0 errors, 121 warnings (unchanged). All 14 local targets pass. No new
+  `docs/verification/*.c` test — `main()` is structurally excluded from every existing test binary
+  (`MINGW_SRCS_NO_MAIN`), and the change has no observable gameplay behavior to assert against when
+  disabled; verified instead by the unchanged existing suite plus manual code inspection (a real
+  run with `ENDGAME_PERF_LOG=1` set would require a display not available here — stated plainly).
+- Rollback: `git revert`.
+
+**Pass 16 deferred items** (full reasoning in `docs/optimization-map.md` section 4): restructuring
+any of the hot loops found (active-bullet index lists, spatial partitioning, render culling) — no
+real evidence any of them cost a noticeable fraction of a frame budget; gathering real profiling
+data with `ENDGAME_PERF_LOG=1` on a machine with a display is the natural next step before any of
+that is considered. Ready to start once real numbers exist.
+
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
 **Pass 9 deferred items** (full reasoning in `docs/solid-gof-audit.md` section 9 and

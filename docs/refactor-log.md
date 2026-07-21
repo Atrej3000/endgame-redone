@@ -1998,3 +1998,54 @@ existing local targets passing. Full evidence in `docs/game-feel-map.md`.
 - Verification performed: `make mingw` — 0 errors, 121 warnings. All 14 local targets pass (14/14
   new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
 - Rollback: `git revert a734b64`.
+
+## Pass 16 summary — optimization (2026-07-21)
+
+Baseline: commit `7ed5259` (tag `refactor-pre-optimization`, `main` after Phase 15's PR #11
+merge), `make mingw` 0 errors/121 warnings, all 14 existing local targets passing. Implements the
+physics assessment's own last phase, "optimization" — unlike Phases 1-5, this one has no
+demonstrated bug: whether any loop is actually slow depends on real gameplay load this environment
+has no display to measure, so this pass adds a measurement tool and a static complexity audit
+rather than speculative loop changes. Full evidence in `docs/optimization-map.md`, written before
+any Pass 16 code edit. Two commits: `f102955` (audit doc) and `ab0b7af` (opt-in performance
+logging), plus this documentation commit.
+
+### [2026-07-21] Map optimization opportunities
+- Phase: Pass 16 (commit `f102955`)
+- File(s): new `docs/optimization-map.md`
+- Action: confirmed no profiling/timing infrastructure exists anywhere beyond the raw
+  `SDL_GetPerformanceCounter` calls the Phase 11 accumulator already uses (and discards). Computed
+  the real, static iteration counts for every hot loop from the actual array-size constants: the
+  bullet-vs-target collision loops in `process()` are the largest by an order of magnitude
+  (113,000 checks/tick single-player, 226,000 multiplayer), followed by the ledge/self-collision
+  loops in `collisionDetect()` (~11,600/tick), with the render loops walking the full 1000-slot
+  bullet array and 100-slot ledge array every real frame. Documents explicitly why no loop is
+  restructured based on this alone — no real evidence any of them is an actual bottleneck, and
+  guessing would repeat the premature-optimization mistake the assessment's own framing warns
+  against.
+- Behavior impact: none (documentation only).
+- Verification performed: `make mingw` — 0 errors, 121 warnings (unchanged, no code touched). All
+  14 local targets pass. `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: delete `docs/optimization-map.md`.
+
+### [2026-07-21] Add opt-in performance logging
+- Phase: Pass 16 (commit `ab0b7af`)
+- File(s): `inc/header.h` (new `PERF_LOG_INTERVAL_SEC` constant), `src/main.c`
+- Action: `main()` gains timing instrumentation around the fixed-tick physics loop and
+  `doRender()`/`doRender2()` in both gameplay scenes, active only when the `ENDGAME_PERF_LOG`
+  environment variable is set. Once per real second, prints physics ticks, average physics-tick
+  time, and average render time (milliseconds) via a new `[perf] ticks=... physics_ms=...
+  render_ms=...` line. Every measurement is purely additive — no existing line (the `while`
+  condition, accumulator arithmetic, `arcade_simulate`/`runner_simulate`/`doRender`/`doRender2`
+  calls themselves) changes. Caught before any commit, not by a test: the first-draft
+  `render_ms` formula was nonsensical (divided by `perfLogTimer` instead of counting render calls);
+  fixed by introducing `perfRenderCallsThisSecond` before this was ever committed.
+- Behavior impact: none when disabled (the default) — only added cost is one `getenv` call at
+  startup and unentered branches. When enabled, prints real timing data to the console.
+- Verification performed: `make mingw` — 0 errors, 121 warnings (unchanged; zero warnings
+  attributed to `main.c`). All 14 local targets pass. No new `docs/verification/*.c` test —
+  `main()` is structurally excluded from every existing test binary (`MINGW_SRCS_NO_MAIN`), and the
+  change has no observable gameplay behavior to assert against when disabled; a real run with
+  `ENDGAME_PERF_LOG=1` set would require a display not available here — stated plainly, not
+  claimed. `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert ab0b7af`.
