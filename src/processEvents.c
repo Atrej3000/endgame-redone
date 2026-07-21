@@ -1,6 +1,7 @@
 #include "header.h"
 #include "scene.h"
 #include "input_command.h"
+#include "collision_pipeline.h"
 
 int processEvents(SDL_Window *window, GameState *game)
 {
@@ -291,129 +292,11 @@ int processEvents(SDL_Window *window, GameState *game)
     //     game->man.y += 10;
     // }
 
-    for (int i = 0; i < NUM_ENEMIES; i++)
-    {
-        if (collide2d(game->man.x, game->man.y, game->enemyValues[i].x, game->enemyValues[i].y, 48, 48, 32, 32))
-        {
-            game->man.lives = 0;
-            game->man.y = 1000;
-        }
-        if (game->enemyValues[i].y > 730 && game->enemyValues[i].y < 734)
-        {
-            game->gameLives--;
-            if (!game->multiPlayer)
-            {
-                game->kills_score++;
-                game->tempScore++;
-                if (game->gameLives == 0)
-                {
-                    game->man.lives = 0;
-                }
-            }
-            if (game->multiPlayer)
-            {
-                int rand = random() % 2;
-                if (!rand)
-                {
-                    game->kills_score++;
-                    game->tempScore++;
-                }
-                else
-                {
-                    game->kills_score_multi++;
-                    game->tempScore++;
-                }
-                if (game->gameLives == 0)
-                {
-                    game->man.lives = 0;
-                    game->secondPlayer.lives = 0;
-                }
-            }
-        }
-        for (int j = 0; j < 2; j++)
-        {
-            if (collide2d(game->man.x, game->man.y, game->boss[j].x, game->boss[j].y, 48, 48, 32, 32))
-            {
-                game->man.lives = 0;
-                game->man.y = 1000;
-            }
-            if (game->multiPlayer)
-            {
-                if (collide2d(game->secondPlayer.x, game->secondPlayer.y, game->boss[j].x, game->boss[j].y, 30, 30, 30, 30))
-                {
-                    game->secondPlayer.lives = 0;
-                    game->secondPlayer.y = 1000;
-                }
-            }
-            if (game->boss[j].y > 730 && game->boss[j].y < 740)
-            {
-                game->gameLives = 0;
-                if (game->gameLives == 0)
-                {
-                    game->man.lives = 0;
-                }
-            }
-        }
-        if (game->multiPlayer)
-        {
-            if (collide2d(game->secondPlayer.x, game->secondPlayer.y, game->enemyValues[i].x, game->enemyValues[i].y, 48, 48, 32, 32))
-            {
-                game->secondPlayer.lives = 0;
-                game->secondPlayer.y = 1000;
-            }
-        }
-    }
-    for (int i = 0; i < NUM_SMART_ENEMIES; i++)
-    {
-        if (collide2d(game->man.x, game->man.y, game->smartEnemies[i].x, game->smartEnemies[i].y, 30, 30, 30, 30))
-        {
-            game->man.lives = 0;
-            game->man.y = 1000;
-        }
-        if (game->multiPlayer)
-        {
-            if (collide2d(game->secondPlayer.x, game->secondPlayer.y, game->smartEnemies[i].x, game->smartEnemies[i].y, 30, 30, 30, 30))
-            {
-                game->secondPlayer.lives = 0;
-                game->secondPlayer.y = 1000;
-            }
-        }
-    }
-    //_________________________________________________________lives by falls
-
-    if (game->man.y >= 719)
-    {
-        game->man.lives = 0;
-    }
-
-    if (game->secondPlayer.y >= 719)
-    {
-        game->secondPlayer.lives = 0;
-    }
-
-    if (!game->multiPlayer)
-    {
-        if (game->man.lives == 0)
-        {
-            // Guard against overwriting a transition an earlier handler in
-            // this same call (e.g. SDLK_q) already made -- see
-            // docs/frame-pipeline-map.md's double-transition finding.
-            if (game->app.scene == APP_SCENE_ARCADE_GAME)
-            {
-                app_change_scene(game, APP_SCENE_ARCADE_MENU);
-            }
-        }
-    }
-    if (game->multiPlayer)
-    {
-        if (game->man.lives == 0 && game->secondPlayer.lives == 0)
-        {
-            if (game->app.scene == APP_SCENE_ARCADE_GAME)
-            {
-                app_change_scene(game, APP_SCENE_ARCADE_MENU);
-            }
-        }
-    }
+    // Body-contact hazards + fall-off-screen, and the resulting game-over
+    // transition (Phase 19, see docs/collision-ordering-map.md) --
+    // extracted verbatim into src/collision_pipeline.c, same position.
+    resolve_arcade_hazards(game);
+    resolve_arcade_game_over_transition(game);
     return done;
 }
 
@@ -566,37 +449,11 @@ int processEvents2(SDL_Window *window, GameState *game)
     if ((game->man.x / 293) > game->x_score)
         game->x_score = game->man.x / 293;
 
-    if (game->man.y >= 719 || game->man.x < 0)
-    {
-        runner_trigger_death(game);
-    }
-
-    if (game->multiPlayer)
-    {
-        if (game->secondPlayer.y >= 719 || game->secondPlayer.x < 0)
-        {
-            runner_trigger_death(game);
-        }
-    }
-
-    //_________________________________________generation array with score history
-    if (game->gameLives == 0)
-    {
-        if (game->x_i < 25)
-        {
-            game->x_list[game->x_i] = game->x_score;
-            game->x_i++;
-        }
-
-        // Score-persist above stays unconditional; only the transition
-        // itself is guarded against overwriting one an earlier handler in
-        // this same call (e.g. SDLK_q) already made -- see
-        // docs/frame-pipeline-map.md's double-transition finding.
-        if (game->app.scene == APP_SCENE_RUNNER_GAME)
-        {
-            app_change_scene(game, APP_SCENE_RUNNER_MENU);
-        }
-    }
+    // Fall-off-screen hazard, and the resulting game-over transition
+    // (Phase 19, see docs/collision-ordering-map.md) -- extracted verbatim
+    // into src/collision_pipeline.c, same position.
+    check_runner_fall_hazard(game);
+    resolve_runner_game_over_transition(game);
 
     return done;
 }
