@@ -2126,3 +2126,62 @@ plus this documentation commit.
 - Verification performed: `make mingw` — 0 errors, 121 warnings (unchanged). All 15 local targets
   pass (20/20 new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
 - Rollback: `git revert 59fb5f9`.
+
+## Pass 18 summary — AI/forces separation (2026-07-21)
+
+Baseline: commit `8258ba0` (tag `refactor-pre-ai-forces-separation`, `main` after Phase 17's
+PR #13 merge), `make mingw` 0 errors/121 warnings, all 15 existing local targets passing.
+Implements the second of four phases split out from the user's proposed target frame
+architecture (17 input snapshot isolation, 18 AI/forces separation [this pass], 19 collision
+ordering, 20 render interpolation) — a structural extraction only, no behavior change. Full
+evidence in `docs/ai-forces-separation-map.md`, written before any Pass 18 code edit. Three
+commits: `0fdd6cf` (audit doc), `4f3d5cf` (extraction), `77a4e1c` (test + CI), plus this
+documentation commit.
+
+### [2026-07-21] Map AI/forces separation
+- Phase: Pass 18 (commit `0fdd6cf`)
+- File(s): new `docs/ai-forces-separation-map.md`
+- Action: confirmed boss/regular-enemy/smart-enemy movement in `process()` integrates position
+  using the velocity decided on a previous tick, then adjusts velocity for the next tick — decide
+  and integrate are interleaved by design, ruling out a literal 4-function decide/apply/integrate
+  split without changing enemy speeds. Confirmed `process2()` (Runner) has zero AI-driven
+  entities. Documents the extraction design and the one piece safely extractable as a true
+  "decide intent" step (the multiplayer smart-enemy nearest-target comparison).
+- Behavior impact: none (documentation only).
+- Verification performed: `make mingw` — 0 errors, 121 warnings (unchanged, no code touched). All
+  15 local targets pass. `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: delete `docs/ai-forces-separation-map.md`.
+
+### [2026-07-21] Extract boss/enemy/smart-enemy movement into src/ai_forces.c
+- Phase: Pass 18 (commit `4f3d5cf`)
+- File(s): new `inc/ai_forces.h`, new `src/ai_forces.c`, `src/process.c`, new
+  `docs/verification/header_only_ai_forces.c`, `Makefile` (`mingw-headertest` target)
+- Action: moved boss/regular-enemy/smart-enemy movement (previously `process.c:636-923`) verbatim
+  into `move_boss_entities()`, `move_regular_enemies()`, `move_smart_enemies()` — same statement
+  order and arithmetic. `process()` now calls the three functions at the exact same point. Added
+  `smart_enemy_select_target()`, replicating the exact `pow()`-based nearest-target comparison
+  the multiplayer smart-enemy chase used to do inline. The confirmed pre-existing multiplayer
+  chase asymmetry (its inner `while` loop omits an `x += dx` line the single-player version has)
+  is preserved exactly, not fixed.
+- Behavior impact: none — a structural extraction only.
+- Verification performed: `make mingw` — 0 errors, 121 warnings (unchanged; confirmed the ~26
+  warnings that moved from `process.c` to `ai_forces.c` are the same lines relocated, not new
+  ones). All 15 local targets pass, including `projectile_correctness_test.c` (calls `process()`
+  directly with enemy data) unchanged. `py -3 scripts/audit_repository_usage.py` —
+  `Result: PASS`.
+- Rollback: `git revert 4f3d5cf`.
+
+### [2026-07-21] Validate AI/forces separation
+- Phase: Pass 18 (commit `77a4e1c`)
+- File(s): new `docs/verification/ai_forces_test.c`, `Makefile` (new `mingw-aiforcestest`
+  target), `.github/workflows/mingw-validation.yml` (step + log-upload path added in the same
+  commit)
+- Action: the first-ever test assertions in this repository on the actual AI movement math —
+  boss/regular-enemy band-steering (both directions), gravity clamps, and horizontal wraparound;
+  smart-enemy single-player hop-impulse-and-steer chase; `smart_enemy_select_target()` picking
+  the nearer of two players in multiplayer and always `man` in single-player; and that
+  `process()` still delegates to the extracted functions correctly. Assertions use the exact same
+  float literals/expressions the production code uses, so comparisons are bit-exact.
+- Verification performed: `make mingw` — 0 errors, 121 warnings (unchanged). All 16 local targets
+  pass (15/15 new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert 77a4e1c`.
