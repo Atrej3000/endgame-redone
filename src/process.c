@@ -120,43 +120,69 @@ void move_arcade_bullets(GameState *game)
     }
 }
 
-// Consumes the edge-triggered jump-request flags (Phase 12, see
-// docs/input-simulation-separation-map.md) at the fixed physics tick rate --
-// called by arcade_simulate() (src/frame.c) before apply_arcade_player_forces,
-// matching the original relative ordering (processEvents applied the keydown
-// jump impulse before its own later held-key jump-hold-thrust check in the
-// same real frame, so both could stack in one frame; preserved here). Each
-// request is consumed (flag cleared) exactly once regardless of how many
-// physics ticks a real frame produces, and regardless of whether the player
-// was actually grounded -- giving one input edge exactly one jump, never
-// dropped across a zero-tick frame, never double-applied across a
-// multi-tick one.
+// Consumes the edge-triggered, buffered jump-request countdowns (Phase 12,
+// extended with coyote time + jump buffering in Phase 15, see
+// docs/game-feel-map.md) at the fixed physics tick rate -- called by
+// arcade_simulate() (src/frame.c) before apply_arcade_player_forces, matching
+// the original relative ordering. Coyote time (coyoteTicksRemaining) keeps a
+// short grace window open after leaving a ledge; jump buffering
+// (jumpBufferTicksPlayer1/2) keeps a jump request alive for a short window if
+// pressed slightly before landing. Zeroing coyoteTicksRemaining the instant a
+// jump fires prevents a second buffered request from also succeeding within
+// the same still-open coyote window (an unintended free double-jump).
 void consume_arcade_jump_requests(GameState *game)
 {
-    if (game->input.jumpRequestedPlayer1)
+    if (game->man.onLedge)
     {
-        if (game->man.onLedge)
+        game->man.coyoteTicksRemaining = COYOTE_TICKS;
+    }
+    else if (game->man.coyoteTicksRemaining > 0)
+    {
+        game->man.coyoteTicksRemaining--;
+    }
+    if (game->secondPlayer.onLedge)
+    {
+        game->secondPlayer.coyoteTicksRemaining = COYOTE_TICKS;
+    }
+    else if (game->secondPlayer.coyoteTicksRemaining > 0)
+    {
+        game->secondPlayer.coyoteTicksRemaining--;
+    }
+
+    if (game->input.jumpBufferTicksPlayer1 > 0)
+    {
+        if (game->man.onLedge || game->man.coyoteTicksRemaining > 0)
         {
             game->man.dy = -JUMP_SPEED_PER_SEC;
             game->man.onLedge = 0;
+            game->man.coyoteTicksRemaining = 0;
+            game->input.jumpBufferTicksPlayer1 = 0;
 
             Mix_VolumeChunk(game->jumpSound, 32);
             Mix_PlayChannel(-1, game->jumpSound, 0);
         }
-        game->input.jumpRequestedPlayer1 = false;
+        else
+        {
+            game->input.jumpBufferTicksPlayer1--;
+        }
     }
 
-    if (game->input.jumpRequestedPlayer2)
+    if (game->input.jumpBufferTicksPlayer2 > 0)
     {
-        if (game->secondPlayer.onLedge)
+        if (game->secondPlayer.onLedge || game->secondPlayer.coyoteTicksRemaining > 0)
         {
             game->secondPlayer.dy = -JUMP_SPEED_PER_SEC;
             game->secondPlayer.onLedge = 0;
+            game->secondPlayer.coyoteTicksRemaining = 0;
+            game->input.jumpBufferTicksPlayer2 = 0;
 
             Mix_VolumeChunk(game->jumpSound, 32);
             Mix_PlayChannel(-1, game->jumpSound, 0);
         }
-        game->input.jumpRequestedPlayer2 = false;
+        else
+        {
+            game->input.jumpBufferTicksPlayer2--;
+        }
     }
 }
 
@@ -991,40 +1017,67 @@ void process(GameState *game, float dt)
     //     game->scrollX = 0;
 }
 
-// Consumes the edge-triggered jump-request flags for Runner -- same design
-// as consume_arcade_jump_requests() above (Phase 12, see
-// docs/input-simulation-separation-map.md). Also fixes a regression found
-// during that phase's audit: Runner's jump impulse had never been converted
-// off the bare frame-tuned `-10` during Phase 11's timestep conversion,
-// producing a jump 60x weaker than intended at the fixed-timestep
-// integration now in use -- this function uses JUMP_SPEED_PER_SEC, matching
-// Arcade and header.h's own documented intent.
+// Consumes the edge-triggered, buffered jump-request countdowns for Runner
+// -- same design as consume_arcade_jump_requests() above (Phase 12, extended
+// with coyote time + jump buffering in Phase 15, see docs/game-feel-map.md).
+// Also fixes a regression found during Phase 12's audit: Runner's jump
+// impulse had never been converted off the bare frame-tuned `-10` during
+// Phase 11's timestep conversion, producing a jump 60x weaker than intended
+// at the fixed-timestep integration now in use -- this function uses
+// JUMP_SPEED_PER_SEC, matching Arcade and header.h's own documented intent.
 void consume_runner_jump_requests(GameState *game)
 {
-    if (game->input.jumpRequestedPlayer1)
+    if (game->man.onLedge)
     {
-        if (game->man.onLedge)
+        game->man.coyoteTicksRemaining = COYOTE_TICKS;
+    }
+    else if (game->man.coyoteTicksRemaining > 0)
+    {
+        game->man.coyoteTicksRemaining--;
+    }
+    if (game->secondPlayer.onLedge)
+    {
+        game->secondPlayer.coyoteTicksRemaining = COYOTE_TICKS;
+    }
+    else if (game->secondPlayer.coyoteTicksRemaining > 0)
+    {
+        game->secondPlayer.coyoteTicksRemaining--;
+    }
+
+    if (game->input.jumpBufferTicksPlayer1 > 0)
+    {
+        if (game->man.onLedge || game->man.coyoteTicksRemaining > 0)
         {
             game->man.dy = -JUMP_SPEED_PER_SEC;
             game->man.onLedge = 0;
+            game->man.coyoteTicksRemaining = 0;
+            game->input.jumpBufferTicksPlayer1 = 0;
 
             Mix_VolumeChunk(game->jumpSound, 32);
             Mix_PlayChannel(-1, game->jumpSound, 0);
         }
-        game->input.jumpRequestedPlayer1 = false;
+        else
+        {
+            game->input.jumpBufferTicksPlayer1--;
+        }
     }
 
-    if (game->input.jumpRequestedPlayer2)
+    if (game->input.jumpBufferTicksPlayer2 > 0)
     {
-        if (game->secondPlayer.onLedge)
+        if (game->secondPlayer.onLedge || game->secondPlayer.coyoteTicksRemaining > 0)
         {
             game->secondPlayer.dy = -JUMP_SPEED_PER_SEC;
             game->secondPlayer.onLedge = 0;
+            game->secondPlayer.coyoteTicksRemaining = 0;
+            game->input.jumpBufferTicksPlayer2 = 0;
 
             Mix_VolumeChunk(game->jumpSound, 32);
             Mix_PlayChannel(-1, game->jumpSound, 0);
         }
-        game->input.jumpRequestedPlayer2 = false;
+        else
+        {
+            game->input.jumpBufferTicksPlayer2--;
+        }
     }
 }
 

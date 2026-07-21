@@ -85,6 +85,13 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define PLAYER_LEDGE_HITBOX_W 48.0f
 #define PLAYER_LEDGE_HITBOX_H 48.0f
 
+// Game feel (Phase 15, see docs/game-feel-map.md). Unlike the fixed-timestep
+// conversion constants above, these have no legacy value to preserve -- new
+// behavior, reasonable starting defaults, easy to retune since they're named.
+#define COYOTE_TICKS 6         // ~100ms at the fixed 60Hz tick
+#define JUMP_BUFFER_TICKS 6    // ~100ms
+#define JUMP_CUT_SPEED_PER_SEC 200.0f  // roughly a third of JUMP_SPEED_PER_SEC
+
 // Bullet speed, per tick (Phase 14, see docs/projectile-correctness-map.md):
 // preserves the legacy steady-state effective displacement (0.1, the old
 // per-application clamp, times 113, the old total loop-executions-per-tick
@@ -127,6 +134,14 @@ typedef struct
     // distinguish "still resting on a surface" from "just walked off one"
     // (Phase 13, see docs/collision-correctness-map.md).
     float prevY;
+    // Coyote time (Phase 15, see docs/game-feel-map.md): refreshed to
+    // COYOTE_TICKS every grounded tick, counts down while airborne. A jump
+    // still succeeds while this is > 0, even after onLedge has gone false.
+    int coyoteTicksRemaining;
+    // Last tick's jump-key-held state, for release-edge detection --
+    // variable jump height (Phase 15) cuts dy short the tick the key goes
+    // from held to not-held while still rising fast.
+    bool jumpKeyHeldLastTick;
     short lives;
     char *name;
     int onLedge, isDead;//, isdead, visible, countShots;
@@ -268,15 +283,21 @@ typedef struct AssetLifecycleFlags
 // Edge-triggered discrete-input request flags, separated from the fixed-tick
 // simulation that consumes them -- see docs/input-simulation-separation-map.md
 // (Phase 12; the physics assessment's own "Phase 2 -- separate input and
-// simulation"). Set (to true) by processEvents()/processEvents2() on
-// SDL_KEYDOWN; consumed and cleared by consume_arcade_jump_requests()/
-// consume_runner_jump_requests() (src/process.c) at the fixed physics tick
-// rate, giving one input edge exactly one jump regardless of how many ticks a
-// real frame produces.
+// simulation"). Set by processEvents()/processEvents2() on SDL_KEYDOWN;
+// consumed by consume_arcade_jump_requests()/consume_runner_jump_requests()
+// (src/process.c) at the fixed physics tick rate.
+//
+// Retyped from bool to a tick countdown (Phase 15, see docs/game-feel-map.md)
+// for jump buffering: nonzero means "a jump is pending, within its buffer
+// window" -- set to JUMP_BUFFER_TICKS on keydown, decremented once per tick
+// it fails to fire (not grounded and outside the coyote window), and zeroed
+// the instant it does fire. Still gives one input edge at most one jump --
+// buffering only extends *how long* an edge can wait to find its window,
+// not how many jumps it can produce.
 typedef struct InputState
 {
-    bool jumpRequestedPlayer1;
-    bool jumpRequestedPlayer2;
+    int jumpBufferTicksPlayer1;
+    int jumpBufferTicksPlayer2;
 } InputState;
 
 typedef struct
@@ -385,9 +406,9 @@ typedef struct
     // Accessed as game->assetFlags.arcadeAssetsLoaded, etc.
     AssetLifecycleFlags assetFlags;
 
-    // Edge-triggered jump-request flags -- see InputState above and
-    // docs/input-simulation-separation-map.md. Accessed as
-    // game->input.jumpRequestedPlayer1/2.
+    // Edge-triggered, buffered jump-request countdowns -- see InputState
+    // above, docs/input-simulation-separation-map.md, and
+    // docs/game-feel-map.md. Accessed as game->input.jumpBufferTicksPlayer1/2.
     InputState input;
 
     // DEPRECATED: superseded by `app.scene` (AppScene) above. No longer read or

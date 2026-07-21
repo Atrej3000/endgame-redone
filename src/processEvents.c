@@ -64,10 +64,10 @@ int processEvents(SDL_Window *window, GameState *game)
             // tick rate -- see consume_arcade_jump_requests() (src/process.c)
             // and docs/input-simulation-separation-map.md (Phase 12).
             case GAME_COMMAND_JUMP_PLAYER1:
-                game->input.jumpRequestedPlayer1 = true;
+                game->input.jumpBufferTicksPlayer1 = JUMP_BUFFER_TICKS;
                 break;
             case GAME_COMMAND_JUMP_PLAYER2:
-                game->input.jumpRequestedPlayer2 = true;
+                game->input.jumpBufferTicksPlayer2 = JUMP_BUFFER_TICKS;
                 break;
             // case SDLK_SPACE:
             //     if (!game->man.facingLeft)
@@ -487,7 +487,7 @@ int processEvents2(SDL_Window *window, GameState *game)
             // the bare frame-tuned `-10` during Phase 11 -- consumed jumps
             // now use JUMP_SPEED_PER_SEC, matching Arcade.
             case GAME_COMMAND_JUMP_PLAYER1:
-                game->input.jumpRequestedPlayer1 = true;
+                game->input.jumpBufferTicksPlayer1 = JUMP_BUFFER_TICKS;
                 break;
             case GAME_COMMAND_QUIT_TO_MAIN_MENU:
                 app_change_scene(game, APP_SCENE_MAIN_MENU);
@@ -504,7 +504,7 @@ int processEvents2(SDL_Window *window, GameState *game)
                 game->runnerMus = NULL;
                 break;
             case GAME_COMMAND_JUMP_PLAYER2:
-                game->input.jumpRequestedPlayer2 = true;
+                game->input.jumpBufferTicksPlayer2 = JUMP_BUFFER_TICKS;
                 break;
             default:
                 break;
