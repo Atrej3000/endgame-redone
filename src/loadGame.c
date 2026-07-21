@@ -178,13 +178,17 @@ void arcade_session_reset(GameState *game, GameMode mode)
     game->man.lives = 3;
     game->man.visible0 = 1;
     game->man.isDead = 0;
+    game->man.coyoteTicksRemaining = 0;
+    game->man.jumpKeyHeldLastTick = false;
     game->statusState = STATUS_STATE_LIVES;
 
     // Clear any edge-triggered jump request left over from a previous
     // session (e.g. quit mid-air, just after a keydown but before the next
-    // physics tick consumed it) -- see docs/input-simulation-separation-map.md.
-    game->input.jumpRequestedPlayer1 = false;
-    game->input.jumpRequestedPlayer2 = false;
+    // physics tick consumed it) -- see docs/input-simulation-separation-map.md
+    // and docs/game-feel-map.md (Phase 15: also prevents a stale buffered
+    // request from firing an instant jump at the start of the next session).
+    game->input.jumpBufferTicksPlayer1 = 0;
+    game->input.jumpBufferTicksPlayer2 = 0;
 
     game->train.x = 0;
     game->train.y = 440;
@@ -224,6 +228,8 @@ void arcade_session_reset(GameState *game, GameMode mode)
         game->secondPlayer.lives = 3;
         game->secondPlayer.visible0 = 1;
         game->secondPlayer.isDead = 0;
+        game->secondPlayer.coyoteTicksRemaining = 0;
+        game->secondPlayer.jumpKeyHeldLastTick = false;
         game->statusState = STATUS_STATE_LIVES;
     }
 
@@ -436,12 +442,15 @@ void runner_session_reset(GameState *game, GameMode mode)
     game->man.slowingDown = 0;
     game->gameLives = 3;
     game->man.isDead = 0;
+    game->man.coyoteTicksRemaining = 0;
+    game->man.jumpKeyHeldLastTick = false;
     game->statusState = STATUS_STATE_LIVES;
 
     // Clear any edge-triggered jump request left over from a previous
-    // session -- see docs/input-simulation-separation-map.md.
-    game->input.jumpRequestedPlayer1 = false;
-    game->input.jumpRequestedPlayer2 = false;
+    // session -- see docs/input-simulation-separation-map.md and
+    // docs/game-feel-map.md (Phase 15).
+    game->input.jumpBufferTicksPlayer1 = 0;
+    game->input.jumpBufferTicksPlayer2 = 0;
 
     if (game->multiPlayer)
     {
@@ -455,6 +464,8 @@ void runner_session_reset(GameState *game, GameMode mode)
         game->secondPlayer.slowingDown = 0;
         game->gameLives = 3;
         game->secondPlayer.isDead = 0;
+        game->secondPlayer.coyoteTicksRemaining = 0;
+        game->secondPlayer.jumpKeyHeldLastTick = false;
         game->statusState = STATUS_STATE_LIVES;
     }
 

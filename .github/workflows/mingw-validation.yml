@@ -125,6 +125,10 @@ jobs:
         shell: msys2 {0}
         run: make mingw-projectiletest 2>&1 | tee projectiletest.log
 
+      - name: Game feel test
+        shell: msys2 {0}
+        run: make mingw-gamefeeltest 2>&1 | tee gamefeeltest.log
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -145,6 +149,7 @@ jobs:
             inputtest.log
             collisiontest.log
             projectiletest.log
+            gamefeeltest.log
           if-no-files-found: ignore
 
   # Windows CI, however thorough, cannot prove case-sensitive path

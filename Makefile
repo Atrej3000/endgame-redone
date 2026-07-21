@@ -300,6 +300,18 @@ mingw-projectiletest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/projectiletest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/projectiletest.exe
 
+# Verifies game feel (Phase 15): coyote time decaying naturally over
+# COYOTE_TICKS real consume calls, jump buffering on the Runner side, and
+# variable-jump-height release-cut behavior (including that the removed
+# grounded-hold-thrust quirk is gone -- apply_*_player_forces() no longer
+# touch dy at all outside a genuine release edge). See
+# docs/verification/game_feel_test.c and docs/game-feel-map.md.
+mingw-gamefeeltest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/game_feel_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/gamefeeltest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/gamefeeltest.exe
+
 # Dependency-light (stdlib-only) Python script. Override PYTHON on the
 # command line if python3 isn't on PATH (e.g. `make PYTHON="py -3" audit-repo`
 # on some Windows setups).
@@ -364,4 +376,4 @@ linux-smoketest: $(LINUX_BUILD_DIR)
 linux-clean:
 	rm -rf $(LINUX_BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest mingw-projectiletest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest mingw-projectiletest mingw-gamefeeltest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean
