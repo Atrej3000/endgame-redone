@@ -1204,6 +1204,81 @@ this SRP item); the render-time direction-flip quirk (a bullet's sprite flips us
 own fast movement only). Ready to start once a future phase is scoped specifically for one of
 these.
 
+## Phases executed in Pass 15 (game feel)
+
+Full evidence in `docs/game-feel-map.md`, written before any Pass 15 code edit. Baseline: commit
+`308b83b` (tag `refactor-pre-game-feel`, `main` after Phase 14's PR #10 merge), `make mingw` 0
+errors/121 warnings, all 13 existing local targets passing. Implements the physics assessment's
+own "Phase 5 — improve game feel: coyote time, jump buffering, variable jump height."
+
+### Phase 82 — Game feel map
+- Files: new `docs/game-feel-map.md`.
+- What was done: confirmed no coyote time or jump buffering exist today (jump gated strictly on
+  `onLedge`, an airborne request dropped silently — directly asserted by the existing
+  `input_state_test.c`, an invariant this pass deliberately supersedes). Confirmed the existing
+  "variable jump height" mechanism is a continuous, ungated, uncapped hold-thrust — not the
+  standard impulse-plus-release-cut technique — with a real quirk (holding the key while grounded
+  adds thrust regardless of `onLedge`). Found no held-to-released transition detection exists
+  anywhere to build a release-cut on top of. Documents the user-approved decision (a genuine
+  game-feel fork, not resolvable from code alone) to replace the hold-thrust entirely rather than
+  layer a release-cut on top of it.
+- Rollback: delete the file.
+
+### Phase 83 — Add coyote time and jump buffering
+- Files: `inc/header.h`, `src/process.c`, `src/processEvents.c`, `src/loadGame.c`,
+  `docs/verification/input_state_test.c`.
+- What was done: `InputState`'s `bool jumpRequestedPlayer1/2` retype to
+  `int jumpBufferTicksPlayer1/2` (nonzero = pending, within its buffer window); `Man` gains
+  `coyoteTicksRemaining`/`jumpKeyHeldLastTick`, both explicitly reset in
+  `arcade_session_reset`/`runner_session_reset`. `consume_arcade_jump_requests`/
+  `consume_runner_jump_requests` refresh/decay each player's coyote counter every tick, gate
+  jump-firing on `onLedge || coyoteTicksRemaining > 0`, and decrement (rather than clear) a
+  buffered request that can't fire yet. Deliberately supersedes `input_state_test.c`'s prior
+  "airborne request dropped, not buffered" assertions — rewritten to assert the new, intended
+  buffering/coyote behavior instead, documented plainly, not silently changed.
+- Validation: `make mingw` — 0 errors, 121 warnings (unchanged). All 13 local targets pass.
+- Rollback: `git revert`.
+
+### Phase 84 — Replace jump-hold thrust with variable jump height
+- Files: `inc/header.h`, `src/process.c`.
+- What was done: removed `ARCADE_JUMP_HOLD_ACCEL_PER_SEC2`/`RUNNER_JUMP_HOLD_ACCEL_PER_SEC2`
+  (confirmed no other reference sites) and the continuous per-tick thrust they drove, from all 4
+  `apply_arcade_player_forces`/`apply_runner_player_forces` W/UP-held blocks. Replaced with the
+  standard impulse-plus-release-cut technique: releasing the jump key while still rising fast
+  (`dy < -JUMP_CUT_SPEED_PER_SEC`) caps the ascent via the new `jumpKeyHeldLastTick` field; holding
+  through to apex lets gravity decay `dy` naturally with no cut ever applying. Directly removes the
+  grounded-hold-thrust quirk as a side effect — no unconditional per-tick `dy` modification
+  survives, only a one-time cut check on the release edge. Existing cosmetic side effects
+  (animation/`slowingDown` while held) are unchanged.
+- Warning count: 121 → 121 (verified unchanged, not assumed — diffed old vs. new `process.c`
+  warnings line-by-line; every warning is the same type at a shifted line number).
+- Validation: `make mingw` — 0 errors, 121 warnings. All 13 local targets pass.
+- Rollback: `git revert`.
+
+### Phase 85 — Game feel validation test
+- Files: new `docs/verification/game_feel_test.c`, `Makefile` (new `mingw-gamefeeltest` target),
+  `.github/workflows/mingw-validation.yml` (step + log-upload path, both added in this same
+  commit); `src/process.c` fix; `docs/game-feel-map.md` update.
+- What was done: (1) coyote time decaying naturally over `COYOTE_TICKS` real consume calls; (2)
+  jump buffering on the Runner side; (3) variable jump height (release-cut, no-cut-past-threshold,
+  no-cut-without-a-release-edge); (4) confirms the grounded-hold-thrust quirk is gone; (5) the
+  player-2 path, both modes. Caught a real off-by-one while writing this test, not by it:
+  `consume_arcade_jump_requests`/`consume_runner_jump_requests` ran the coyote refresh/decay
+  *before* the jump-fire check, so a request arriving on the coyote window's last valid tick
+  (`coyoteTicksRemaining == 1`) was incorrectly denied — the decrement consumed that last tick
+  before the check ever saw it. Fixed by moving the jump-fire check before the refresh/decay in
+  both functions, in the same commit as the test that caught it.
+- Validation: `make mingw` — 0 errors, 121 warnings. All 14 local targets pass.
+- Rollback: `git revert`.
+
+**Pass 15 deferred items** (full reasoning in `docs/game-feel-map.md` section 6): enemy/boss
+jump-like behavior (unrelated to player jump feel); Runner's fall-death trigger, ledge-collision
+logic, ceiling-bug fix (Phase 13's completed territory); tuning
+`COYOTE_TICKS`/`JUMP_BUFFER_TICKS`/`JUMP_CUT_SPEED_PER_SEC` through actual playtesting (not
+possible without a display in this environment — documented as reasonable starting defaults);
+double-jump, air-dash, wall-jump, or any feel mechanic beyond the assessment's named three. Ready
+to start once a future phase is scoped specifically for one of these.
+
 ## Deferred phases (reasoning, and what "ready to start" looks like)
 
 **Pass 9 deferred items** (full reasoning in `docs/solid-gof-audit.md` section 9 and

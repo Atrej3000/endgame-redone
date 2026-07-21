@@ -1924,3 +1924,77 @@ existing local targets passing. Full evidence in `docs/projectile-correctness-ma
 - Verification performed: `make mingw` — 0 errors, 121 warnings. All 13 local targets pass (15/15
   new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
 - Rollback: `git revert e12884e`.
+
+## Pass 15 summary — game feel (2026-07-21)
+
+Implements the physics assessment's own "Phase 5 — improve game feel: coyote time, jump buffering,
+variable jump height." Confirms none of the three exist today: jump is gated strictly on
+`onLedge`, and the existing "variable jump height" mechanism is a continuous, ungated, uncapped
+hold-thrust rather than the standard impulse-plus-release-cut technique, with a real quirk (holding
+the key while grounded adds thrust regardless of `onLedge`). Per user approval, replaces the
+hold-thrust entirely rather than layering a release-cut on top of it. Baseline confirmed before any
+edit: commit `308b83b` (tag `refactor-pre-game-feel`), `make mingw` 0 errors/121 warnings, all 13
+existing local targets passing. Full evidence in `docs/game-feel-map.md`.
+
+### [2026-07-21] Map game feel
+- Phase: Pass 15 (commit `f0207c5`)
+- File(s): new `docs/game-feel-map.md`
+- Action: confirmed no coyote time or jump buffering exist today, and the existing jump-hold-thrust
+  mechanic's real quirk (unconditional per-tick `dy` modification, no `onLedge` gate, no clamp).
+  Confirmed no held-to-released transition detection exists anywhere. Documented the user-approved
+  design decision (replace, not layer) and exactly which `input_state_test.c` invariant this pass
+  deliberately supersedes.
+- Behavior impact: none (documentation only).
+- Verification performed: manual re-derivation of every claim directly from the current tree.
+- Rollback: delete the file.
+
+### [2026-07-21] Add coyote time and jump buffering
+- Phase: Pass 15 (commit `b3831ed`)
+- File(s): `inc/header.h`, `src/process.c`, `src/processEvents.c`, `src/loadGame.c`,
+  `docs/verification/input_state_test.c`
+- Action: `InputState`'s `bool jumpRequestedPlayer1/2` retype to `int jumpBufferTicksPlayer1/2`;
+  `Man` gains `coyoteTicksRemaining`/`jumpKeyHeldLastTick`, both explicitly reset in session-reset.
+  `consume_arcade_jump_requests`/`consume_runner_jump_requests` refresh/decay each player's coyote
+  counter every tick and gate jump-firing on `onLedge || coyoteTicksRemaining > 0`; a buffered
+  request that can't fire yet decrements instead of clearing. Deliberately supersedes
+  `input_state_test.c`'s "airborne request dropped, not buffered" assertions — rewritten to assert
+  the new buffering/coyote behavior, documented plainly.
+- Behavior impact: jump now succeeds within a short grace window after leaving a ledge (coyote
+  time) and a jump pressed slightly before landing now fires on landing instead of being dropped
+  (buffering).
+- Verification performed: `make mingw` — 0 errors, 121 warnings (unchanged). All 13 local targets
+  pass.
+- Rollback: `git revert b3831ed`.
+
+### [2026-07-21] Replace jump-hold thrust with variable jump height
+- Phase: Pass 15 (commit `22398c0`)
+- File(s): `inc/header.h`, `src/process.c`
+- Action: removed `ARCADE_JUMP_HOLD_ACCEL_PER_SEC2`/`RUNNER_JUMP_HOLD_ACCEL_PER_SEC2` (confirmed no
+  other reference sites) and the continuous thrust they drove, from all 4
+  `apply_arcade_player_forces`/`apply_runner_player_forces` W/UP-held blocks. Replaced with
+  impulse-plus-release-cut: releasing the jump key while still rising fast
+  (`dy < -JUMP_CUT_SPEED_PER_SEC`) caps the ascent via the new `jumpKeyHeldLastTick` field; holding
+  through to apex lets gravity decay `dy` naturally. Removes the grounded-hold-thrust quirk as a
+  direct consequence — no unconditional per-tick `dy` modification survives.
+- Behavior impact: jump height is now determined by whether the key is released early, not by how
+  long it's held after the initial impulse; holding the key while grounded no longer adds thrust.
+- Verification performed: `make mingw` — 0 errors, 121 warnings (verified unchanged by diffing
+  old vs. new `process.c` warnings line-by-line, not assumed). All 13 local targets pass.
+- Rollback: `git revert 22398c0`.
+
+### [2026-07-21] Validate game feel
+- Phase: Pass 15 (commit `a734b64`)
+- File(s): new `docs/verification/game_feel_test.c`, `Makefile` (new `mingw-gamefeeltest` target),
+  `.github/workflows/mingw-validation.yml` (step + log-upload path added in the same commit),
+  `src/process.c` (see below), `docs/game-feel-map.md`
+- Action: (1) coyote time decaying naturally over `COYOTE_TICKS` real consume calls; (2) jump
+  buffering on the Runner side; (3) variable jump height (release-cut, no-cut-past-threshold,
+  no-cut-without-a-release-edge); (4) confirms the grounded-hold-thrust quirk is gone; (5) the
+  player-2 path, both modes. Caught a real off-by-one while writing this test, not by it:
+  `consume_arcade_jump_requests`/`consume_runner_jump_requests` ran the coyote refresh/decay
+  *before* the jump-fire check, incorrectly denying a jump on the coyote window's last valid tick
+  (the decrement consumed it before the check ever saw it). Fixed by reordering both functions in
+  the same commit as the test that caught it.
+- Verification performed: `make mingw` — 0 errors, 121 warnings. All 14 local targets pass (14/14
+  new assertions pass). `py -3 scripts/audit_repository_usage.py` — `Result: PASS`.
+- Rollback: `git revert a734b64`.

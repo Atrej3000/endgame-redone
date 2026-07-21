@@ -35,6 +35,7 @@ Windows/MinGW validation build (additive, does not replace the macOS build above
         make mingw-inputtest     # non-interactive edge-triggered jump-request check
         make mingw-collisiontest # non-interactive player-vs-ledge collision correctness check
         make mingw-projectiletest # non-interactive bullet pool/movement/swept-collision check
+        make mingw-gamefeeltest  # non-interactive coyote-time/jump-buffer/variable-height check
         make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
         make audit-repo          # repository usage integrity check (asset paths + prototypes)
     `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
@@ -94,6 +95,13 @@ Architecture:
     `move_arcade_bullets()`, using a speed-preserving `BULLET_SPEED_PER_TICK` constant so the fix
     doesn't silently make bullets ~113x slower, plus a `prevX`-based swept-collision test so a
     fast bullet can't tunnel through a target within one tick.
+    `docs/game-feel-map.md` documents the follow-on game-feel pass: jump now has a short coyote
+    grace window after leaving a ledge and jump buffering (a request pressed slightly before
+    landing fires on landing instead of being dropped), and the old continuous, uncapped
+    hold-thrust jump mechanic is replaced with the standard impulse-plus-release-cut technique for
+    variable jump height (release early while still rising fast for a short hop, hold through for
+    the full arc) -- which also removes a quirk where holding the jump key while grounded added
+    thrust regardless.
 
 Known platform limitations:
     - The default build targets macOS only (bundled `.framework`s under `resource/frameworks`,
