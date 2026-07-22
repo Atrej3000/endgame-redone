@@ -36,6 +36,8 @@ void runner_update_death(GameState *game)
     {
         game->man.x = 0;
     }
+    game->man.prevX = game->man.x;
+    game->man.prevY = game->man.y;
     if (game->multiPlayer)
     {
         game->secondPlayer.y = 0;
@@ -44,6 +46,8 @@ void runner_update_death(GameState *game)
         {
             game->secondPlayer.x = 0;
         }
+        game->secondPlayer.prevX = game->secondPlayer.x;
+        game->secondPlayer.prevY = game->secondPlayer.y;
     }
     game->deathCountdown = -1; // idle sentinel, matches runner_session_reset()'s own value
 }

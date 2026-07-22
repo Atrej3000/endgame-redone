@@ -233,6 +233,7 @@ mingw-headertest: $(BUILD_DIR)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_input_snapshot.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_ai_forces.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_collision_pipeline.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_physics_body.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	@echo "HEADER SELF-CONTAINMENT TEST: ALL PASS"
 
 # Non-interactive GameState nested-struct grouping test: verifies
@@ -354,6 +355,39 @@ mingw-collisionorderingtest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/collisionorderingtest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/collisionorderingtest.exe
 
+# Verifies render interpolation (Phase 20): previous transforms are captured
+# for each moving renderable category, alpha is clamped, and interpolation is
+# presentation-only. See docs/verification/render_interpolation_test.c.
+mingw-interpolationtest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/render_interpolation_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/interpolationtest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/interpolationtest.exe
+
+# Verifies Phase 21's remaining time-based movement: Runner's automatic
+# multiplayer camera and sinusoidal traps. Bullet/enemy/boss/smart-enemy
+# coverage remains in projectile_correctness_test and ai_forces_test.
+mingw-physicsunitstest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/physics_units_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/physicsunitstest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/physicsunitstest.exe
+
+# Verifies Phase 22's shared body/collider model and the migrated projectile
+# sweep. See docs/verification/physics_body_test.c.
+mingw-physicsbodytest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/physics_body_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/physicsbodytest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/physicsbodytest.exe
+
+# Verifies Phase 23's common axis-separated static-world solver.
+mingw-worldcollisiontest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/world_collision_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/worldcollisiontest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/worldcollisiontest.exe
+
 # Dependency-light (stdlib-only) Python script. Override PYTHON on the
 # command line if python3 isn't on PATH (e.g. `make PYTHON="py -3" audit-repo`
 # on some Windows setups).
@@ -418,4 +452,4 @@ linux-smoketest: $(LINUX_BUILD_DIR)
 linux-clean:
 	rm -rf $(LINUX_BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-frametest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest mingw-projectiletest mingw-gamefeeltest mingw-inputsnapshottest mingw-aiforcestest mingw-collisionorderingtest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest mingw-projectiletest mingw-gamefeeltest mingw-inputsnapshottest mingw-aiforcestest mingw-collisionorderingtest mingw-interpolationtest mingw-physicsunitstest mingw-physicsbodytest mingw-worldcollisiontest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean

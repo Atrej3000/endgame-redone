@@ -9,6 +9,8 @@ bool enemy_spawn(GameState *game, int index, float x, float y, float dx, float d
 
     game->enemyValues[index].x = x;
     game->enemyValues[index].y = y;
+    game->enemyValues[index].prevX = x;
+    game->enemyValues[index].prevY = y;
     game->enemyValues[index].dy = dy;
     game->enemyValues[index].dx = dx;
     game->enemyValues[index].visible = 1;
@@ -24,6 +26,8 @@ bool smart_enemy_spawn(GameState *game, int index, float x, float y, float dx, f
 
     game->smartEnemies[index].x = x;
     game->smartEnemies[index].y = y;
+    game->smartEnemies[index].prevX = x;
+    game->smartEnemies[index].prevY = y;
     game->smartEnemies[index].dy = dy;
     game->smartEnemies[index].dx = dx;
     game->smartEnemies[index].visible = 1;
@@ -40,6 +44,8 @@ bool boss_spawn(GameState *game, int index, float x, float y, float dx, float dy
 
     game->boss[index].x = x;
     game->boss[index].y = y;
+    game->boss[index].prevX = x;
+    game->boss[index].prevY = y;
     game->boss[index].dy = dy;
     game->boss[index].dx = dx;
     game->boss[index].countShots = 0;

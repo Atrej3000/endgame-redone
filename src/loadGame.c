@@ -358,6 +358,7 @@ void arcade_session_reset(GameState *game, GameMode mode)
     }
     game->ledges[99].x = 1000;
     game->ledges[99].y = 1000;
+    sync_render_transforms(game);
 }
 
 // ---------------------------------------------------------------------------
@@ -517,7 +518,10 @@ void runner_session_reset(GameState *game, GameMode mode)
         game->stars[i].baseY = game->ledges[i].y - random() % 120;
         game->stars[i].mode = random() % 2;
         game->stars[i].phase = 2.0f * 3.14f * (random() % 360) / 360.0f;
+        game->stars[i].x = game->stars[i].baseX;
+        game->stars[i].y = game->stars[i].baseY;
     }
     game->ledges[99].x = 00;
     game->ledges[99].y = 100;
+    sync_render_transforms(game);
 }

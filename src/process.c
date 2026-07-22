@@ -2,6 +2,7 @@
 #include "entity_spawn.h"
 #include "ai_forces.h"
 #include "collision_pipeline.h"
+#include "game_events.h"
 
 // Fixed pool (Phase 14, see docs/projectile-correctness-map.md): no
 // malloc/free -- a shot claims the first inactive slot in place.
@@ -30,6 +31,7 @@ void addBullet(GameState *game, float x, float y, float dx)
         game->bullets[i].y = y;
         game->bullets[i].dx = dx;
         game->bullets[i].prevX = x;
+        game->bullets[i].prevY = y;
         game->bullets[i].active = true;
     }
 }
@@ -62,6 +64,7 @@ void addSecondBullet(GameState *game, float x, float y, float dx)
         game->secondBullets[i].y = y;
         game->secondBullets[i].dx = dx;
         game->secondBullets[i].prevX = x;
+        game->secondBullets[i].prevY = y;
         game->secondBullets[i].active = true;
     }
 }
@@ -78,25 +81,25 @@ void removeSecondBullet(GameState *game, int i)
 // collision-loop iteration). Captures prevX before moving, for the swept
 // collision test in process()'s own collision loops.
 //
-// Normalizes dx to +-BULLET_SPEED_PER_TICK by sign, not a max-clamp: the
+// Normalizes dx to +-BULLET_SPEED_PER_SEC by sign, not a max-clamp: the
 // legacy per-application clamp (0.1) was smaller than the spawn dx (+-3),
 // so it always shrank toward the bound regardless of direction; the new
-// bound (11.3, chosen to preserve the legacy steady-state speed -- see the
-// constant's own comment in inc/header.h) is *larger* than the spawn dx, so
+// bound (678 px/s, chosen to preserve the legacy 11.3 px/tick speed at
+// 60 Hz) is *larger* than the spawn dx, so
 // a max-clamp would never fire and the bullet would silently move at the
 // spawn speed (3/tick) instead of the intended, speed-preserving one.
 // Normalizing by sign reproduces the old code's actual effect (spawn
 // direction, fixed magnitude every tick) regardless of which bound is
 // bigger.
-void move_arcade_bullets(GameState *game)
+void move_arcade_bullets(GameState *game, float dt)
 {
     for (int i = 0; i < MAX_BULLETS; i++)
     {
         if (game->bullets[i].active)
         {
             game->bullets[i].prevX = game->bullets[i].x;
-            game->bullets[i].dx = (game->bullets[i].dx >= 0) ? BULLET_SPEED_PER_TICK : -BULLET_SPEED_PER_TICK;
-            game->bullets[i].x += game->bullets[i].dx;
+            game->bullets[i].dx = (game->bullets[i].dx >= 0) ? BULLET_SPEED_PER_SEC : -BULLET_SPEED_PER_SEC;
+            game->bullets[i].x += game->bullets[i].dx * dt;
             if ((game->bullets[i].x < 0) || (game->bullets[i].x > 1280))
             {
                 removeBullet(game, i);
@@ -111,8 +114,8 @@ void move_arcade_bullets(GameState *game)
             if (game->secondBullets[i].active)
             {
                 game->secondBullets[i].prevX = game->secondBullets[i].x;
-                game->secondBullets[i].dx = (game->secondBullets[i].dx >= 0) ? BULLET_SPEED_PER_TICK : -BULLET_SPEED_PER_TICK;
-                game->secondBullets[i].x += game->secondBullets[i].dx;
+                game->secondBullets[i].dx = (game->secondBullets[i].dx >= 0) ? BULLET_SPEED_PER_SEC : -BULLET_SPEED_PER_SEC;
+                game->secondBullets[i].x += game->secondBullets[i].dx * dt;
                 if ((game->secondBullets[i].x < 0) || (game->secondBullets[i].x > 1280))
                 {
                     removeSecondBullet(game, i);
@@ -350,9 +353,11 @@ void process(GameState *game, float dt)
     // BULLET
     game->time++;
 
-    // Projectile hits (Phase 19, see docs/collision-ordering-map.md) --
-    // extracted verbatim into src/collision_pipeline.c, same position.
-    resolve_projectile_hits(game);
+    // Contact detection produces events only; consequences execute once in
+    // the dedicated Phase 24 consequence pass below.
+    game_events_begin(game);
+    detect_projectile_hits(game);
+    game_events_apply(game);
 
     if (game->time == 120)
     {
@@ -467,17 +472,21 @@ void process(GameState *game, float dt)
     // AI movement (Phase 18, see docs/ai-forces-separation-map.md) -- extracted
     // verbatim from process() into src/ai_forces.c, same relative position,
     // same statement order/math.
-    move_boss_entities(game);
-    move_regular_enemies(game);
-    move_smart_enemies(game);
+    move_boss_entities(game, dt);
+    move_regular_enemies(game, dt);
+    move_smart_enemies(game, dt);
 
     if (game->man.x > 1280)
     {
         game->man.x = -30;
+        game->man.prevX = game->man.x;
+        game->man.prevY = game->man.y;
     }
     if (game->man.x < -30)
     {
         game->man.x = 1270;
+        game->man.prevX = game->man.x;
+        game->man.prevY = game->man.y;
     }
 
     if (game->statusState == STATUS_STATE_GAME)
@@ -534,10 +543,14 @@ void process(GameState *game, float dt)
         if (game->secondPlayer.x > 1280)
         {
             game->secondPlayer.x = -30;
+            game->secondPlayer.prevX = game->secondPlayer.x;
+            game->secondPlayer.prevY = game->secondPlayer.y;
         }
         if (game->secondPlayer.x < -30)
         {
             game->secondPlayer.x = 1270;
+            game->secondPlayer.prevX = game->secondPlayer.x;
+            game->secondPlayer.prevY = game->secondPlayer.y;
         }
         if (game->statusState == STATUS_STATE_GAME)
         {
@@ -827,11 +840,13 @@ void process2(GameState *game, float dt)
         
         if(game->stars[i].mode == 0)
         {
-          game->stars[i].x = game->stars[i].baseX+sinf(game->stars[i].phase+game->time*0.06f)*75;
+          game->stars[i].x = game->stars[i].baseX + sinf(game->stars[i].phase +
+              (float)game->time * PHYSICS_DT * TRAP_ANGULAR_SPEED_PER_SEC) * 75.0f;
         }
         else
         {
-          game->stars[i].y = game->stars[i].baseY+cosf(game->stars[i].phase+game->time*0.06f)*75;
+          game->stars[i].y = game->stars[i].baseY + cosf(game->stars[i].phase +
+              (float)game->time * PHYSICS_DT * TRAP_ANGULAR_SPEED_PER_SEC) * 75.0f;
         }
       }
         // for (i = 0; i < 100; i++)
@@ -915,7 +930,7 @@ void process2(GameState *game, float dt)
     if (game->multiPlayer)
     {
         if (game->time >= 200)
-            game->scrollX -= 3;
+            game->scrollX -= RUNNER_MULTIPLAYER_CAMERA_SPEED_PER_SEC * dt;
     }
     if (!game->multiPlayer)
     {
