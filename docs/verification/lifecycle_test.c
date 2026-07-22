@@ -46,11 +46,17 @@ int main(void)
     // -------------------------------------------------------------------
     CHECK("starts unloaded (arcadeAssetsLoaded)", game->assetFlags.arcadeAssetsLoaded == false);
     CHECK("starts unloaded (bossTexture NULL)", game->bossTexture == NULL);
+    CHECK("shared menu/select/jump audio is ready after app init",
+          game->assetFlags.sharedAudioAssetsLoaded && game->audio.menuMusic != NULL &&
+              game->audio.select != NULL && game->audio.jump != NULL);
 
     CHECK("arcade_assets_load() succeeds", arcade_assets_load(game) == true);
     CHECK("arcadeAssetsLoaded is now true", game->assetFlags.arcadeAssetsLoaded == true);
     CHECK("sharedAssetsLoaded cascaded to true", game->assetFlags.sharedAssetsLoaded == true);
     CHECK("bossTexture is non-NULL", game->bossTexture != NULL);
+    CHECK("Arcade music and effects are loaded before a session starts",
+          game->audio.arcadeMusic != NULL && game->audio.shoot != NULL &&
+              game->audio.damage != NULL && game->audio.kick != NULL);
     CHECK("shared mult texture is non-NULL", game->mult != NULL);
 
     // Named individually (not just covered by the blanket "load succeeded"
@@ -74,6 +80,9 @@ int main(void)
     arcade_assets_unload(game);
     CHECK("arcadeAssetsLoaded is false after unload", game->assetFlags.arcadeAssetsLoaded == false);
     CHECK("bossTexture is NULL after unload", game->bossTexture == NULL);
+    CHECK("Arcade audio is released with its mode group",
+          game->audio.arcadeMusic == NULL && game->audio.shoot == NULL &&
+              game->audio.damage == NULL && game->audio.kick == NULL);
     CHECK("shared assets are NOT touched by arcade_assets_unload() (mult still loaded)", game->mult != NULL);
     CHECK("sharedAssetsLoaded is still true (owned separately)", game->assetFlags.sharedAssetsLoaded == true);
 
@@ -93,6 +102,7 @@ int main(void)
     CHECK("runner_assets_load() succeeds", runner_assets_load(game) == true);
     CHECK("runnerAssetsLoaded is now true", game->assetFlags.runnerAssetsLoaded == true);
     CHECK("star is non-NULL", game->star != NULL);
+    CHECK("Runner music is loaded before a session starts", game->audio.runnerMusic != NULL);
     // Shared bucket was already loaded by the Arcade test above; runner's
     // own call to shared_assets_load() must see that and skip reloading.
     SDL_Texture *multBefore = game->mult;
@@ -105,6 +115,7 @@ int main(void)
     runner_assets_unload(game);
     CHECK("runnerAssetsLoaded is false after unload", game->assetFlags.runnerAssetsLoaded == false);
     CHECK("star is NULL after unload", game->star == NULL);
+    CHECK("Runner music is released with its mode group", game->audio.runnerMusic == NULL);
 
     runner_assets_unload(game);
     CHECK("second runner_assets_unload() completes without crash", game->assetFlags.runnerAssetsLoaded == false);

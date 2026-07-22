@@ -1,4 +1,5 @@
 #include "header.h"
+#include "audio_assets.h"
 #include "entity_spawn.h"
 
 // ---------------------------------------------------------------------------
@@ -90,7 +91,7 @@ bool arcade_assets_load(GameState *game)
     }
 
     bool ok = true;
-    ok = ok && load_music("resource/sounds/battleMus.mp3", &game->battleMus);
+    ok = ok && audio_assets_load_arcade(game);
     ok = ok && load_texture(game->app.renderer, "./resource/images/enemies/boss.png", &game->bossTexture);
     ok = ok && load_texture(game->app.renderer, "./resource/images/bullets/bullet_fireball.png", &game->bulletTexture);
     ok = ok && load_texture(game->app.renderer, "./resource/images/bullets/bullet_fireball2.png", &game->secondBulletTexture);
@@ -131,7 +132,7 @@ bool arcade_assets_load(GameState *game)
 
 void arcade_assets_unload(GameState *game)
 {
-    free_music(&game->battleMus);
+    audio_assets_unload_arcade(game);
     destroy_texture(&game->bossTexture);
     destroy_texture(&game->bulletTexture);
     destroy_texture(&game->secondBulletTexture);
@@ -379,7 +380,7 @@ bool runner_assets_load(GameState *game)
     }
 
     bool ok = true;
-    ok = ok && load_music("resource/sounds/runnerMus.mp3", &game->runnerMus);
+    ok = ok && audio_assets_load_runner(game);
     ok = ok && load_texture(game->app.renderer, "./resource/images/backgrounds/fon.png", &game->fon);
     ok = ok && load_texture(game->app.renderer, "./resource/images/traps/spike_head.png", &game->star);
 
@@ -422,7 +423,7 @@ bool runner_assets_load(GameState *game)
 
 void runner_assets_unload(GameState *game)
 {
-    free_music(&game->runnerMus);
+    audio_assets_unload_runner(game);
     destroy_texture(&game->fon);
     destroy_texture(&game->star);
     for (int i = 1; i < 12; i++)

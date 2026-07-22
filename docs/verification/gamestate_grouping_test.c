@@ -52,6 +52,9 @@ int main(void)
           game->assetFlags.runnerAssetsLoaded == false);
     CHECK("assetFlags.sharedAssetsLoaded zero-initializes to false",
           game->assetFlags.sharedAssetsLoaded == false);
+    CHECK("shared audio is initialized during app startup",
+          game->assetFlags.sharedAudioAssetsLoaded == true && game->audio.menuMusic != NULL &&
+              game->audio.select != NULL && game->audio.jump != NULL);
 
     // ------------------------------------------------------------------
     // 2. app.renderer -- set once by app_init(), matches the out-param.

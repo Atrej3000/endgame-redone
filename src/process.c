@@ -9,18 +9,14 @@
 void addBullet(GameState *game, float x, float y, float dx)
 {
 
-    if (game->shootSound == NULL) {
-        game->shootSound = Mix_LoadWAV("resource/sounds/shoot.wav");
-    }
-
     int found = -1;
     for (int i = 0; i < MAX_BULLETS; i++)
     {
         if (!game->bullets[i].active)
         {
             found = i;
-            Mix_VolumeChunk(game->shootSound, 32);
-            Mix_PlayChannel(-1, game->shootSound, 0);
+            Mix_VolumeChunk(game->audio.shoot, 32);
+            Mix_PlayChannel(-1, game->audio.shoot, 0);
             break;
         }
     }
@@ -43,17 +39,14 @@ void removeBullet(GameState *game, int i)
 
 void addSecondBullet(GameState *game, float x, float y, float dx)
 {
-    if (game->shootSound == NULL) {
-        game->shootSound = Mix_LoadWAV("resource/sounds/shoot.wav");
-    }
     int found = -1;
     for (int i = 0; i < MAX_BULLETS; i++)
     {
         if (!game->secondBullets[i].active)
         {
             found = i;
-            Mix_VolumeChunk(game->shootSound, 32);
-            Mix_PlayChannel(-1, game->shootSound, 0);
+            Mix_VolumeChunk(game->audio.shoot, 32);
+            Mix_PlayChannel(-1, game->audio.shoot, 0);
             break;
         }
     }
@@ -153,8 +146,8 @@ void consume_arcade_jump_requests(GameState *game)
             game->man.coyoteTicksRemaining = 0;
             game->input.jumpBufferTicksPlayer1 = 0;
 
-            Mix_VolumeChunk(game->jumpSound, 32);
-            Mix_PlayChannel(-1, game->jumpSound, 0);
+            Mix_VolumeChunk(game->audio.jump, 32);
+            Mix_PlayChannel(-1, game->audio.jump, 0);
         }
         else
         {
@@ -171,8 +164,8 @@ void consume_arcade_jump_requests(GameState *game)
             game->secondPlayer.coyoteTicksRemaining = 0;
             game->input.jumpBufferTicksPlayer2 = 0;
 
-            Mix_VolumeChunk(game->jumpSound, 32);
-            Mix_PlayChannel(-1, game->jumpSound, 0);
+            Mix_VolumeChunk(game->audio.jump, 32);
+            Mix_PlayChannel(-1, game->audio.jump, 0);
         }
         else
         {
@@ -582,8 +575,8 @@ void consume_runner_jump_requests(GameState *game)
             game->man.coyoteTicksRemaining = 0;
             game->input.jumpBufferTicksPlayer1 = 0;
 
-            Mix_VolumeChunk(game->jumpSound, 32);
-            Mix_PlayChannel(-1, game->jumpSound, 0);
+            Mix_VolumeChunk(game->audio.jump, 32);
+            Mix_PlayChannel(-1, game->audio.jump, 0);
         }
         else
         {
@@ -600,8 +593,8 @@ void consume_runner_jump_requests(GameState *game)
             game->secondPlayer.coyoteTicksRemaining = 0;
             game->input.jumpBufferTicksPlayer2 = 0;
 
-            Mix_VolumeChunk(game->jumpSound, 32);
-            Mix_PlayChannel(-1, game->jumpSound, 0);
+            Mix_VolumeChunk(game->audio.jump, 32);
+            Mix_PlayChannel(-1, game->audio.jump, 0);
         }
         else
         {

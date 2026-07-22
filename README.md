@@ -69,6 +69,13 @@ Set `ENDGAME_PERF_LOG=1` before running `endgame-mingw.exe` or `make mingw-run` 
 
 `.github/workflows/mingw-validation.yml` runs the Windows/MinGW build, all 23 focused checks, and repository integrity audit for pull requests and pushes to `main`. Its Linux job validates asset-path case and performs a best-effort Linux build/smoke test.
 
+## Asset ownership
+
+Textures and audio load before their corresponding mode is playable. Shared
+menu/UI audio is initialized with the application; Arcade and Runner music and
+effects are loaded by their mode asset groups. Gameplay only plays these
+preloaded assets, preventing first-use I/O during simulation.
+
 ## Architecture (Phase 26)
 
 Simulation is fixed at 60 Hz (`PHYSICS_HZ` / `PHYSICS_DT`); real-frame input is captured once, simulation can run zero or more fixed steps, and rendering interpolates between captured previous and current transforms. Player movement, bullets, enemies, bosses, scrolling, traps, and Runner's multiplayer camera use explicit time-based units. The bullet speed constant is `BULLET_SPEED_PER_SEC`, preserving the previous observable speed at 60 Hz without encoding a per-tick unit in its name. Phase 28 keeps these gameplay coordinates at `1280×720` while SDL letterboxes aspect-ratio-preserving logical rendering to a resizable high-DPI window.

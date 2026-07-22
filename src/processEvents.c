@@ -12,13 +12,6 @@ int processEvents(SDL_Window *window, GameState *game)
     SDL_Event event;
     int done = 0;
 
-    if (game->jumpSound == NULL) {
-        game->jumpSound = Mix_LoadWAV("resource/sounds/jump.wav");
-    }
-    if (game->select == NULL) {
-        game->select = Mix_LoadWAV("resource/sounds/select.wav");
-    }
-
     while (SDL_PollEvent(&event))
     {
         input_controller_handle_event(&game->app, &event);
@@ -41,16 +34,8 @@ int processEvents(SDL_Window *window, GameState *game)
             case GAME_COMMAND_QUIT_TO_MODE_MENU:
                 app_change_scene(game, APP_SCENE_ARCADE_MENU);
 
-                Mix_VolumeChunk(game->select, 32);
-                Mix_PlayChannel(-1, game->select, 0);
-                Mix_FreeChunk(game->shootSound);
-                game->shootSound = NULL;
-                Mix_FreeChunk(game->damageSound);
-                game->damageSound = NULL;
-                Mix_FreeChunk(game->kickSound);
-                game->kickSound = NULL;
-                Mix_FreeMusic(game->battleMus);
-                game->battleMus = NULL;
+                Mix_VolumeChunk(game->audio.select, 32);
+                Mix_PlayChannel(-1, game->audio.select, 0);
                 return done;
                 break;
                 //pause
@@ -58,8 +43,8 @@ int processEvents(SDL_Window *window, GameState *game)
                 app_change_scene(game, APP_SCENE_ARCADE_PAUSE);
                 done = 0;
 
-                Mix_VolumeChunk(game->select, 32);
-                Mix_PlayChannel(-1, game->select, 0);
+                Mix_VolumeChunk(game->audio.select, 32);
+                Mix_PlayChannel(-1, game->audio.select, 0);
                 Mix_PauseMusic();
                 break;
 
@@ -75,18 +60,6 @@ int processEvents(SDL_Window *window, GameState *game)
             case GAME_COMMAND_QUIT_TO_MAIN_MENU:
                 app_change_scene(game, APP_SCENE_MAIN_MENU);
 
-                Mix_FreeChunk(game->select);
-                game->select = NULL;
-                Mix_FreeChunk(game->jumpSound);
-                game->jumpSound = NULL;
-                Mix_FreeChunk(game->shootSound);
-                game->shootSound = NULL;
-                Mix_FreeChunk(game->damageSound);
-                game->damageSound = NULL;
-                Mix_FreeChunk(game->kickSound);
-                game->kickSound = NULL;
-                Mix_FreeMusic(game->battleMus);
-                game->battleMus = NULL;
                 break;
             default:
                 break;
@@ -288,16 +261,6 @@ int processEvents2(SDL_Window *window, GameState *game)
     SDL_Event event;
     int done = 0;
 
-    if (game->jumpSound == NULL) {
-        game->jumpSound = Mix_LoadWAV("resource/sounds/jump.wav");
-    }
-    if (game->select == NULL) {
-        game->select = Mix_LoadWAV("resource/sounds/select.wav");
-    }
-    if (game->shootSound == NULL) {
-        game->shootSound = Mix_LoadWAV("resource/sounds/shoot.wav");
-    }
-
     while (SDL_PollEvent(&event))
     {
         input_controller_handle_event(&game->app, &event);
@@ -331,12 +294,8 @@ int processEvents2(SDL_Window *window, GameState *game)
             case GAME_COMMAND_QUIT_TO_MODE_MENU:
                 app_change_scene(game, APP_SCENE_RUNNER_MENU);
 
-                Mix_VolumeChunk(game->select, 32);
-                Mix_PlayChannel(-1, game->select, 0);
-                Mix_FreeMusic(game->runnerMus);
-                game->runnerMus = NULL;
-                Mix_FreeChunk(game->kickSound);
-                game->kickSound = NULL;
+                Mix_VolumeChunk(game->audio.select, 32);
+                Mix_PlayChannel(-1, game->audio.select, 0);
                 return done;
                 break;
                 //pause
@@ -344,8 +303,8 @@ int processEvents2(SDL_Window *window, GameState *game)
                 app_change_scene(game, APP_SCENE_RUNNER_PAUSE);
                 done = 0;
 
-                Mix_VolumeChunk(game->select, 32);
-                Mix_PlayChannel(-1, game->select, 0);
+                Mix_VolumeChunk(game->audio.select, 32);
+                Mix_PlayChannel(-1, game->audio.select, 0);
                 Mix_PauseMusic();
                 break;
 
@@ -362,16 +321,6 @@ int processEvents2(SDL_Window *window, GameState *game)
             case GAME_COMMAND_QUIT_TO_MAIN_MENU:
                 app_change_scene(game, APP_SCENE_MAIN_MENU);
 
-                Mix_FreeChunk(game->select);
-                game->select = NULL;
-                Mix_FreeChunk(game->jumpSound);
-                game->jumpSound = NULL;
-                Mix_FreeChunk(game->shootSound);
-                game->shootSound = NULL;
-                Mix_FreeChunk(game->kickSound);
-                game->kickSound = NULL;
-                Mix_FreeMusic(game->runnerMus);
-                game->runnerMus = NULL;
                 break;
             case GAME_COMMAND_JUMP_PLAYER2:
                 game->input.jumpBufferTicksPlayer2 = JUMP_BUFFER_TICKS;
