@@ -1,4 +1,5 @@
 #include "app.h"
+#include "audio_assets.h"
 #include "display.h"
 #include "input_snapshot.h"
 #include "settings.h"
@@ -9,24 +10,6 @@ void destroy_texture(SDL_Texture **tex)
     {
         SDL_DestroyTexture(*tex);
         *tex = NULL;
-    }
-}
-
-void free_chunk(Mix_Chunk **chunk)
-{
-    if (chunk && *chunk)
-    {
-        Mix_FreeChunk(*chunk);
-        *chunk = NULL;
-    }
-}
-
-void free_music(Mix_Music **music)
-{
-    if (music && *music)
-    {
-        Mix_FreeMusic(*music);
-        *music = NULL;
     }
 }
 
@@ -55,6 +38,9 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
         arcade_assets_unload(game);
         runner_assets_unload(game);
         shared_assets_unload(game);
+        audio_assets_unload_arcade(game);
+        audio_assets_unload_runner(game);
+        audio_assets_unload_shared(game);
 
         // manFrames[12] is fully covered by the calls above: index 0 by
         // shared_assets_unload() (both modes load the identical file, see
@@ -76,15 +62,6 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
         destroy_texture(&game->secondPlayer.sheetTextureRun);
         destroy_texture(&game->secondPlayer.sheetTextureJump);
 
-        // 4. chunks and music not owned by any asset group (loaded lazily
-        // elsewhere -- menu_events.c/pause_events.c/processEvents.c/
-        // process.c/load_menu.c -- out of scope for the asset-group split)
-        free_chunk(&game->jumpSound);
-        free_chunk(&game->kickSound);
-        free_chunk(&game->select);
-        free_chunk(&game->shootSound);
-        free_chunk(&game->damageSound);
-        free_music(&game->menuMus);
         if (game->app.controller)
         {
             SDL_GameControllerClose(game->app.controller);
@@ -214,6 +191,11 @@ bool app_init(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **outRen
     if (Mix_OpenAudio(MIX_DEFAULT_FREQUENCY, MIX_DEFAULT_FORMAT, MIX_DEFAULT_CHANNELS, 4096) != 0)
     {
         fprintf(stderr, "app_init: Mix_OpenAudio failed: %s\n", Mix_GetError());
+        app_shutdown(outGame, outWindow, outRenderer);
+        return false;
+    }
+    if (!audio_assets_load_shared(game))
+    {
         app_shutdown(outGame, outWindow, outRenderer);
         return false;
     }

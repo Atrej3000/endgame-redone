@@ -345,7 +345,23 @@ typedef struct AssetLifecycleFlags
     bool arcadeAssetsLoaded;
     bool runnerAssetsLoaded;
     bool sharedAssetsLoaded;
+    bool sharedAudioAssetsLoaded;
 } AssetLifecycleFlags;
+
+// Audio has one explicit owner, rather than being loaded opportunistically by
+// input, physics, or consequence code. Shared audio is initialized with the
+// application; mode-specific audio is initialized with its mode assets.
+typedef struct AudioAssets
+{
+    Mix_Music *menuMusic;
+    Mix_Music *arcadeMusic;
+    Mix_Music *runnerMusic;
+    Mix_Chunk *select;
+    Mix_Chunk *jump;
+    Mix_Chunk *shoot;
+    Mix_Chunk *damage;
+    Mix_Chunk *kick;
+} AudioAssets;
 
 // Continuous held-key state (Phase 17, see docs/input-snapshot-architecture-map.md), captured
 // exactly once per real frame -- before the fixed-step accumulator loop runs -- by
@@ -517,9 +533,8 @@ typedef struct
     // Fonts
     TTF_Font *font;
 
-    //SOUNDS
-    Mix_Music *menuMus, *battleMus, *runnerMus;
-    Mix_Chunk *jumpSound, *kickSound, *select, *shootSound, *damageSound;
+    // Audio assets and their lifetime ownership; see inc/audio_assets.h.
+    AudioAssets audio;
 
     // Application/platform state (renderer + scene) -- see AppContext above
     // and docs/gamestate-decomposition.md. Accessed as game->app.renderer /
@@ -623,11 +638,9 @@ void load_menu2(GameState *game);
 void runner_trigger_death(GameState *game);
 void runner_update_death(GameState *game);
 
-// Null-safe destroy/free helpers (src/app.c) -- shared by app_shutdown() and
-// the mode-specific asset unload helpers (src/loadGame.c)
+// Null-safe texture destroy helper (src/app.c), shared by app_shutdown() and
+// the mode-specific texture unload helpers (src/loadGame.c).
 void destroy_texture(SDL_Texture **tex);
-void free_chunk(Mix_Chunk **chunk);
-void free_music(Mix_Music **music);
 
 // Checked SDL asset-loading helpers (src/asset_loader.c) -- see
 // docs/game-session-lifecycle.md. Each rejects NULL arguments, nulls
@@ -636,6 +649,7 @@ void free_music(Mix_Music **music);
 // the failing asset path via stderr, and never calls exit()/SDL_Quit().
 bool load_texture(SDL_Renderer *renderer, const char *path, SDL_Texture **out_texture);
 bool load_music(const char *path, Mix_Music **out_music);
+bool load_chunk(const char *path, Mix_Chunk **out_chunk);
 bool load_font(const char *path, int ptsize, TTF_Font **out_font);
 int pause_events(GameState *gameState);
 void addBullet(GameState *game, float x, float y, float dx);

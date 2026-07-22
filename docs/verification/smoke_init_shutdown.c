@@ -22,18 +22,18 @@ int main(void)
     // Exercise one real asset-load pass (texture + music load, matching
     // main()'s own first call) without entering the interactive main loop.
     load_menu0(game);
-    printf("SMOKE TEST: load_menu0 ok (menu0=%p menuMus=%p)\n",
-           (void *)game->menu0, (void *)game->menuMus);
+    printf("SMOKE TEST: load_menu0 ok (menu0=%p menuMusic=%p)\n",
+           (void *)game->menu0, (void *)game->audio.menuMusic);
 
     // A second entry into the same load path, to confirm the guarded
-    // reload behavior from Pass 1 (menu0/menuMus should NOT be reloaded --
+    // reload behavior from Pass 1 (menu0/menuMusic should NOT be reloaded --
     // pointers should be identical to the first load).
     SDL_Texture *menu0Before = game->menu0;
-    Mix_Music *menuMusBefore = game->menuMus;
+    Mix_Music *menuMusicBefore = game->audio.menuMusic;
     load_menu0(game);
-    printf("SMOKE TEST: load_menu0 second call -- menu0 unchanged=%s, menuMus unchanged=%s\n",
+    printf("SMOKE TEST: load_menu0 second call -- menu0 unchanged=%s, menuMusic unchanged=%s\n",
            (game->menu0 == menu0Before) ? "yes" : "NO (regression)",
-           (game->menuMus == menuMusBefore) ? "yes" : "NO (regression)");
+           (game->audio.menuMusic == menuMusicBefore) ? "yes" : "NO (regression)");
 
     // Simulate "main menu -> Arcade -> main menu -> Arcade" a few times:
     // load_menu1()/arcade_assets_load() run every time the mode is

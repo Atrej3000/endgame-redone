@@ -249,6 +249,7 @@ mingw-headertest: $(BUILD_DIR)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_physics_body.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_display.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_settings.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_audio_assets.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	@echo "HEADER SELF-CONTAINMENT TEST: ALL PASS"
 
 # Non-interactive GameState nested-struct grouping test: verifies

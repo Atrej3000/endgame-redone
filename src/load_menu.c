@@ -1,10 +1,6 @@
 #include "header.h"
 
 void load_menu0(GameState *game) {
-    if (game->menuMus == NULL) {
-        game->menuMus = Mix_LoadMUS("resource/sounds/menuMus.mp3");
-    }
-
     game->menu0_status = 0;
     //меню0_________________________________________________________________________
     if (game->menu0 == NULL) {
@@ -14,14 +10,10 @@ void load_menu0(GameState *game) {
             exit(1);
         }
     }
-    Mix_PlayMusic(game->menuMus, -1);
+    Mix_PlayMusic(game->audio.menuMusic, -1);
 }
 
 void load_menu1(GameState *game) {
-    if (game->menuMus == NULL) {
-        game->menuMus = Mix_LoadMUS("resource/sounds/menuMus.mp3");
-    }
-
     game->menu_status = 0;
     //меню_________________________________________________________________________
     if (game->menu1 == NULL) {
@@ -31,7 +23,7 @@ void load_menu1(GameState *game) {
             exit(1);
         }
     }
-    Mix_PlayMusic(game->menuMus, -1);
+    Mix_PlayMusic(game->audio.menuMusic, -1);
 
     game->x_score = 0;
     for(game->x_i = 0; game->x_i < 25; game->x_i++) {
@@ -41,10 +33,6 @@ void load_menu1(GameState *game) {
 }
 
 void load_menu2(GameState *game) {
-    if (game->menuMus == NULL) {
-        game->menuMus = Mix_LoadMUS("resource/sounds/menuMus.mp3");
-    }
-
     game->menu_status = 0;
     //меню_________________________________________________________________________
     if (game->menu2 == NULL) {
@@ -54,7 +42,7 @@ void load_menu2(GameState *game) {
             exit(1);
         }
     }
-    Mix_PlayMusic(game->menuMus, -1);
+    Mix_PlayMusic(game->audio.menuMusic, -1);
 
     game->x_score = 0;
     for(game->x_i = 0; game->x_i < 25; game->x_i++) {

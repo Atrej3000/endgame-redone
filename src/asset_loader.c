@@ -60,6 +60,29 @@ bool load_music(const char *path, Mix_Music **out_music)
     return true;
 }
 
+bool load_chunk(const char *path, Mix_Chunk **out_chunk)
+{
+    if (!path || !out_chunk)
+    {
+        fprintf(stderr, "load_chunk: invalid arguments\n");
+        return false;
+    }
+    if (*out_chunk != NULL)
+    {
+        fprintf(stderr, "load_chunk: refusing to overwrite already-loaded chunk (%s)\n", path);
+        return false;
+    }
+
+    *out_chunk = NULL;
+    *out_chunk = Mix_LoadWAV(path);
+    if (!*out_chunk)
+    {
+        fprintf(stderr, "load_chunk: failed to load '%s': %s\n", path, Mix_GetError());
+        return false;
+    }
+    return true;
+}
+
 bool load_font(const char *path, int ptsize, TTF_Font **out_font)
 {
     if (!path || !out_font)

@@ -81,25 +81,17 @@ bool game_events_push_transition_check(GameState *game, GameEventType type)
 
 static void play_damage_sound(GameState *game)
 {
-    if (game->damageSound == NULL)
+    if (game->audio.damage != NULL)
     {
-        game->damageSound = Mix_LoadWAV("resource/sounds/damage.wav");
-    }
-    if (game->damageSound != NULL)
-    {
-        Mix_PlayChannel(-1, game->damageSound, 0);
+        Mix_PlayChannel(-1, game->audio.damage, 0);
     }
 }
 
 static void play_kick_sound(GameState *game)
 {
-    if (game->kickSound == NULL)
+    if (game->audio.kick != NULL)
     {
-        game->kickSound = Mix_LoadWAV("resource/sounds/kick.wav");
-    }
-    if (game->kickSound != NULL)
-    {
-        Mix_PlayChannel(-1, game->kickSound, 0);
+        Mix_PlayChannel(-1, game->audio.kick, 0);
     }
 }
 

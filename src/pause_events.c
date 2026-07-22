@@ -7,10 +7,6 @@ int pause_events(GameState *gameState)
 {
     SDL_Event event;
 
-    if (gameState->select == NULL) {
-        gameState->select = Mix_LoadWAV("resource/sounds/select.wav");
-    }
-
     while (SDL_PollEvent(&event))
     {
         input_controller_handle_event(&gameState->app, &event);
@@ -25,7 +21,7 @@ int pause_events(GameState *gameState)
                 app_change_scene(gameState, (gameState->app.scene == APP_SCENE_RUNNER_PAUSE)
                                                  ? APP_SCENE_RUNNER_GAME
                                                  : APP_SCENE_ARCADE_GAME);
-                Mix_PlayChannel(-1, gameState->select, 0);
+                Mix_PlayChannel(-1, gameState->audio.select, 0);
                 Mix_ResumeMusic();
                 break;
         }
