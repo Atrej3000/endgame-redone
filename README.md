@@ -28,7 +28,7 @@ make mingw-run
 
 ### Focused validation targets
 
-The repository has 22 focused MinGW checks, plus `audit-repo`:
+The repository has 24 focused MinGW checks, plus `audit-repo`:
 
 ```sh
 make mingw-smoketest             # init, asset guard, shutdown
@@ -54,6 +54,7 @@ make mingw-physicsbodytest       # shared body/collider model
 make mingw-worldcollisiontest    # common static-world solver
 make mingw-displaytest           # display defaults and persisted-size bounds
 make mingw-settingstest          # settings defaults, rebinding, and reset
+make mingw-replaytest            # deterministic seed/input simulation replay
 make audit-repo                   # resource-path and prototype integrity
 ```
 
@@ -63,11 +64,11 @@ Set `ENDGAME_PERF_LOG=1` before running `endgame-mingw.exe` or `make mingw-run` 
 
 ### Linux
 
-`make linux` and `make linux-smoketest` build the production sources against system SDL2 development packages discovered through `pkg-config`. This path is validated best-effort in CI and is not a replacement for the original macOS build.
+`make linux` and `make linux-smoketest` build the production sources against system SDL2 development packages discovered through `pkg-config`. `make linux-asan` runs the deterministic replay test under AddressSanitizer and UndefinedBehaviorSanitizer. This path is validated in CI and is not a replacement for the original macOS build.
 
 ## Continuous integration
 
-`.github/workflows/mingw-validation.yml` runs the Windows/MinGW build, all 23 focused checks, and repository integrity audit for pull requests and pushes to `main`. Its Linux job validates asset-path case and performs a best-effort Linux build/smoke test.
+`.github/workflows/mingw-validation.yml` runs the Windows/MinGW build, all 24 focused checks, and repository integrity audit for pull requests and pushes to `main`. Its Linux jobs validate asset-path case, perform a best-effort Linux build/smoke test, and run a required deterministic replay ASan/UBSan check.
 
 ## Asset ownership
 
@@ -107,9 +108,9 @@ Key supporting records:
 
 | Platform | Build | Verification | Runtime validation |
 |---|---|---|---|
-| Windows / MinGW | Local and CI `make mingw`; portable Python DLL copy | 22 focused checks + audit in CI | Headless runtime checks |
+| Windows / MinGW | Local and CI `make mingw`; portable Python DLL copy | 24 focused checks + audit in CI | Headless runtime checks |
 | macOS (bundled frameworks) | Original `make` target | Not run in this environment | Not runtime-validated here |
-| Linux | Best-effort `make linux` | Case-sensitive asset audit + best-effort smoke test in CI | Best-effort only |
+| Linux | `make linux-asan` and best-effort `make linux` | Case-sensitive asset audit + required replay ASan/UBSan + best-effort smoke test | Sanitized simulation coverage |
 
 Asset-path casing fixes are documented in `docs/asset-path-portability.md`. AddressSanitizer/UndefinedBehaviorSanitizer are unavailable in the validated MinGW toolchains; use a sanitizer-capable Linux or MSVC/clang-cl environment for sanitizer builds.
 

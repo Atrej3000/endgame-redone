@@ -187,64 +187,9 @@ int processEvents(SDL_Window *window, GameState *game)
         game->CurrentSheetBoss %= 4;
     }
 
-    // Continuous held-key forces for `man` (horizontal accel/clamp, jump-hold
-    // thrust, friction/snap) moved to src/process.c (Phase 11, see
-    // docs/physics-timestep-map.md section 4) -- they now run at the fixed
-    // physics tick rate instead of the render rate. Discrete actions (jump
-    // trigger, shooting below) stay here, unchanged.
-    //
-    // Reads game->input.shootHeldPlayer1 (Phase 17, see
-    // docs/input-snapshot-architecture-map.md) instead of calling
-    // SDL_GetKeyboardState() itself -- main.c captures one snapshot per real
-    // frame; the shotCount cooldown logic below is unchanged.
-    if (game->input.shootHeldPlayer1)
-    {
-        if (game->shotCount == 0)
-        {
-
-            if (!game->man.facingLeft)
-            {
-                addBullet(game, game->man.x + 40, game->man.y + 15, 3);
-                game->shotCount++;
-            }
-            else
-            {
-                addBullet(game, game->man.x, game->man.y + 15, -3);
-                game->shotCount++;
-            }
-        }
-    }
-    if (game->time % 23 == 0)
-    {
-        game->shotCount = 0;
-    }
-    // SECOND PLAYER
-    if (game->multiPlayer)
-    {
-        // Continuous held-key forces for `secondPlayer` moved to
-        // src/process.c (Phase 11) -- same reasoning as `man` above.
-        if (game->input.shootHeldPlayer2)
-        {
-            if (game->shotCountMultiplayer == 0)
-            {
-
-                if (!game->secondPlayer.facingLeft)
-                {
-                    addSecondBullet(game, game->secondPlayer.x + 40, game->secondPlayer.y + 15, 3);
-                    game->shotCountMultiplayer++;
-                }
-                else
-                {
-                    addSecondBullet(game, game->secondPlayer.x, game->secondPlayer.y + 15, -3);
-                    game->shotCountMultiplayer++;
-                }
-            }
-        }
-        if (game->time % 23 == 0)
-        {
-            game->shotCountMultiplayer = 0;
-        }
-    }
+    // SDL event polling remains here; the snapshot-driven shooting action is
+    // shared with deterministic replay in process_arcade_shooting().
+    process_arcade_shooting(game);
 
     // Body-contact hazards + fall-off-screen, and the resulting game-over
     // transition (Phase 19, see docs/collision-ordering-map.md) --

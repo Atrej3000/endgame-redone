@@ -4,6 +4,18 @@
 #include "collision_pipeline.h"
 #include "game_events.h"
 
+// Simulation is also used by the headless replay/sanitizer harness. Effects
+// are optional there (and during a recoverable asset-load failure), while the
+// authoritative movement/result must remain valid.
+static void play_effect(Mix_Chunk *effect, int volume)
+{
+    if (effect != NULL)
+    {
+        Mix_VolumeChunk(effect, volume);
+        Mix_PlayChannel(-1, effect, 0);
+    }
+}
+
 // Fixed pool (Phase 14, see docs/projectile-correctness-map.md): no
 // malloc/free -- a shot claims the first inactive slot in place.
 void addBullet(GameState *game, float x, float y, float dx)
@@ -15,8 +27,7 @@ void addBullet(GameState *game, float x, float y, float dx)
         if (!game->bullets[i].active)
         {
             found = i;
-            Mix_VolumeChunk(game->audio.shoot, 32);
-            Mix_PlayChannel(-1, game->audio.shoot, 0);
+            play_effect(game->audio.shoot, 32);
             break;
         }
     }
@@ -45,8 +56,7 @@ void addSecondBullet(GameState *game, float x, float y, float dx)
         if (!game->secondBullets[i].active)
         {
             found = i;
-            Mix_VolumeChunk(game->audio.shoot, 32);
-            Mix_PlayChannel(-1, game->audio.shoot, 0);
+            play_effect(game->audio.shoot, 32);
             break;
         }
     }
@@ -65,6 +75,50 @@ void addSecondBullet(GameState *game, float x, float y, float dx)
 void removeSecondBullet(GameState *game, int i)
 {
     game->secondBullets[i].active = false;
+}
+
+// Discrete Arcade shooting is kept separate from SDL event polling so the
+// deterministic replay can execute the exact same InputState-driven action
+// without needing a live window. processEvents() still invokes this once per
+// real frame in production, preserving the existing cooldown contract.
+void process_arcade_shooting(GameState *game)
+{
+    if (game->input.shootHeldPlayer1 && game->shotCount == 0)
+    {
+        if (!game->man.facingLeft)
+        {
+            addBullet(game, game->man.x + 40, game->man.y + 15, 3);
+        }
+        else
+        {
+            addBullet(game, game->man.x, game->man.y + 15, -3);
+        }
+        game->shotCount++;
+    }
+    if (game->time % 23 == 0)
+    {
+        game->shotCount = 0;
+    }
+
+    if (game->multiPlayer)
+    {
+        if (game->input.shootHeldPlayer2 && game->shotCountMultiplayer == 0)
+        {
+            if (!game->secondPlayer.facingLeft)
+            {
+                addSecondBullet(game, game->secondPlayer.x + 40, game->secondPlayer.y + 15, 3);
+            }
+            else
+            {
+                addSecondBullet(game, game->secondPlayer.x, game->secondPlayer.y + 15, -3);
+            }
+            game->shotCountMultiplayer++;
+        }
+        if (game->time % 23 == 0)
+        {
+            game->shotCountMultiplayer = 0;
+        }
+    }
 }
 
 // Moves every active bullet exactly once per tick (Phase 14, see
@@ -146,8 +200,7 @@ void consume_arcade_jump_requests(GameState *game)
             game->man.coyoteTicksRemaining = 0;
             game->input.jumpBufferTicksPlayer1 = 0;
 
-            Mix_VolumeChunk(game->audio.jump, 32);
-            Mix_PlayChannel(-1, game->audio.jump, 0);
+            play_effect(game->audio.jump, 32);
         }
         else
         {
@@ -164,8 +217,7 @@ void consume_arcade_jump_requests(GameState *game)
             game->secondPlayer.coyoteTicksRemaining = 0;
             game->input.jumpBufferTicksPlayer2 = 0;
 
-            Mix_VolumeChunk(game->audio.jump, 32);
-            Mix_PlayChannel(-1, game->audio.jump, 0);
+            play_effect(game->audio.jump, 32);
         }
         else
         {
@@ -575,8 +627,7 @@ void consume_runner_jump_requests(GameState *game)
             game->man.coyoteTicksRemaining = 0;
             game->input.jumpBufferTicksPlayer1 = 0;
 
-            Mix_VolumeChunk(game->audio.jump, 32);
-            Mix_PlayChannel(-1, game->audio.jump, 0);
+            play_effect(game->audio.jump, 32);
         }
         else
         {
@@ -593,8 +644,7 @@ void consume_runner_jump_requests(GameState *game)
             game->secondPlayer.coyoteTicksRemaining = 0;
             game->input.jumpBufferTicksPlayer2 = 0;
 
-            Mix_VolumeChunk(game->audio.jump, 32);
-            Mix_PlayChannel(-1, game->audio.jump, 0);
+            play_effect(game->audio.jump, 32);
         }
         else
         {
