@@ -1,5 +1,10 @@
 # Projectile Correctness Map — Ucode_Endgame
 
+> **Current-state note (Phase 21).** This is the Phase 14 design record. Phase 21 converted the
+> preserved 60 Hz observable speed of 11.3 px/tick to `BULLET_SPEED_PER_SEC` (678 px/s) and
+> advances bullets with fixed-step `dt`. References below to an old per-tick speed constant are
+> historical terminology only; current code has no per-tick projectile-speed constant.
+
 Written **before** any Phase 14 code edit, per this session's established audit-first pattern.
 Evidence gathered directly from the tree at commit `c9ff171` (tag
 `refactor-pre-projectile-correctness`, `main` after Phase 13's PR #9 merge) via a complete read of
@@ -125,7 +130,7 @@ bullet would have silently kept moving at the spawn speed (`3`/tick) instead of 
 speed-preserving `11.3`/tick, defeating the whole point of the constant. Fixed by normalizing
 `dx` to `±BULLET_SPEED_PER_TICK` by sign instead of clamping a magnitude:
 ```c
-game->bullets[i].dx = (game->bullets[i].dx >= 0) ? BULLET_SPEED_PER_TICK : -BULLET_SPEED_PER_TICK;
+game->bullets[i].dx = (game->bullets[i].dx >= 0) ? BULLET_SPEED_PER_SEC : -BULLET_SPEED_PER_SEC;
 ```
 This reproduces the old code's actual effect (spawn direction, fixed magnitude every tick)
 regardless of which bound happens to be larger — corrected in its own commit before the

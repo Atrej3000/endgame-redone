@@ -1,191 +1,129 @@
 # Ucode_Endgame
 ![MinGW validation](https://github.com/Atrej3000/endgame-redone/actions/workflows/mingw-validation.yml/badge.svg)
 
-Ucode IT Academy C Marathon: Final team project (Serha/Slipchencko team)
+Ucode IT Academy C Marathon: Final team project (Serha/Slipchencko team).
 
-Installation (macOS, primary supported platform):
-    1. open your terminal in the game directory/repo and print "make"
-    2. print "./endgame"
-    ...
-    3. profit
+## Build and run
 
-Windows/MinGW validation build (additive, does not replace the macOS build above):
-    Used to compile and smoke-test this project on Windows, where the bundled macOS
-    `.framework`s and `clang` toolchain aren't available. Requires MinGW-w64 GCC and GNU Make
-    (e.g. `scoop install gcc make`), plus the official SDL2 MinGW "devel" packages, pinned in
-    the Makefile (`SDL2_VERSION`, `SDL2_IMAGE_VERSION`, `SDL2_TTF_VERSION`, `SDL2_MIXER_VERSION`;
-    run `make print-mingw-versions` to see the exact numbers currently pinned):
-        ./scripts/setup-mingw-sdl2.sh
-    fetches and lays out all four packages (plus the small include-compatibility shims needed)
-    into `vendor/SDL2-mingw/` automatically -- idempotent, safe to re-run, and the same script
-    CI uses (see below), so there's one source of truth instead of manual per-package steps.
-    Then:
-        make mingw               # builds build-mingw/endgame-mingw.exe with strict warnings
-        make mingw-run           # builds and runs it
-        make mingw-smoketest     # non-interactive init/asset-guard/shutdown runtime check
-        make mingw-scenetest     # non-interactive scene-transition check
-        make mingw-lifecycletest # non-interactive asset-load/session-reset lifecycle check
-        make mingw-frametest     # non-interactive frame-order/render-purity/animation check
-        make mingw-deathtest     # non-interactive Runner death/respawn/game-over lifecycle check
-        make mingw-entityspawntest # non-interactive enemy/smart-enemy/boss spawn factory check
-        make mingw-commandtest   # non-interactive input-command translation check
-        make mingw-headertest    # confirms each focused public header compiles standalone
-        make mingw-groupingtest  # non-interactive GameState nested-struct lifecycle check
-        make mingw-physicstest   # non-interactive fixed-timestep player-physics check
-        make mingw-inputtest     # non-interactive edge-triggered jump-request check
-        make mingw-collisiontest # non-interactive player-vs-ledge collision correctness check
-        make mingw-projectiletest # non-interactive bullet pool/movement/swept-collision check
-        make mingw-gamefeeltest  # non-interactive coyote-time/jump-buffer/variable-height check
-        make mingw-inputsnapshottest # non-interactive input snapshot capture/isolation check
-        make mingw-aiforcestest  # non-interactive boss/enemy/smart-enemy movement check
-        make mingw-collisionorderingtest # non-interactive hazard/game-over-transition check
-        make mingw-asan          # ASan/UBSan debug build, where the toolchain supports it
-        make audit-repo          # repository usage integrity check (asset paths + prototypes)
-    `vendor/` and `build-mingw/` are gitignored (not committed) since they're large,
-    regeneratable, third-party/build artifacts.
-    Set `ENDGAME_PERF_LOG=1` (any value) before running `endgame-mingw.exe`/`make mingw-run` to
-    print a `[perf] ticks=... physics_ms=... render_ms=...` summary once per real second -- see
-    `docs/optimization-map.md`. Off by default; zero added cost when unset.
+### macOS
 
-Linux (additive, best-effort; see Known platform limitations below):
-    `make linux` and `make linux-smoketest` build the same production sources against
-    system-installed SDL2 dev packages (`libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev
-    libsdl2-mixer-dev`, discovered via `pkg-config`) instead of the vendored MinGW packages. This
-    target is exercised in CI (see below) but has not been run against a local Linux toolchain in
-    this environment -- treat it as best-effort, not validated the way the macOS/MinGW paths are.
+The original primary build uses the bundled SDL frameworks:
 
-Continuous Integration:
-    `.github/workflows/mingw-validation.yml` runs two jobs on every pull request and every push to
-    `main`: `mingw-build-and-test` (Windows/MSYS2 MINGW64 -- the same build, all five
-    non-interactive test targets, and the repository usage integrity check) and
-    `linux-asset-validation` (Ubuntu -- the repository usage integrity check against a genuinely
-    case-sensitive filesystem, plus a best-effort `make linux`/`linux-smoketest` build). See
-    `docs/refactor-plan.md`'s Phase 6/Pass 6, Phase 41-45/Pass 7, and Phase 46-50/Pass 8 notes for
-    the full design and reasoning.
+```sh
+make
+./endgame
+```
 
-Architecture:
-    `docs/solid-gof-audit.md` documents the evidence-based SOLID/GoF audit behind the codebase's
-    current design decisions -- what's implemented (Simple Factory-style creation functions for
-    enemy/boss spawning, Command for discrete-action input translation), what's already present
-    informally (State, Facade, Flyweight, Adapter), and what's deliberately rejected (Strategy,
-    Singleton, Service Locator, and most of the remaining GoF catalogue) and why.
-    `docs/design-patterns.md` is the per-pattern implementation record; `docs/dependency-map.md`
-    documents the intended and actual module dependency direction. `docs/gamestate-decomposition.md`
-    documents the field-by-field `GameState` ownership audit behind the `AppContext`/
-    `AssetLifecycleFlags` nested-struct groups (`game->app.renderer`/`game->app.scene`,
-    `game->assetFlags.*`) and the memory-layout safety verification supporting them.
-    `docs/physics-timestep-map.md` documents the fixed-timestep conversion: `main()` now drives
-    gameplay simulation via a real-time accumulator at a fixed 60Hz (`PHYSICS_HZ`/`PHYSICS_DT`,
-    `inc/header.h`), and player (man/secondPlayer) gravity/velocity/acceleration/friction/jump
-    constants are expressed in explicit per-second units rather than per-frame ones -- gameplay
-    physics for the player is no longer tied to display refresh rate. Enemies, bosses, bullets,
-    background/decor scroll, and moving traps remain frame-count-based (deliberately deferred).
-    `docs/input-simulation-separation-map.md` documents the follow-on input/simulation separation:
-    jump requests are edge-triggered `bool` flags (`game->input.jumpRequestedPlayer1/2`) set by
-    `processEvents()`/`processEvents2()` and consumed exactly once, at the fixed physics tick rate,
-    by `consume_arcade_jump_requests()`/`consume_runner_jump_requests()` -- one input edge produces
-    exactly one jump regardless of how many physics ticks a real frame produces. Also documents a
-    regression this pass found and fixed: Runner's jump impulse had been left unconverted (a bare
-    `-10`, 60x too weak at the fixed-timestep integration) since the previous pass.
-    `docs/collision-correctness-map.md` documents the follow-on collision-correctness pass:
-    `onLedge` is now reset once per collision pass (before the ledge loop) instead of never, so
-    walking off a ledge's edge correctly leaves the player airborne instead of staying "grounded"
-    indefinitely; the landing check uses a new `Man.prevY` field to remain correct while a player
-    rests exactly on a surface; and Runner's ceiling bump now correctly clears `onLedge` instead of
-    re-grounding the player mid-air. Player-only (man/secondPlayer); enemy/boss/smart-enemy
-    collision is unchanged.
-    `docs/projectile-correctness-map.md` documents the follow-on projectile-correctness pass
-    (Arcade-only): bullets moved up to 113x per tick due to three separate collision loops each
-    re-running the same movement (not "3x" as earlier docs framed it); bullets are now a fixed
-    value-array pool (no per-shot malloc/free) that moves exactly once per tick via
-    `move_arcade_bullets()`, using a speed-preserving `BULLET_SPEED_PER_TICK` constant so the fix
-    doesn't silently make bullets ~113x slower, plus a `prevX`-based swept-collision test so a
-    fast bullet can't tunnel through a target within one tick.
-    `docs/game-feel-map.md` documents the follow-on game-feel pass: jump now has a short coyote
-    grace window after leaving a ledge and jump buffering (a request pressed slightly before
-    landing fires on landing instead of being dropped), and the old continuous, uncapped
-    hold-thrust jump mechanic is replaced with the standard impulse-plus-release-cut technique for
-    variable jump height (release early while still rising fast for a short hop, hold through for
-    the full arc) -- which also removes a quirk where holding the jump key while grounded added
-    thrust regardless.
-    `docs/optimization-map.md` documents the assessment's last named pass, "optimization": a static
-    algorithmic-complexity audit of every hot loop (the bullet-vs-target collision loops in
-    `process()` are the largest, at 113,000 checks/tick single-player) plus the opt-in
-    `ENDGAME_PERF_LOG` timing instrumentation above -- deliberately no speculative loop changes,
-    since no real profiling data exists yet to justify one.
-    `docs/input-snapshot-architecture-map.md` documents the first of four follow-on phases split
-    out of a proposed target frame architecture (input snapshot isolation, AI/forces separation,
-    collision ordering, render interpolation): held-key state is now captured exactly once per
-    real frame, before the fixed-step physics loop runs, instead of `apply_arcade_player_forces`/
-    `apply_runner_player_forces` calling `SDL_GetKeyboardState()` live from inside that loop (which
-    could re-sample keyboard state a non-deterministic number of times per frame). Jump requests
-    were already correctly isolated by Phase 12/15's edge-triggered buffering and needed no change.
-    `docs/ai-forces-separation-map.md` documents the second follow-on phase, AI/forces separation:
-    boss/regular-enemy/smart-enemy movement (previously fused inline inside `process()`) is now
-    extracted into `src/ai_forces.c` (`move_boss_entities()`/`move_regular_enemies()`/
-    `move_smart_enemies()`), a structural extraction with no behavior change, plus
-    `smart_enemy_select_target()` isolating the one piece of the movement logic that's a true,
-    standalone "decide intent" step (which of two players a smart enemy chases in multiplayer).
-    `docs/collision-ordering-map.md` documents the third follow-on phase, collision ordering: six
-    collision/hazard/transition concerns (bullet hits, Arcade body-contact hazards and game-over
-    transition, Runner star/fall hazards and game-over transition) are extracted into
-    `src/collision_pipeline.c`, matching a proposed target pipeline's own vocabulary -- no call
-    site moved, no arithmetic changed. Documents why two of the found "reversed" orderings (world-
-    solid resolution must run after movement, not before, or the player visibly tunnels through
-    geometry for a tick; Runner's hazard-before-ledge order and death-timing are already correct)
-    are preserved rather than "fixed."
+### Windows / MinGW
 
-Known platform limitations:
-    - The default build targets macOS only (bundled `.framework`s under `resource/frameworks`,
-      `clang`-specific flags). Linux has an additive, best-effort build path (`make linux`,
-      above) but is not a fully supported target.
-    - AddressSanitizer/UndefinedBehaviorSanitizer are not available through the MinGW-w64
-      toolchains tested on Windows (they lack the sanitizer runtime libraries for that target);
-      sanitizer instrumentation on Windows would need MSVC + clang-cl instead.
+The additive Windows build needs MinGW-w64 GCC, GNU Make, and Python 3 (for the standard-library-only DLL copy helper). Install the toolchain, then fetch the pinned SDL2 MinGW development packages:
 
-Supported-platform status (as of Pass 8, 2026-07-19):
+```sh
+./scripts/setup-mingw-sdl2.sh
+make mingw
+make mingw-run
+```
 
-    | Platform          | Build                          | Tests                          | Runtime validated? |
-    |-------------------|---------------------------------|---------------------------------|---------------------|
-    | Windows / MinGW   | Built in CI + locally           | All 8 targets pass in CI + locally | Yes (headless smoke/scene/lifecycle/frame/death tests) |
-    | macOS (bundled)   | Unchanged build path (`make`)   | Not run in this environment    | **Not runtime-validated in this environment** -- no macOS host available here |
-    | Linux             | Best-effort in CI (`make linux`)| Resource-path integrity validated in CI on a real case-sensitive filesystem; smoke test attempted best-effort | Integrity check yes; full runtime smoke test best-effort only |
+`make mingw` copies the four required SDL DLLs with `scripts/copy_mingw_dlls.py` and `shutil.copy2()`. The target works from PowerShell, CMD, MSYS2, and Linux; on native Windows it selects `py -3`, while other environments use `python3`. Override `PYTHON` if your Python command differs.
 
-    Asset-path casing: all three known Windows/case-insensitive-only mismatches
-    (`Sunset_front.png`, `brick_block.png`, `copper_block.png`) were corrected in Pass 8 -- see
-    `docs/asset-path-portability.md`. The corrected paths are valid on case-sensitive filesystems
-    (Linux, macOS with a case-sensitive volume) even though full macOS runtime validation hasn't
-    been performed in this environment.
+### Focused validation targets
 
-Manual:
-The game has two mods:
+The repository has 21 focused MinGW checks, plus `audit-repo`:
 
-    1) Arcade battle mod: you need to kill enemies and don`t allow them to reach the Unit City,
-        otherwise, you will lose one of your lives, if enemies touch you - you also will die.
+```sh
+make mingw-smoketest             # init, asset guard, shutdown
+make mingw-scenetest             # scene transitions
+make mingw-lifecycletest         # assets and session reset
+make mingw-frametest             # frame order, render purity, animation
+make mingw-deathtest             # Runner death and respawn lifecycle
+make mingw-entityspawntest       # enemy/boss factories
+make mingw-commandtest           # input command translation
+make mingw-headertest            # standalone public headers
+make mingw-groupingtest          # GameState nested-struct lifecycle
+make mingw-physicstest           # fixed-timestep player physics
+make mingw-inputtest             # jump buffering and input state
+make mingw-collisiontest         # player/ledge collision correctness
+make mingw-projectiletest        # projectile pool, sweep, movement
+make mingw-gamefeeltest          # coyote time, jump buffer, variable height
+make mingw-inputsnapshottest     # frame input snapshot isolation
+make mingw-aiforcestest          # boss/enemy/smart-enemy forces
+make mingw-collisionorderingtest # collision ordering and event consequences
+make mingw-interpolationtest     # render interpolation is presentation-only
+make mingw-physicsunitstest      # remaining per-second movement units
+make mingw-physicsbodytest       # shared body/collider model
+make mingw-worldcollisiontest    # common static-world solver
+make audit-repo                   # resource-path and prototype integrity
+```
 
-    2) Runner mod: you need to run to the right side as long as possible. Falling or touching a
-        trap costs one of your 3 lives (a brief death animation plays, then you respawn) --
-        the game ends only once all 3 lives are gone.
+`make mingw-asan` is retained for a sanitizer-capable toolchain, but the MinGW-w64 distributions used here do not ship the needed ASan/UBSan runtime libraries. `vendor/` and `build-mingw/` are generated, gitignored directories.
 
-    Also, every mod has its own multiplayer where you can play with your friend with one keyboard
+Set `ENDGAME_PERF_LOG=1` before running `endgame-mingw.exe` or `make mingw-run` to emit a once-per-second summary such as `[perf] ticks=60 physics_ms=... render_ms=... active_projectiles=... projectile_checks=...`.
 
-Main Menu:
+### Linux
 
-    1. Buttons "1", "2", "3" for choosing game mod in any menu window.
-    2. Button "ESC" for exit from the main menu out of the game or any window in the game in the second menu.
-    3. Button "q" for exit from the second menu in the main menu or exit from any other window out of the game.
+`make linux` and `make linux-smoketest` build the production sources against system SDL2 development packages discovered through `pkg-config`. This path is validated best-effort in CI and is not a replacement for the original macOS build.
 
-Controls in the Game:
+## Continuous integration
 
-    Button "p" - pause in the game.
-    Button "ESC" - exit from pause or exit in the menu without saving the result.
+`.github/workflows/mingw-validation.yml` runs the Windows/MinGW build, all 21 focused checks, and repository integrity audit for pull requests and pushes to `main`. Its Linux job validates asset-path case and performs a best-effort Linux build/smoke test.
 
-    1st player:
-        Buttons "w", "a", "d", for control player moves.
-        Button "SPACE" for shooting.
+## Architecture (Phase 26)
 
-    2nd player:
-        Buttons "up", "left", "right", for control player moves.
-        Button "0" for shooting.
+Simulation is fixed at 60 Hz (`PHYSICS_HZ` / `PHYSICS_DT`); real-frame input is captured once, simulation can run zero or more fixed steps, and rendering interpolates between captured previous and current transforms. Player movement, bullets, enemies, bosses, scrolling, traps, and Runner's multiplayer camera use explicit time-based units. The bullet speed constant is `BULLET_SPEED_PER_SEC`, preserving the previous observable speed at 60 Hz without encoding a per-tick unit in its name.
 
-PS: Good luck, have fun.
+```mermaid
+flowchart LR
+    Input["SDL events and held keys"] --> Snapshot["Input snapshot\n(one per rendered frame)"]
+    Snapshot --> Loop["60 Hz fixed-step loop"]
+    Loop --> Sim["Arcade / Runner simulation"]
+    Sim --> Bodies["KinematicBody + Collider\nlayers and masks"]
+    Bodies --> World["Shared axis-separated\nstatic-world solver"]
+    Sim --> Detect["Pure collision / hazard detectors"]
+    Detect --> Events["Bounded GameEvent queue"]
+    Events --> Apply["Centralized consequences"]
+    Sim --> Prev["Capture previous transforms"]
+    Prev --> Render["Interpolated presentation\n(camera included)"]
+    Apply --> Render
+    Sim --> Index["Active projectile index\nand telemetry"]
+```
+
+Key supporting records:
+
+- `docs/physics-timestep-map.md` explains fixed-step simulation and per-second units.
+- `docs/input-snapshot-architecture-map.md` and `docs/ai-forces-separation-map.md` document input isolation and the extracted AI/force layer.
+- `docs/collision-ordering-map.md` records the Phase 24 event-consequence architecture; `docs/phase25-profile-guided-optimization.md` records active projectile indexing and telemetry.
+- The Phase 20–24 focused verification sources (`docs/verification/render_interpolation_test.c`, `physics_body_test.c`, `world_collision_test.c`, and `collision_pipeline_test.c`) lock in interpolation, bodies/colliders, the world solver, and event consequences.
+
+## Supported-platform status (Phase 26, 2026-07-22)
+
+| Platform | Build | Verification | Runtime validation |
+|---|---|---|---|
+| Windows / MinGW | Local and CI `make mingw`; portable Python DLL copy | 21 focused checks + audit in CI | Headless runtime checks |
+| macOS (bundled frameworks) | Original `make` target | Not run in this environment | Not runtime-validated here |
+| Linux | Best-effort `make linux` | Case-sensitive asset audit + best-effort smoke test in CI | Best-effort only |
+
+Asset-path casing fixes are documented in `docs/asset-path-portability.md`. AddressSanitizer/UndefinedBehaviorSanitizer are unavailable in the validated MinGW toolchains; use a sanitizer-capable Linux or MSVC/clang-cl environment for sanitizer builds.
+
+## Manual
+
+The game has two modes:
+
+1. Arcade battle mode: defeat enemies before they reach Unit City. If enemies reach the city or touch you, you lose a life.
+2. Runner mode: run right as long as possible. Falling or touching a trap costs one of three lives; a brief death animation plays before respawn, and the game ends after all lives are gone.
+
+Each mode has local multiplayer using one keyboard.
+
+### Main menu
+
+1. Press `1`, `2`, or `3` to choose a mode.
+2. Press `Esc` to exit the main menu or return from the second menu.
+3. Press `Q` to leave the second menu or any in-game window.
+
+### Controls
+
+- `P`: pause.
+- `Esc`: leave pause or return to a menu without saving.
+- Player 1: `W`, `A`, `D` move/jump; `Space` shoots.
+- Player 2: arrow keys move/jump; keypad `0` shoots.
+
+Good luck; have fun.

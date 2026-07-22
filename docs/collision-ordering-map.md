@@ -1,5 +1,16 @@
 # Collision Ordering Map — Ucode_Endgame
 
+> **Current-state note (Phase 24).** Sections below are the Phase 19 audit and extraction record,
+> not a description of the current implementation. Phase 24 moved from fused
+> detection/consequence helpers to bounded, typed `GameEvent` collection and centralized
+> application. Fixed-step simulation captures previous transforms, advances movement and
+> body/world collision, runs pure Arcade/Runner hazard and projectile detectors, then applies
+> queued consequences once. Rendering consumes the resulting state through Phase 20 interpolation
+> and never performs simulation work.
+>
+> `mingw-collisionorderingtest` retains its compatible target name and now also verifies event
+> consequences through `docs/verification/collision_pipeline_test.c`.
+
 Written **before** any Phase 19 code edit, per this session's established audit-first pattern.
 Evidence gathered directly from the tree at commit `1ea9a06` (tag
 `refactor-pre-collision-ordering`, `main` after Phase 18's PR #14 merge) via a complete read of

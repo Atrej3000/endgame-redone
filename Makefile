@@ -100,15 +100,28 @@ MINGW_SRCS_NO_MAIN := $(filter-out src/main.c,$(wildcard src/*.c))
 BUILD_DIR := build-mingw
 MINGW_EXEC := $(BUILD_DIR)/endgame-mingw.exe
 
+# Use Windows' Python launcher from PowerShell/CMD, while retaining the usual
+# python3 command for MSYS2 and Linux. Callers can override PYTHON explicitly.
+ifeq ($(OS),Windows_NT)
+PYTHON ?= py -3
+else
+PYTHON ?= python3
+endif
+
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Copy the runtime DLLs next to the built exe so it can actually run.
-mingw-dlls: $(BUILD_DIR)
-	cp $(MINGW_ROOT)/SDL2-$(SDL2_VERSION)/$(MINGW_TRIPLET)/bin/SDL2.dll $(BUILD_DIR)/
-	cp $(MINGW_ROOT)/SDL2_image-$(SDL2_IMAGE_VERSION)/$(MINGW_TRIPLET)/bin/SDL2_image.dll $(BUILD_DIR)/
-	cp $(MINGW_ROOT)/SDL2_ttf-$(SDL2_TTF_VERSION)/$(MINGW_TRIPLET)/bin/SDL2_ttf.dll $(BUILD_DIR)/
-	cp $(MINGW_ROOT)/SDL2_mixer-$(SDL2_MIXER_VERSION)/$(MINGW_TRIPLET)/bin/SDL2_mixer.dll $(BUILD_DIR)/
+# Copy the runtime DLLs next to the built exe so it can actually run. Python's
+# shutil.copy2 keeps this target usable from PowerShell, CMD, MSYS2, and Linux.
+mingw-dlls: $(BUILD_DIR) scripts/copy_mingw_dlls.py
+	$(PYTHON) scripts/copy_mingw_dlls.py \
+		--mingw-root "$(MINGW_ROOT)" \
+		--triplet "$(MINGW_TRIPLET)" \
+		--sdl2-version "$(SDL2_VERSION)" \
+		--sdl2-image-version "$(SDL2_IMAGE_VERSION)" \
+		--sdl2-ttf-version "$(SDL2_TTF_VERSION)" \
+		--sdl2-mixer-version "$(SDL2_MIXER_VERSION)" \
+		--destination "$(BUILD_DIR)"
 
 # Machine-readable version dump for scripts/setup-mingw-sdl2.sh to consume,
 # so the fetch/extract logic never has its own hardcoded copy of these
@@ -292,7 +305,7 @@ mingw-collisiontest: $(BUILD_DIR) mingw-dlls
 
 # Verifies projectile correctness (Phase 14): pool spawn/despawn (no
 # malloc/free, other slots untouched), move-once-per-step (a bullet moves by
-# exactly BULLET_SPEED_PER_TICK per call, not the old 113x-per-tick bug),
+# exactly BULLET_SPEED_PER_SEC * PHYSICS_DT per call, not the old 113x-per-tick bug),
 # swept collision (a bullet whose prevX->x path crosses a target registers a
 # hit even when its end-of-tick position alone would miss), and an
 # end-to-end process() regression check. See
@@ -387,11 +400,6 @@ mingw-worldcollisiontest: $(BUILD_DIR) mingw-dlls
 		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
 		-o $(BUILD_DIR)/worldcollisiontest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/worldcollisiontest.exe
-
-# Dependency-light (stdlib-only) Python script. Override PYTHON on the
-# command line if python3 isn't on PATH (e.g. `make PYTHON="py -3" audit-repo`
-# on some Windows setups).
-PYTHON := python3
 
 # Repository usage integrity check: confirms every resource/-shaped string
 # literal in src/*.c points at a file that exists with exact case, and every
