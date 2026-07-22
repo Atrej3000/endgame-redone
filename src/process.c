@@ -218,7 +218,6 @@ void apply_arcade_player_forces(GameState *game, float dt)
     bool manJumpHeld = game->input.jumpHeldPlayer1;
     if (manJumpHeld)
     {
-        //game->man.facingLeft = 1;
         game->man.slowingDown = 0;
 
         if (game->time % 6 == 0)
@@ -274,7 +273,6 @@ void apply_arcade_player_forces(GameState *game, float dt)
         game->man.dx *= powf(RUN_FRICTION_DECAY_PER_TICK, dt * (float)PHYSICS_HZ);
         game->man.slowingDown = 1;
         game->man.currentSpriteRun = 1;
-        //game->enemy.currentSpriteRun = 1;
         if (fabsf(game->man.dx) < RUN_SNAP_ZERO_SPEED_PER_SEC)
         {
             game->man.dx = 0;
@@ -286,7 +284,6 @@ void apply_arcade_player_forces(GameState *game, float dt)
         bool secondPlayerJumpHeld = game->input.jumpHeldPlayer2;
         if (secondPlayerJumpHeld)
         {
-            //game->man.facingLeft = 1;
             game->secondPlayer.slowingDown = 0;
 
             if (game->time % 6 == 0)
@@ -339,7 +336,6 @@ void apply_arcade_player_forces(GameState *game, float dt)
             game->secondPlayer.dx *= powf(RUN_FRICTION_DECAY_PER_TICK, dt * (float)PHYSICS_HZ);
             game->secondPlayer.slowingDown = 1;
             game->secondPlayer.currentSpriteRun2 = 1;
-            //game->enemy.currentSpriteRun = 1;
             if (fabsf(game->secondPlayer.dx) < RUN_SNAP_ZERO_SPEED_PER_SEC)
             {
                 game->secondPlayer.dx = 0;
@@ -361,32 +357,29 @@ void process(GameState *game, float dt)
 
     if (game->time == 120)
     {
-        //1st example of assimetric with random
         for (int i = 0; i < 10; i += 2)
         {
-            enemy_spawn(game, i, 620, (i) * -200, 0, 0);         // - random() % 100;
-            enemy_spawn(game, i + 1, 580, (i) * -200, 0, 0);     //- random() % 50;
+            enemy_spawn(game, i, 620, (i) * -200, 0, 0);
+            enemy_spawn(game, i + 1, 580, (i) * -200, 0, 0);
         }
     }
 
     if (game->tempScore == 10)
     {
-        //2nd example of assimetric with random
         for (int j = 0; j < 20; j += 2)
         {
-            enemy_spawn(game, j, 620, (j) * -200, 0, 0);         //- random() % 80;
-            enemy_spawn(game, j + 1, 580, (j) * -200, 0, 0);     //- random() % 40;
+            enemy_spawn(game, j, 620, (j) * -200, 0, 0);
+            enemy_spawn(game, j + 1, 580, (j) * -200, 0, 0);
         }
         game->tempScore++;
     }
 
     if (game->tempScore == 31)
     {
-        //3rd example of assimetric with random
         for (int j = 0; j < 30; j += 2)
         {
-            enemy_spawn(game, j, 620, (j) * -200, 0, 0);         // - random() % 100; //- random() % 40;
-            enemy_spawn(game, j + 1, 580, (j) * -200, 0, 0);     // - random() % 50; //- random() % 80;
+            enemy_spawn(game, j, 620, (j) * -200, 0, 0);
+            enemy_spawn(game, j + 1, 580, (j) * -200, 0, 0);
         }
 
         smart_enemy_spawn(game, 0, 1000, 200, 0, 0);
@@ -512,11 +505,6 @@ void process(GameState *game, float dt)
                     }
                 }
             }
-            // if (man->dx == 0 && man->onLedge)
-            // {
-            //     man->animFrame = 0;
-            // }
-
             man->dy += GRAVITY_PER_SEC2 * dt;
         }
         if (game->man.isDead && game->deathCountdown < 0)
@@ -528,16 +516,10 @@ void process(GameState *game, float dt)
             game->deathCountdown--;
             if (game->deathCountdown < 0)
             {
-                // init_game_over(game);
-                // game->statusState = STATUS_STATE_GAMEOVER;
                 init_status_lives(game);
             }
         }
     }
-    // game->scrollX = -game->man.x + 320;
-    // if (game->scrollX > 0)
-    //     game->scrollX = 0;
-
     if (game->multiPlayer)
     {
         if (game->secondPlayer.x > 1280)
@@ -561,25 +543,6 @@ void process(GameState *game, float dt)
                 secondPlayer->x += secondPlayer->dx * dt;
                 secondPlayer->y += secondPlayer->dy * dt;
 
-                // if (secondPlayer->dx != 0 && secondPlayer->onLedge && !secondPlayer->slowingDown)
-                // {
-                //     if (game->time % 3 == 0)
-                //     {
-                //         if (man->animFrame < 11)
-                //         {
-                //             man->animFrame++;
-                //         }
-                //         else
-                //         {
-                //             man->animFrame = 0;
-                //         }
-                //     }
-                // }
-                // if (man->dx == 0 && man->onLedge)
-                // {
-                //     man->animFrame = 0;
-                // }
-
                 secondPlayer->dy += GRAVITY_PER_SEC2 * dt;
             }
             if (game->secondPlayer.isDead && game->deathCountdown < 0)
@@ -591,16 +554,11 @@ void process(GameState *game, float dt)
                 game->deathCountdown--;
                 if (game->deathCountdown < 0)
                 {
-                    // init_game_over(game);
-                    // game->statusState = STATUS_STATE_GAMEOVER;
                     init_status_lives(game);
                 }
             }
         }
     }
-    // game->scrollX = -game->man.x + 320;
-    // if (game->scrollX > 0)
-    //     game->scrollX = 0;
 }
 
 // Consumes the edge-triggered, buffered jump-request countdowns for Runner
@@ -771,7 +729,6 @@ void process2(GameState *game, float dt)
 
     if (game->time > 00)
     {
-        // shutdown_status_lives(game);
         game->statusState = STATUS_STATE_GAME; //show amount of lives
     }
 
@@ -801,7 +758,7 @@ void process2(GameState *game, float dt)
             man->dy += GRAVITY_PER_SEC2 * dt;
         }
 
-        // SECOND PLAYER _________________________________________________________________________________________________________________________
+        // Second player
         if (game->multiPlayer)
         {
             // Gated on the same shared death flag as `man` -- see
@@ -831,8 +788,6 @@ void process2(GameState *game, float dt)
         }
 
         //moving traps
-       // int i = 0;
-        //random()%5;
         for(int i = 0; i < NUM_STARS; i++)
       {
         game->stars[i].x = game->stars[i].baseX;
@@ -849,78 +804,6 @@ void process2(GameState *game, float dt)
               (float)game->time * PHYSICS_DT * TRAP_ANGULAR_SPEED_PER_SEC) * 75.0f;
         }
       }
-        // for (i = 0; i < 100; i++)
-        // {
-
-        //     //if(time == 2)
-        //     game->stars[i].x += game->stars[i].dx;
-        //     game->stars[i].y += game->stars[i].dy;
-
-        //     if (game->stars[i].y > 720)
-        //     {
-        //             game->stars[i].dy -= 0.1;
-        //              game->stars[i].y += game->stars[i].dy;
-        //             if (game->stars[i].dy <= -3.5)
-        //             {
-        //                 game->stars[i].dy = -3.5;
-        //             }
-        //     }
-        //     if (game->stars[i].y < 720 && game->stars[i].y > 0)
-        //     {
-        //     int rand = random() % 2;
-        //     if (rand)
-        //     {
-
-        //         if (game->stars[i].tempStar == 0)
-        //         {
-        //             game->stars[i].dy += 0.1;
-        //             if (game->stars[i].dy > 5)
-        //             {
-        //                 game->stars[i].dy = 0;
-        //                 game->stars[i].tempStar = 1;
-        //             }
-        //         }
-        //         if (game->stars[i].tempStar == 1)
-        //         {
-        //             game->stars[i].dy -= 0.1;
-        //             if (game->stars[i].dy < -4.1)
-        //             {
-        //                 game->stars[i].dy = 0;
-        //                 game->stars[i].tempStar = 0;
-        //             }
-        //         }
-        //     }
-        //     if (!rand)
-        //     {
-        //         if (game->stars[i].tempStar == 0)
-        //         {
-        //             game->stars[i].dx += 0.1;
-        //             if (game->stars[i].dx > 5)
-        //             {
-        //                 game->stars[i].dx = 0;
-        //                 game->stars[i].tempStar = 1;
-        //             }
-        //         }
-        //         if (game->stars[i].tempStar == 1)
-        //         {
-        //             game->stars[i].dx -= 0.1;
-        //             if (game->stars[i].dx < -4.1)
-        //             {
-        //                 game->stars[i].dx = 0;
-        //                 game->stars[i].tempStar = 0;
-        //             }
-        //         }
-        //     }
-        //     }
-        //     // if (game->stars[i].y > 720)
-        //     // {
-        //     //     game->stars[i].y = 400;
-        //     // }
-        // }
-
-        //infinity field
-
-        //_____________________________________________________________________________
         // Death-countdown progression itself is owned by runner_update_death()
         // (src/runner_death.c), called once per frame from runner_frame() --
         // see docs/runner-death-lifecycle.md. This used to also decrement

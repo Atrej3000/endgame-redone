@@ -14,9 +14,6 @@ int pause_events(GameState *gameState)
         if (event.type == SDL_KEYDOWN)
         {
         switch (event.key.keysym.sym) {
-//            case SDLK_p:
-//                gameState->menu_status = 5;
-//                break;
             case SDLK_q:
                 app_change_scene(gameState, APP_SCENE_MAIN_MENU);
                 break;
@@ -30,9 +27,5 @@ int pause_events(GameState *gameState)
         }
         }
     }
-//    const Uint8 *state = SDL_GetKeyboardState(NULL);
-//    if (state[SDL_SCANCODE_ESCAPE]) {
-//        gameState->menu_status = 1;
-//    }
     return gameState->menu_status;
 }

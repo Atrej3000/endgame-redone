@@ -516,7 +516,6 @@ typedef struct
     int menu0_status;
     int x_score;
     int x_list[25];
-    //char *x_names[20];
     int x_i;
     int kills_score;
     int kills_score_multi;
@@ -525,13 +524,7 @@ typedef struct
 
     int iter;
 
-    //SDL_Event event;
-
 } GameState;
-
-    //something for leaderboard
-//    int leaderboard_list[25] = {0};
-//    int *leader_list = leaderboard_list;clear
 
 // PRototypes
 
@@ -611,14 +604,12 @@ void addBullet(GameState *game, float x, float y, float dx);
 void addSecondBullet(GameState *game, float x, float y, float dx);
 void removeSecondBullet(GameState *game, int i);
 
-//score
 void init_status_kills(GameState *game);
 void draw_status_kills(GameState *game);
 void init_status_x(GameState *game);
 void draw_status_x(GameState *game);
 void init_status_x_list(GameState *game);
 
-//for two mods game
 void load_menu0(GameState *game);
 int  doRender_menu0(SDL_Renderer *renderer, GameState *game);
 void menu0_events(GameState *gameState);

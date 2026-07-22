@@ -59,19 +59,13 @@ void menu_events(GameState *gameState)
 
                 Mix_VolumeChunk(gameState->select, 32);
                 Mix_PlayChannel(-1, gameState->select, 0);
-//                Mix_FreeChunk(gameState->select);
-//                Mix_FreeMusic(gameState->menuMus);
                 break;
-//            case SDLK_ESCAPE:
-//                gameState->menu0_status = 0;
-//                break;
             default:
                 // Already at this menu; no scene change.
                 break;
         }
         }
     }
-//    return done;
 }
 
 void menu0_events(GameState *gameState)
@@ -104,11 +98,6 @@ void menu0_events(GameState *gameState)
 
                 Mix_VolumeChunk(gameState->select, 32);
                 Mix_PlayChannel(-1, gameState->select, 0);
-//                Mix_FreeChunk(gameState->select);
-//                Mix_FreeMusic(gameState->menuMus);
-
-//                Mix_VolumeChunk(gameState->select, 32);
-//                Mix_PlayChannel(-1, gameState->select, 0);
                 break;
             default:
                 // Already at the main menu; no scene change.

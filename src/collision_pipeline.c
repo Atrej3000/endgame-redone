@@ -81,7 +81,7 @@ void detect_projectile_hits(GameState *game)
         }
     }
 
-    // SECOND BULLET___________________________________________________________________________________________
+    // Second player's projectiles
 
     if (game->multiPlayer)
     {
@@ -124,7 +124,6 @@ void detect_projectile_hits(GameState *game)
         }
     }
 
-    // SECOND BULLET END ________________________________________________________________________________________________________________________
 }
 
 void detect_arcade_hazards(GameState *game)
@@ -179,7 +178,7 @@ void detect_arcade_hazards(GameState *game)
             }
         }
     }
-    //_________________________________________________________lives by falls
+    // Fall hazards
 
     if (game->man.y >= 719)
     {
