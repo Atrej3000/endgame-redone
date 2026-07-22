@@ -1,6 +1,7 @@
 #include "header.h"
 #include "scene.h"
 #include "input_command.h"
+#include "input_snapshot.h"
 #include "collision_pipeline.h"
 #include "game_events.h"
 #include "display.h"
@@ -20,6 +21,7 @@ int processEvents(SDL_Window *window, GameState *game)
 
     while (SDL_PollEvent(&event))
     {
+        input_controller_handle_event(&game->app, &event);
         display_handle_event(game, &event);
         switch (event.type)
         {
@@ -30,7 +32,10 @@ int processEvents(SDL_Window *window, GameState *game)
         break;
         case SDL_KEYDOWN:
         {
-            switch (translate_arcade_command(event.key.keysym.sym))
+            GameCommand command = translate_arcade_command(event.key.keysym.sym);
+            if (event.key.keysym.scancode == game->app.settings.player1.pause) command = GAME_COMMAND_PAUSE;
+            else if (command == GAME_COMMAND_PAUSE) command = GAME_COMMAND_NONE;
+            switch (command)
             {
             //return to menu
             case GAME_COMMAND_QUIT_TO_MODE_MENU:
@@ -295,6 +300,7 @@ int processEvents2(SDL_Window *window, GameState *game)
 
     while (SDL_PollEvent(&event))
     {
+        input_controller_handle_event(&game->app, &event);
         display_handle_event(game, &event);
         switch (event.type)
         {
@@ -316,7 +322,10 @@ int processEvents2(SDL_Window *window, GameState *game)
                 game->gameLives += 30;
             }
 
-            switch (translate_runner_command(event.key.keysym.sym))
+            GameCommand command = translate_runner_command(event.key.keysym.sym);
+            if (event.key.keysym.scancode == game->app.settings.player1.pause) command = GAME_COMMAND_PAUSE;
+            else if (command == GAME_COMMAND_PAUSE) command = GAME_COMMAND_NONE;
+            switch (command)
             {
             //return to menu
             case GAME_COMMAND_QUIT_TO_MODE_MENU:

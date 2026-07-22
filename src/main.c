@@ -3,6 +3,7 @@
 #include "scene.h"
 #include "frame.h"
 #include "input_snapshot.h"
+#include "settings_menu.h"
 
 int main()
 {
@@ -101,6 +102,11 @@ int main()
                 doRender_menu0(renderer, gameState);
                 break;
 
+            case APP_SCENE_SETTINGS:
+                settings_events(gameState);
+                doRender_settings(renderer, gameState);
+                break;
+
             case APP_SCENE_ARCADE_MENU:
                 menu_events(gameState);
                 doRender_menu1(renderer, gameState);
@@ -108,7 +114,8 @@ int main()
 
             case APP_SCENE_ARCADE_GAME:
             {
-                input_capture_arcade(&gameState->input, keyboardState);
+                input_capture_arcade(&gameState->input, keyboardState, &gameState->app.settings);
+                input_apply_controller(&gameState->input, &gameState->app, true);
                 accumulator += frameTime;
                 int steps = 0;
                 Uint64 perfPhysicsStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;
@@ -155,7 +162,8 @@ int main()
 
             case APP_SCENE_RUNNER_GAME:
             {
-                input_capture_runner(&gameState->input, keyboardState);
+                input_capture_runner(&gameState->input, keyboardState, &gameState->app.settings);
+                input_apply_controller(&gameState->input, &gameState->app, false);
                 accumulator += frameTime;
                 int steps = 0;
                 Uint64 perfPhysicsStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;

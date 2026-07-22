@@ -165,6 +165,10 @@ jobs:
         shell: msys2 {0}
         run: make mingw-displaytest 2>&1 | tee displaytest.log
 
+      - name: Settings and input defaults test
+        shell: msys2 {0}
+        run: make mingw-settingstest 2>&1 | tee settingstest.log
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -194,6 +198,7 @@ jobs:
             physicsbodytest.log
             worldcollisiontest.log
             displaytest.log
+            settingstest.log
           if-no-files-found: ignore
 
   # Windows CI, however thorough, cannot prove case-sensitive path

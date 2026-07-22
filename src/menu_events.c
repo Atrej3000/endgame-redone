@@ -1,6 +1,7 @@
 #include "header.h"
 #include "scene.h"
 #include "input_command.h"
+#include "input_snapshot.h"
 #include "display.h"
 
 void menu_events(GameState *gameState)
@@ -13,6 +14,7 @@ void menu_events(GameState *gameState)
 
     while (SDL_PollEvent(&event))
     {
+        input_controller_handle_event(&gameState->app, &event);
         display_handle_event(gameState, &event);
         if (event.type == SDL_KEYDOWN)
         {
@@ -80,10 +82,17 @@ void menu0_events(GameState *gameState)
 
     while (SDL_PollEvent(&event))
     {
+        input_controller_handle_event(&gameState->app, &event);
         display_handle_event(gameState, &event);
         if (event.type == SDL_KEYDOWN)
         {
         switch (translate_menu_command(event.key.keysym.sym)) {
+            case GAME_COMMAND_NONE:
+                if (event.key.keysym.sym == SDLK_s)
+                {
+                    app_change_scene(gameState, APP_SCENE_SETTINGS);
+                }
+                break;
             case GAME_COMMAND_SELECT_ARCADE:
                 app_change_scene(gameState, APP_SCENE_ARCADE_MENU);
 
