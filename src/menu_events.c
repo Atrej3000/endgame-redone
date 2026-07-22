@@ -1,6 +1,7 @@
 #include "header.h"
 #include "scene.h"
 #include "input_command.h"
+#include "display.h"
 
 void menu_events(GameState *gameState)
 {
@@ -12,6 +13,7 @@ void menu_events(GameState *gameState)
 
     while (SDL_PollEvent(&event))
     {
+        display_handle_event(gameState, &event);
         if (event.type == SDL_KEYDOWN)
         {
         bool isRunner = (gameState->app.scene == APP_SCENE_RUNNER_MENU);
@@ -78,6 +80,7 @@ void menu0_events(GameState *gameState)
 
     while (SDL_PollEvent(&event))
     {
+        display_handle_event(gameState, &event);
         if (event.type == SDL_KEYDOWN)
         {
         switch (translate_menu_command(event.key.keysym.sym)) {

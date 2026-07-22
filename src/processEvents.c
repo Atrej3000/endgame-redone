@@ -3,9 +3,11 @@
 #include "input_command.h"
 #include "collision_pipeline.h"
 #include "game_events.h"
+#include "display.h"
 
 int processEvents(SDL_Window *window, GameState *game)
 {
+    (void)window;
     SDL_Event event;
     int done = 0;
 
@@ -18,16 +20,12 @@ int processEvents(SDL_Window *window, GameState *game)
 
     while (SDL_PollEvent(&event))
     {
+        display_handle_event(game, &event);
         switch (event.type)
         {
         case SDL_WINDOWEVENT_CLOSE:
         {
-            if (window)
-            {
-                SDL_DestroyWindow(window);
-                window = NULL;
-                done = 0;
-            }
+            done = 1;
         }
         break;
         case SDL_KEYDOWN:
@@ -281,6 +279,7 @@ int processEvents(SDL_Window *window, GameState *game)
 
 int processEvents2(SDL_Window *window, GameState *game)
 {
+    (void)window;
     SDL_Event event;
     int done = 0;
 
@@ -296,16 +295,12 @@ int processEvents2(SDL_Window *window, GameState *game)
 
     while (SDL_PollEvent(&event))
     {
+        display_handle_event(game, &event);
         switch (event.type)
         {
         case SDL_WINDOWEVENT_CLOSE:
         {
-            if (window)
-            {
-                SDL_DestroyWindow(window);
-                window = NULL;
-                done = 0;
-            }
+            done = 1;
         }
         break;
         case SDL_KEYDOWN:
