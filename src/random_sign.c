@@ -1,7 +1,5 @@
 #include "header.h"
-#include <math.h>
-
 int random_sign(int mult, int step) {
-    step = step * mult * pow(-1, (random()%2));
-    return step;
+    const int sign = (random() % 2 == 0) ? 1 : -1;
+    return step * mult * sign;
 }

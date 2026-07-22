@@ -71,7 +71,11 @@ jobs:
         shell: msys2 {0}
         run: |
           count=$(grep -c "warning:" build.log || true)
-          echo "Warning count: $count (local baseline as of Phase 8: 161)"
+          if [ "$count" -ne 0 ]; then
+            echo "Unexpected compiler warnings: $count"
+            exit 1
+          fi
+          echo "Warning count: 0 (-Werror enforced)"
 
       - name: Smoke test
         shell: msys2 {0}

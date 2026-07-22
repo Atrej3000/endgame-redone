@@ -410,8 +410,9 @@ int processEvents2(SDL_Window *window, GameState *game)
         }
         game->iter++;
     }
-    if ((game->man.x / 293) > game->x_score)
-        game->x_score = game->man.x / 293;
+    const int distanceScore = (int)(game->man.x / 293.0f);
+    if (distanceScore > game->x_score)
+        game->x_score = distanceScore;
 
     // Fall-off-screen hazard, and the resulting game-over transition
     // (Phase 19, see docs/collision-ordering-map.md) -- extracted verbatim

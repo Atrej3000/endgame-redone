@@ -196,11 +196,13 @@ void detect_runner_hazard_contacts(GameState *game)
 {
     for (int i  = 0; i < 100; i++)
     {
-        if (collide2d(game->man.x, game->man.y, game->stars[i].x, game->stars[i].y, 30, 30, 30, 30))
+        const float starX = (float)game->stars[i].x;
+        const float starY = (float)game->stars[i].y;
+        if (collide2d(game->man.x, game->man.y, starX, starY, 30.0f, 30.0f, 30.0f, 30.0f))
         {
             game_events_push_player_contact(game, GAME_EVENT_RUNNER_PLAYER_HIT, 0);
         }
-        if (collide2d(game->secondPlayer.x, game->secondPlayer.y, game->stars[i].x, game->stars[i].y, 30, 30, 30, 30))
+        if (collide2d(game->secondPlayer.x, game->secondPlayer.y, starX, starY, 30.0f, 30.0f, 30.0f, 30.0f))
         {
             game_events_push_player_contact(game, GAME_EVENT_RUNNER_PLAYER_HIT, 1);
         }

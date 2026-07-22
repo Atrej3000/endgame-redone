@@ -517,7 +517,7 @@ void runner_session_reset(GameState *game, GameMode mode)
         game->stars[i].baseX = game->ledges[i].x - random_sign(1, 1) * random() % 120;
         game->stars[i].baseY = game->ledges[i].y - random() % 120;
         game->stars[i].mode = random() % 2;
-        game->stars[i].phase = 2.0f * 3.14f * (random() % 360) / 360.0f;
+        game->stars[i].phase = 2.0f * 3.14f * (float)(random() % 360) / 360.0f;
         game->stars[i].x = game->stars[i].baseX;
         game->stars[i].y = game->stars[i].baseY;
     }
