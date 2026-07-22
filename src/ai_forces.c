@@ -1,6 +1,5 @@
 #include "ai_forces.h"
 
-// BOSS _________________________________________________________________________________________________________
 void move_boss_entities(GameState *game, float dt)
 {
     for (int i = 0; i < 2; i++)
@@ -43,8 +42,6 @@ void move_boss_entities(GameState *game, float dt)
         }
     }
 }
-// BOSS ----------------------------------------------------------------------------------------------------------------
-
 // STUPID BOTS
 void move_regular_enemies(GameState *game, float dt)
 {
@@ -91,8 +88,6 @@ void move_regular_enemies(GameState *game, float dt)
         }
     }
 }
-// END BOTS
-
 Man *smart_enemy_select_target(GameState *game, const Enemies *smartEnemy)
 {
     if (!game->multiPlayer)
@@ -146,22 +141,6 @@ void move_smart_enemies(GameState *game, float dt)
                 }
             }
 
-            // if (game->smartEnemies[i].y < game->man.y && game->smartEnemies[i].x != 0)
-            // {
-            //     game->stopTime++;
-            //     if (game->stopTime == 200)
-            //     {
-            //            game->smartEnemies[i].dx += 0.1;
-            //            game->smartEnemies[i].x += game->smartEnemies[i].dx;
-            //            if (game->smartEnemies[i].dx >= 5)
-            //            {
-            //                game->smartEnemies[i].dx = 5;
-            //            }
-            //            game->stopTime--;
-
-            //     }
-            // }
-
             if (game->smartEnemies[i].x + 6 < game->man.x)
             {
                 if (game->smartEnemies[i].dx == 0)
@@ -173,8 +152,6 @@ void move_smart_enemies(GameState *game, float dt)
                     game->smartEnemies[i].dx = SMART_ENEMY_MAX_HORIZONTAL_SPEED_PER_SEC;
                 }
 
-                // game->man.facingLeft = 1;
-                //game->enemy.slowingDown = 0;
             }
             else if (game->smartEnemies[i].x - 6 > game->man.x)
             {
@@ -187,8 +164,6 @@ void move_smart_enemies(GameState *game, float dt)
                 {
                     game->smartEnemies[i].dx = -SMART_ENEMY_MAX_HORIZONTAL_SPEED_PER_SEC;
                 }
-                // game->man.facingLeft = 1;
-                //  game->enemy.slowingDown = 0;
             }
             if (game->smartEnemies[i].y > 800)
             {
@@ -243,8 +218,6 @@ void move_smart_enemies(GameState *game, float dt)
                         game->smartEnemies[i].dx = SMART_ENEMY_MAX_HORIZONTAL_SPEED_PER_SEC;
                     }
 
-                    // game->man.facingLeft = 1;
-                    //game->enemy.slowingDown = 0;
                 }
                 else if (game->smartEnemies[i].x - 6 > game->man.x)
                 {
@@ -257,8 +230,6 @@ void move_smart_enemies(GameState *game, float dt)
                     {
                         game->smartEnemies[i].dx = -SMART_ENEMY_MAX_HORIZONTAL_SPEED_PER_SEC;
                     }
-                    // game->man.facingLeft = 1;
-                    //  game->enemy.slowingDown = 0;
                 }
                 game->smartEnemies[i].dy += SMART_ENEMY_GRAVITY_PER_SEC2 * dt;
             }
@@ -299,8 +270,6 @@ void move_smart_enemies(GameState *game, float dt)
                         game->smartEnemies[i].dx = SMART_ENEMY_MAX_HORIZONTAL_SPEED_PER_SEC;
                     }
 
-                    // game->man.facingLeft = 1;
-                    //game->enemy.slowingDown = 0;
                 }
                 else if (game->smartEnemies[i].x - 6 > game->secondPlayer.x)
                 {
@@ -313,8 +282,6 @@ void move_smart_enemies(GameState *game, float dt)
                     {
                         game->smartEnemies[i].dx = -SMART_ENEMY_MAX_HORIZONTAL_SPEED_PER_SEC;
                     }
-                    // game->man.facingLeft = 1;
-                    //  game->enemy.slowingDown = 0;
                 }
                 game->smartEnemies[i].dy += SMART_ENEMY_GRAVITY_PER_SEC2 * dt;
             }
@@ -325,4 +292,3 @@ void move_smart_enemies(GameState *game, float dt)
         }
     }
 }
-// END BOTS

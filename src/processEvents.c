@@ -37,8 +37,6 @@ int processEvents(SDL_Window *window, GameState *game)
             //return to menu
             case GAME_COMMAND_QUIT_TO_MODE_MENU:
                 app_change_scene(game, APP_SCENE_ARCADE_MENU);
-//                game->kills_score = 0;
-//                game->kills_score_multi = 0;
 
                 Mix_VolumeChunk(game->select, 32);
                 Mix_PlayChannel(-1, game->select, 0);
@@ -71,17 +69,6 @@ int processEvents(SDL_Window *window, GameState *game)
             case GAME_COMMAND_JUMP_PLAYER2:
                 game->input.jumpBufferTicksPlayer2 = JUMP_BUFFER_TICKS;
                 break;
-            // case SDLK_SPACE:
-            //     if (!game->man.facingLeft)
-            //     {
-            //         addBullet(game, game->man.x + 40, game->man.y + 15, 3);
-            //     }
-            //     else
-            //     {
-            //         addBullet(game, game->man.x, game->man.y + 15, -3);
-            //     }
-            //     goto etc;
-            //     break;
             case GAME_COMMAND_QUIT_TO_MAIN_MENU:
                 app_change_scene(game, APP_SCENE_MAIN_MENU);
 
@@ -236,7 +223,6 @@ int processEvents(SDL_Window *window, GameState *game)
     // frame; the shotCount cooldown logic below is unchanged.
     if (game->input.shootHeldPlayer1)
     {
-        //game->shotCount++;
         if (game->shotCount == 0)
         {
 
@@ -283,15 +269,6 @@ int processEvents(SDL_Window *window, GameState *game)
             game->shotCountMultiplayer = 0;
         }
     }
-
-    // if (state[SDL_SCANCODE_UP])
-    // {
-    //     game->man.y -= 10;
-    // }
-    // if (state[SDL_SCANCODE_DOWN])
-    // {
-    //     game->man.y += 10;
-    // }
 
     // Body-contact hazards + fall-off-screen, and the resulting game-over
     // transition (Phase 19, see docs/collision-ordering-map.md) --
@@ -412,22 +389,9 @@ int processEvents2(SDL_Window *window, GameState *game)
     // they now run at the fixed physics tick rate instead of the render
     // rate.
 
-    // if (state[SDL_SCANCODE_UP])
-    // {
-    //     game->man.y -= 10;
-    // }
-    // if (state[SDL_SCANCODE_DOWN])
-    // {
-    //     game->man.y += 10;
-    // }
-
-    //infinity fields
-    //printf("%d", game->iter);
     if (game->x_score == (50 * game->iter + 5))
     {
         int bulb = 700;
-        //int k;
-
         for (int i = 0; i < 50; i++)
         {
 
@@ -443,10 +407,8 @@ int processEvents2(SDL_Window *window, GameState *game)
 
             game->stars[i].x = game->ledges[i].x - random_sign(1, 1) * random() % 120;
             game->stars[i].y = game->ledges[i].y - random() % 120;
-            //SDL_Delay(2000);
         }
         game->iter++;
-        //printf("'%d'", game->iter);
     }
     if ((game->man.x / 293) > game->x_score)
         game->x_score = game->man.x / 293;

@@ -18,7 +18,6 @@ int main()
     gameState->x_score = 0;
     for(gameState->x_i = 0; gameState->x_i < 25; gameState->x_i++) {
         gameState->x_list[gameState->x_i] = 0;
-        //gameState.x_names[gameState.x_i] = "";
     }
 
     load_menu0(gameState);

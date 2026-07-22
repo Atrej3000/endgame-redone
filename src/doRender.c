@@ -11,12 +11,6 @@ void doRender(SDL_Renderer *renderer, GameState *game)
     if (game->statusState == STATUS_STATE_GAME)
     {
 
-        /*
-        SDL_Rect srcRectBack = {2 * game->CurrentSpriteBack, 0, WIDTH, HEIGHT};
-        SDL_Rect backRect = {0, 0, WIDTH, HEIGHT};
-        SDL_RenderCopyEx(renderer, game->sheetTextureBack, &srcRectBack, &backRect, 0, NULL, SDL_FLIP_NONE);
-*/
-
         //Andrew back
         SDL_Rect backRect = {0, 0, 1280, 720};
         SDL_RenderCopy(renderer, game->sheetTextureBack, NULL, &backRect);
@@ -57,15 +51,6 @@ void doRender(SDL_Renderer *renderer, GameState *game)
         SDL_Rect trainPos = {game->train.x, game->train.y, 480, 16};
         SDL_RenderCopy(renderer, game->train.textureTrain, NULL, &trainPos);
 
-        // //Set the drawing color to blue
-        // SDL_SetRenderDrawColor(renderer, 128, 128, 255, 255);
-
-        // //Clear the screen (to blue)
-        // SDL_RenderClear(renderer);
-
-        // //Set drawing color to white
-        // SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-
         for (int i = 0; i < 24; i++)
         {
             SDL_Rect ledgeRect = {game->ledges[i].x, game->ledges[i].y, game->ledges[i].w, game->ledges[i].h};
@@ -103,7 +88,7 @@ void doRender(SDL_Renderer *renderer, GameState *game)
                 SDL_RenderCopyEx(renderer, game->enemy.sheetTextureRun, &srcRect, &rect, 0, NULL, SDL_FLIP_HORIZONTAL);
             }
 
-        // BOSS RENDER ____________________________
+        // Bosses
         for (int j = 0; j < 2; j++)
         {
             if (game->boss[j].visible)
@@ -185,13 +170,6 @@ void doRender(SDL_Renderer *renderer, GameState *game)
             SDL_RenderCopyEx(renderer, game->death, NULL, &rect, 0, NULL, (game->time % 20 < 10));
         }
     }
-    //draw the trap image
-    // for (int i = 0; i < 100; i++)
-    // {
-    //     SDL_Rect starRect = {game->stars[i].x, game->stars[i].y, 56, 56};
-    //     SDL_RenderCopy(renderer, game->star, NULL, &starRect);
-    // }
-
     if (game->statusState == STATUS_STATE_LIVES)
     {
         draw_status_lives(game);
@@ -216,16 +194,6 @@ void doRender2(SDL_Renderer *renderer, GameState *game)
     {
         SDL_Rect fon = {0, 0, 1280, 720};
         SDL_RenderCopy(renderer, game->fon, NULL, &fon);
-        /*
-       //Set the drawing color to blue
-       SDL_SetRenderDrawColor(renderer, 128, 128, 255, 255);
-
-       //Clear the screen (to blue)
-       SDL_RenderClear(renderer);
-
-       //Set drawing color to white
-       SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-   */
     if (game->multiPlayer)
     {
         SDL_Rect scdPlr = {render_pixel(renderScrollX + render_lerp(game->secondPlayer.prevX, game->secondPlayer.x, game->renderAlpha)),
@@ -272,5 +240,4 @@ void doRender2(SDL_Renderer *renderer, GameState *game)
 
     //We are done drawing, "present" or show to the screen what wer've drawn
     SDL_RenderPresent(renderer);
-    //    system("leaks -q endgame");
 }
