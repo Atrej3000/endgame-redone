@@ -515,9 +515,11 @@ void runner_session_reset(GameState *game, GameMode mode)
             game->ledges[i].y += 50;
         bulb = game->ledges[i].y;
 
-        game->stars[i].baseX = game->ledges[i].x - random_sign(1, 1) * random() % 120;
-        game->stars[i].baseY = game->ledges[i].y - random() % 120;
-        game->stars[i].mode = random() % 2;
+        // random() returns long on POSIX, while these world fields are int.
+        // The modulo bounds make the narrowing exact on every platform.
+        game->stars[i].baseX = game->ledges[i].x - random_sign(1, 1) * (int)(random() % 120L);
+        game->stars[i].baseY = game->ledges[i].y - (int)(random() % 120L);
+        game->stars[i].mode = (int)(random() % 2L);
         game->stars[i].phase = 2.0f * 3.14f * (float)(random() % 360) / 360.0f;
         game->stars[i].x = game->stars[i].baseX;
         game->stars[i].y = game->stars[i].baseY;

@@ -303,8 +303,10 @@ int processEvents2(SDL_Window *window, GameState *game)
                 game->ledges[i].y += 50;
             bulb = game->ledges[i].y;
 
-            game->stars[i].x = game->ledges[i].x - random_sign(1, 1) * random() % 120;
-            game->stars[i].y = game->ledges[i].y - random() % 120;
+            // random() returns long on POSIX; modulo bounds the value before
+            // its exact conversion to the int-backed world coordinates.
+            game->stars[i].x = game->ledges[i].x - random_sign(1, 1) * (int)(random() % 120L);
+            game->stars[i].y = game->ledges[i].y - (int)(random() % 120L);
         }
         game->iter++;
     }
