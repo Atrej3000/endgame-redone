@@ -1,5 +1,12 @@
 # Optimization Map — Ucode_Endgame
 
+> **Current-state note (Phase 25).** This is the Phase 16 pre-optimization baseline. Phase 25 used
+> its telemetry to replace full projectile-slot scans in collision work with an active-projectile
+> index snapshot. The opt-in summary now includes `active_projectiles` and `projectile_checks`;
+> current design and verification are recorded in
+> `docs/phase25-profile-guided-optimization.md`. The complexity figures below are historical
+> before-state evidence, not a claim about the current hot path.
+
 Written **before** any Phase 16 code edit, per this session's established audit-first pattern.
 Evidence gathered directly from the tree at commit `7ed5259` (tag `refactor-pre-optimization`,
 `main` after Phase 15's PR #11 merge) via a complete read of every per-tick and per-frame loop in

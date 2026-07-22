@@ -141,6 +141,22 @@ jobs:
         shell: msys2 {0}
         run: make mingw-collisionorderingtest 2>&1 | tee collisionorderingtest.log
 
+      - name: Render interpolation test
+        shell: msys2 {0}
+        run: make mingw-interpolationtest 2>&1 | tee interpolationtest.log
+
+      - name: Physics units test
+        shell: msys2 {0}
+        run: make mingw-physicsunitstest 2>&1 | tee physicsunitstest.log
+
+      - name: Physics body and collider test
+        shell: msys2 {0}
+        run: make mingw-physicsbodytest 2>&1 | tee physicsbodytest.log
+
+      - name: Common world-collision solver test
+        shell: msys2 {0}
+        run: make mingw-worldcollisiontest 2>&1 | tee worldcollisiontest.log
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -165,6 +181,10 @@ jobs:
             inputsnapshottest.log
             aiforcestest.log
             collisionorderingtest.log
+            interpolationtest.log
+            physicsunitstest.log
+            physicsbodytest.log
+            worldcollisiontest.log
           if-no-files-found: ignore
 
   # Windows CI, however thorough, cannot prove case-sensitive path

@@ -1,5 +1,10 @@
 # AI/Forces Separation Map — Ucode_Endgame
 
+> **Current-state note (Phase 21).** This is the Phase 18 extraction record. Its statements about
+> frame-count-based AI describe the pre-Phase-21 baseline only: boss, regular-enemy, and
+> smart-enemy movement now uses explicit per-second constants and fixed-step `dt`, together with
+> bullets, scrolling, traps, and the Runner multiplayer camera.
+
 Written **before** any Phase 18 code edit, per this session's established audit-first pattern.
 Evidence gathered directly from the tree at commit `8258ba0` (tag
 `refactor-pre-ai-forces-separation`, `main` after Phase 17's PR #13 merge) via a complete read of

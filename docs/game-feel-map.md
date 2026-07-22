@@ -86,7 +86,7 @@ survives at all — only a one-time cut check on the release edge).
 
 **New constants** (`inc/header.h`): `COYOTE_TICKS` (`6`, ~100ms at the fixed 60Hz tick),
 `JUMP_BUFFER_TICKS` (`6`, ~100ms), `JUMP_CUT_SPEED_PER_SEC` (`200.0f`, roughly a third of
-`JUMP_SPEED_PER_SEC`'s `600.0f`). Unlike Phase 14's `BULLET_SPEED_PER_TICK`, these have **no
+`JUMP_SPEED_PER_SEC`'s `600.0f`). Unlike Phase 14's legacy per-tick projectile-speed constant, these have **no
 legacy value to preserve** — this is genuinely new behavior, not a fixed-timestep conversion of
 existing behavior. Documented plainly as reasonable, tunable starting defaults, not a
 derived/proven constant; retuning later is a one-line change since they're named.
