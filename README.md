@@ -28,7 +28,7 @@ make mingw-run
 
 ### Focused validation targets
 
-The repository has 21 focused MinGW checks, plus `audit-repo`:
+The repository has 22 focused MinGW checks, plus `audit-repo`:
 
 ```sh
 make mingw-smoketest             # init, asset guard, shutdown
@@ -52,6 +52,7 @@ make mingw-interpolationtest     # render interpolation is presentation-only
 make mingw-physicsunitstest      # remaining per-second movement units
 make mingw-physicsbodytest       # shared body/collider model
 make mingw-worldcollisiontest    # common static-world solver
+make mingw-displaytest           # display defaults and persisted-size bounds
 make audit-repo                   # resource-path and prototype integrity
 ```
 
@@ -65,11 +66,11 @@ Set `ENDGAME_PERF_LOG=1` before running `endgame-mingw.exe` or `make mingw-run` 
 
 ## Continuous integration
 
-`.github/workflows/mingw-validation.yml` runs the Windows/MinGW build, all 21 focused checks, and repository integrity audit for pull requests and pushes to `main`. Its Linux job validates asset-path case and performs a best-effort Linux build/smoke test.
+`.github/workflows/mingw-validation.yml` runs the Windows/MinGW build, all 22 focused checks, and repository integrity audit for pull requests and pushes to `main`. Its Linux job validates asset-path case and performs a best-effort Linux build/smoke test.
 
 ## Architecture (Phase 26)
 
-Simulation is fixed at 60 Hz (`PHYSICS_HZ` / `PHYSICS_DT`); real-frame input is captured once, simulation can run zero or more fixed steps, and rendering interpolates between captured previous and current transforms. Player movement, bullets, enemies, bosses, scrolling, traps, and Runner's multiplayer camera use explicit time-based units. The bullet speed constant is `BULLET_SPEED_PER_SEC`, preserving the previous observable speed at 60 Hz without encoding a per-tick unit in its name.
+Simulation is fixed at 60 Hz (`PHYSICS_HZ` / `PHYSICS_DT`); real-frame input is captured once, simulation can run zero or more fixed steps, and rendering interpolates between captured previous and current transforms. Player movement, bullets, enemies, bosses, scrolling, traps, and Runner's multiplayer camera use explicit time-based units. The bullet speed constant is `BULLET_SPEED_PER_SEC`, preserving the previous observable speed at 60 Hz without encoding a per-tick unit in its name. Phase 28 keeps these gameplay coordinates at `1280×720` while SDL letterboxes aspect-ratio-preserving logical rendering to a resizable high-DPI window.
 
 ```mermaid
 flowchart LR
@@ -98,7 +99,7 @@ Key supporting records:
 
 | Platform | Build | Verification | Runtime validation |
 |---|---|---|---|
-| Windows / MinGW | Local and CI `make mingw`; portable Python DLL copy | 21 focused checks + audit in CI | Headless runtime checks |
+| Windows / MinGW | Local and CI `make mingw`; portable Python DLL copy | 22 focused checks + audit in CI | Headless runtime checks |
 | macOS (bundled frameworks) | Original `make` target | Not run in this environment | Not runtime-validated here |
 | Linux | Best-effort `make linux` | Case-sensitive asset audit + best-effort smoke test in CI | Best-effort only |
 
@@ -123,6 +124,7 @@ Each mode has local multiplayer using one keyboard.
 
 - `P`: pause.
 - `Esc`: leave pause or return to a menu without saving.
+- `F11`: toggle fullscreen; the most recent windowed size and fullscreen mode are persisted in SDL's user preference directory.
 - Player 1: `W`, `A`, `D` move/jump; `Space` shoots.
 - Player 2: arrow keys move/jump; keypad `0` shoots.
 

@@ -45,6 +45,10 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define STATUS_STATE_GAME 1
 #define WIDTH 1280
 #define HEIGHT 720
+#define DISPLAY_MIN_WIDTH 640
+#define DISPLAY_MIN_HEIGHT 360
+#define DISPLAY_MAX_WIDTH 7680
+#define DISPLAY_MAX_HEIGHT 4320
 #define MAX_BULLETS 1000
 #define MAX_GAME_EVENTS 1024
 
@@ -286,16 +290,23 @@ typedef enum GameMode
 
 // Application/platform-level state, as opposed to gameplay state -- see
 // docs/gamestate-decomposition.md for the full field-by-field ownership
-// audit behind this grouping. `renderer` is owned/set once by app_init(),
-// nulled once by app_shutdown() (src/app.c); `scene` is written ONLY via
-// app_change_scene() (src/scene.c), with one documented bootstrap exception
-// in main.c. `window` deliberately has no field here: it was never a
-// GameState field (see inc/app.h's app_init() out-parameters) and adding it
-// now would introduce new state rather than migrate existing state.
+// audit behind this grouping. `renderer` and `window` are owned/set once by
+// app_init(), then nulled once by app_shutdown() (src/app.c); `scene` is
+// written ONLY via app_change_scene() (src/scene.c), with one documented
+// bootstrap exception in main.c.
+typedef struct DisplaySettings
+{
+    int windowWidth;
+    int windowHeight;
+    bool fullscreen;
+} DisplaySettings;
+
 typedef struct AppContext
 {
     SDL_Renderer *renderer;
+    SDL_Window *window;
     AppScene scene;
+    DisplaySettings display;
 } AppContext;
 
 // Explicit asset-group lifecycle flags, grouped per

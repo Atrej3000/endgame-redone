@@ -1,4 +1,5 @@
 #include "app.h"
+#include "display.h"
 
 void destroy_texture(SDL_Texture **tex)
 {
@@ -95,11 +96,20 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
         game->app.renderer = NULL;
     }
 
-    // 7. window
+    // 7. persist the windowed display preference before destroying its window
     if (outWindow && *outWindow)
     {
+        display_capture_window_settings(game);
+        if (game && !display_settings_save(&game->app.display))
+        {
+            fprintf(stderr, "app_shutdown: could not save display settings\n");
+        }
         SDL_DestroyWindow(*outWindow);
         *outWindow = NULL;
+    }
+    if (game)
+    {
+        game->app.window = NULL;
     }
 
     // 8. audio + extension subsystems (each is documented safe to call even
@@ -151,18 +161,24 @@ bool app_init(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **outRen
 
     srandom((unsigned int)time(NULL));
 
-    *outWindow = SDL_CreateWindow("Game Window",
-                                   SDL_WINDOWPOS_UNDEFINED,
-                                   SDL_WINDOWPOS_UNDEFINED,
-                                   WIDTH,
-                                   HEIGHT,
-                                   0);
+    display_settings_defaults(&game->app.display);
+    display_settings_load(&game->app.display);
+    const Uint32 windowFlags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI |
+        (game->app.display.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0U);
+
+    *outWindow = SDL_CreateWindow("Endgame",
+                                   SDL_WINDOWPOS_CENTERED,
+                                   SDL_WINDOWPOS_CENTERED,
+                                   game->app.display.windowWidth,
+                                   game->app.display.windowHeight,
+                                   windowFlags);
     if (!*outWindow)
     {
         fprintf(stderr, "app_init: SDL_CreateWindow failed: %s\n", SDL_GetError());
         app_shutdown(outGame, outWindow, outRenderer);
         return false;
     }
+    game->app.window = *outWindow;
 
     *outRenderer = SDL_CreateRenderer(*outWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!*outRenderer)
@@ -172,6 +188,11 @@ bool app_init(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **outRen
         return false;
     }
     game->app.renderer = *outRenderer;
+    if (!display_configure_renderer(*outRenderer))
+    {
+        app_shutdown(outGame, outWindow, outRenderer);
+        return false;
+    }
 
     if (TTF_Init() != 0)
     {

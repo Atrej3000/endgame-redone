@@ -1,5 +1,6 @@
 #include "header.h"
 #include "scene.h"
+#include "display.h"
 
 int pause_events(GameState *gameState)
 {
@@ -11,6 +12,7 @@ int pause_events(GameState *gameState)
 
     while (SDL_PollEvent(&event))
     {
+        display_handle_event(gameState, &event);
         if (event.type == SDL_KEYDOWN)
         {
         switch (event.key.keysym.sym) {
