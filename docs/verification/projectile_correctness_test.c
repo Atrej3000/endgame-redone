@@ -61,27 +61,27 @@ int main(void)
 
     // ------------------------------------------------------------------
     // 2. Move-once-per-step: one move_arcade_bullets() call moves a bullet
-    //    by exactly BULLET_SPEED_PER_TICK -- not the old 113x-per-tick bug.
+    //    by BULLET_SPEED_PER_SEC * PHYSICS_DT -- not the old 113x-per-tick bug.
     //    Also confirms the direction (sign of dx at spawn) is preserved.
     // ------------------------------------------------------------------
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     addBullet(game, 100.0f, 200.0f, 3.0f);   // rightward
     addBullet(game, 500.0f, 200.0f, -3.0f);  // leftward
 
-    move_arcade_bullets(game);
-    CHECK("move_arcade_bullets: rightward bullet moves by exactly BULLET_SPEED_PER_TICK",
-          fabsf(game->bullets[0].x - (100.0f + BULLET_SPEED_PER_TICK)) < 0.0001f);
+    move_arcade_bullets(game, PHYSICS_DT);
+    CHECK("move_arcade_bullets: rightward bullet moves by its per-second speed over one tick",
+          fabsf(game->bullets[0].x - (100.0f + BULLET_SPEED_PER_SEC * PHYSICS_DT)) < 0.0001f);
     CHECK("move_arcade_bullets: prevX captured as the pre-move position",
           game->bullets[0].prevX == 100.0f);
-    CHECK("move_arcade_bullets: leftward bullet moves by exactly -BULLET_SPEED_PER_TICK",
-          fabsf(game->bullets[1].x - (500.0f - BULLET_SPEED_PER_TICK)) < 0.0001f);
+    CHECK("move_arcade_bullets: leftward bullet moves by its per-second speed over one tick",
+          fabsf(game->bullets[1].x - (500.0f - BULLET_SPEED_PER_SEC * PHYSICS_DT)) < 0.0001f);
 
     // A second call must move it by the same amount again (once per call,
     // not accumulating any duplicated-loop multiplier).
     float xAfterTick1 = game->bullets[0].x;
-    move_arcade_bullets(game);
+    move_arcade_bullets(game, PHYSICS_DT);
     CHECK("move_arcade_bullets: a second call moves the same fixed distance again, not 113x",
-          fabsf(game->bullets[0].x - (xAfterTick1 + BULLET_SPEED_PER_TICK)) < 0.0001f);
+          fabsf(game->bullets[0].x - (xAfterTick1 + BULLET_SPEED_PER_SEC * PHYSICS_DT)) < 0.0001f);
 
     // ------------------------------------------------------------------
     // 3. Swept collision: a bullet whose prevX->x span crosses a target's
@@ -131,7 +131,7 @@ int main(void)
     int killsBefore = game->kills_score;
 
     addBullet(game, 35.0f, 110.0f, 3.0f); // already inside the enemy's X span
-    move_arcade_bullets(game);
+    move_arcade_bullets(game, PHYSICS_DT);
     process(game, PHYSICS_DT);
 
     CHECK("end-to-end: a bullet crossing an enemy via the real pipeline still kills it",

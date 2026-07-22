@@ -45,6 +45,7 @@ int main()
     // simulate()/render() call, so disabled behavior is bit-for-bit identical
     // to before this phase.
     bool perfLoggingEnabled = (getenv("ENDGAME_PERF_LOG") != NULL);
+    gameState->perfLoggingEnabled = perfLoggingEnabled;
     double perfPhysicsTimeAccum = 0.0;
     double perfRenderTimeAccum = 0.0;
     double perfLogTimer = 0.0;
@@ -79,12 +80,18 @@ int main()
                 double renderMs = (perfRenderCallsThisSecond > 0)
                     ? (perfRenderTimeAccum / perfRenderCallsThisSecond) * 1000.0
                     : 0.0;
-                printf("[perf] ticks=%d physics_ms=%.3f render_ms=%.3f\n",
-                       perfPhysicsStepsThisSecond, physicsMs, renderMs);
+                double activeProjectilesPerTick = (perfPhysicsStepsThisSecond > 0)
+                    ? (double)gameState->perfProjectileActiveSamples / perfPhysicsStepsThisSecond
+                    : 0.0;
+                printf("[perf] ticks=%d physics_ms=%.3f render_ms=%.3f active_projectiles=%.1f projectile_checks=%llu\n",
+                       perfPhysicsStepsThisSecond, physicsMs, renderMs, activeProjectilesPerTick,
+                       (unsigned long long)gameState->perfProjectileTargetChecks);
                 perfPhysicsTimeAccum = 0.0;
                 perfRenderTimeAccum = 0.0;
                 perfPhysicsStepsThisSecond = 0;
                 perfRenderCallsThisSecond = 0;
+                gameState->perfProjectileActiveSamples = 0;
+                gameState->perfProjectileTargetChecks = 0;
                 perfLogTimer = 0.0;
             }
         }
@@ -119,6 +126,7 @@ int main()
                     perfPhysicsStepsThisSecond += steps;
                 }
 
+                gameState->renderAlpha = (float)(accumulator / (double)PHYSICS_DT);
                 Uint64 perfRenderStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;
                 doRender(renderer, gameState);
                 if (perfLoggingEnabled)
@@ -165,6 +173,7 @@ int main()
                     perfPhysicsStepsThisSecond += steps;
                 }
 
+                gameState->renderAlpha = (float)(accumulator / (double)PHYSICS_DT);
                 Uint64 perfRenderStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;
                 doRender2(renderer, gameState);
                 if (perfLoggingEnabled)

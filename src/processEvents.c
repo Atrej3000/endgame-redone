@@ -2,6 +2,7 @@
 #include "scene.h"
 #include "input_command.h"
 #include "collision_pipeline.h"
+#include "game_events.h"
 
 int processEvents(SDL_Window *window, GameState *game)
 {
@@ -295,8 +296,9 @@ int processEvents(SDL_Window *window, GameState *game)
     // Body-contact hazards + fall-off-screen, and the resulting game-over
     // transition (Phase 19, see docs/collision-ordering-map.md) --
     // extracted verbatim into src/collision_pipeline.c, same position.
-    resolve_arcade_hazards(game);
-    resolve_arcade_game_over_transition(game);
+    game_events_begin(game);
+    detect_arcade_hazards(game);
+    game_events_apply(game);
     return done;
 }
 
@@ -452,8 +454,9 @@ int processEvents2(SDL_Window *window, GameState *game)
     // Fall-off-screen hazard, and the resulting game-over transition
     // (Phase 19, see docs/collision-ordering-map.md) -- extracted verbatim
     // into src/collision_pipeline.c, same position.
-    check_runner_fall_hazard(game);
-    resolve_runner_game_over_transition(game);
+    game_events_begin(game);
+    detect_runner_fall_hazards(game);
+    game_events_apply(game);
 
     return done;
 }

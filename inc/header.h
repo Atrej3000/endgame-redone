@@ -46,6 +46,7 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define WIDTH 1280
 #define HEIGHT 720
 #define MAX_BULLETS 1000
+#define MAX_GAME_EVENTS 1024
 
 #define NUM_STARS 100
 #define NUM_ENEMIES 101
@@ -98,18 +99,35 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define JUMP_BUFFER_TICKS 6    // ~100ms
 #define JUMP_CUT_SPEED_PER_SEC 200.0f  // roughly a third of JUMP_SPEED_PER_SEC
 
-// Bullet speed, per tick (Phase 14, see docs/projectile-correctness-map.md):
-// preserves the legacy steady-state effective displacement (0.1, the old
-// per-application clamp, times 113, the old total loop-executions-per-tick
-// from the triple-movement bug) now that movement applies exactly once per
-// tick instead of up to 113 times. Fixes the architecture without silently
-// making bullets ~113x slower than every player has already experienced.
-#define BULLET_SPEED_PER_TICK 11.3f
+// Non-player movement uses the same pixels/second and pixels/second-squared
+// convention as the players (Phase 21). Each value preserves the old 60 Hz
+// behavior: former tick velocities are multiplied by 60; former tick
+// accelerations by 3,600.
+#define BULLET_SPEED_PER_SEC 678.0f
+#define BOSS_GRAVITY_PER_SEC2 360.0f
+#define BOSS_MAX_FALL_SPEED_PER_SEC 90.0f
+#define BOSS_HORIZONTAL_ACCEL_PER_SEC2 360.0f
+#define BOSS_MAX_HORIZONTAL_SPEED_PER_SEC 60.0f
+#define ENEMY_GRAVITY_PER_SEC2 1440.0f
+#define ENEMY_MAX_FALL_SPEED_PER_SEC 150.0f
+#define ENEMY_HORIZONTAL_ACCEL_PER_SEC2 720.0f
+#define ENEMY_MAX_HORIZONTAL_SPEED_PER_SEC 120.0f
+#define SMART_ENEMY_GRAVITY_PER_SEC2 3600.0f
+#define SMART_ENEMY_JUMP_SPEED_PER_SEC 360.0f
+#define SMART_ENEMY_HORIZONTAL_ACCEL_PER_SEC2 720.0f
+#define SMART_ENEMY_MAX_HORIZONTAL_SPEED_PER_SEC 240.0f
+#define SMART_ENEMY_HOP_ACCEL_PER_SEC2 3600.0f
+#define SMART_ENEMY_HOP_SPEED_PER_SEC 600.0f
+#define RUNNER_MULTIPLAYER_CAMERA_SPEED_PER_SEC 180.0f
+#define TRAP_ANGULAR_SPEED_PER_SEC 3.6f
 
 typedef struct
 {
     float x, y, w, h;
     float dx, dy;
+    // Render-only transform from the start of the current fixed tick.
+    // Physics and collision detection always use x/y.
+    float prevX, prevY;
     int slowingDown, onLedge, isdead, visible, countShots;
 
     int currentSpriteRun, currentSpriteRun2;
@@ -126,6 +144,7 @@ typedef struct
 {
     float x, y, dx;
     float prevX;
+    float prevY;
     bool active;
 } Bullet;
 
@@ -134,6 +153,9 @@ typedef struct
 {
     float x, y, w, h;
     float dx, dy;
+    // Render-only previous horizontal position. prevY remains the
+    // authoritative previous-tick position used by landing collision.
+    float prevX;
     // y at the end of the previous physics tick, captured by
     // capture_player_prev_y() (src/collisionDetect.c) before this tick's
     // process()/process2() moves y -- lets the ledge landing check
@@ -163,6 +185,7 @@ typedef struct
 {
     int x, y, baseX, baseY, mode;
     float dx, dy, phase;
+    float prevX, prevY;
 } Star;
 
 typedef struct
@@ -322,10 +345,58 @@ typedef struct InputState
     int jumpBufferTicksPlayer2;
 } InputState;
 
+// Bounded contact-event queue (Phase 24). Physics/contact detection may add
+// events but must not score, despawn, damage, play sound, or transition a
+// scene directly. The consequence phase consumes these entries once.
+typedef enum
+{
+    GAME_EVENT_PROJECTILE_HIT,
+    GAME_EVENT_ARCADE_PLAYER_HIT,
+    GAME_EVENT_ARCADE_PLAYER_FELL,
+    GAME_EVENT_ARCADE_ENEMY_ESCAPED,
+    GAME_EVENT_ARCADE_BOSS_ESCAPED,
+    GAME_EVENT_ARCADE_GAME_OVER_CHECK,
+    GAME_EVENT_RUNNER_PLAYER_HIT,
+    GAME_EVENT_RUNNER_PLAYER_FELL,
+    GAME_EVENT_RUNNER_GAME_OVER_CHECK
+} GameEventType;
+
+typedef enum
+{
+    GAME_EVENT_TARGET_REGULAR_ENEMY,
+    GAME_EVENT_TARGET_SMART_ENEMY,
+    GAME_EVENT_TARGET_BOSS
+} GameEventTarget;
+
+typedef struct
+{
+    GameEventType type;
+    GameEventTarget target;
+    int projectileIndex;
+    int targetIndex;
+    bool secondPlayerProjectile;
+} GameEvent;
+
+typedef struct
+{
+    GameEvent events[MAX_GAME_EVENTS];
+    int count;
+} GameEventQueue;
+
 typedef struct
 {
     // scroll thw world
     float scrollX;
+    // Presentation-only camera transform captured before each fixed tick.
+    float prevScrollX;
+    // Fraction of the pending fixed tick, written immediately before
+    // rendering. Never read by physics or collision code.
+    float renderAlpha;
+    // Opt-in telemetry used only when ENDGAME_PERF_LOG is set. The counters
+    // make the collision workload visible before further optimization work.
+    bool perfLoggingEnabled;
+    Uint64 perfProjectileActiveSamples;
+    Uint64 perfProjectileTargetChecks;
     // Single/multiplayer selection. Written only by arcade_session_reset()/
     // runner_session_reset() (src/loadGame.c) as of the mode-lifecycle
     // refactor -- previously also hardcoded by the old loadGame() on every
@@ -433,6 +504,10 @@ typedef struct
     // docs/game-feel-map.md. Accessed as game->input.jumpBufferTicksPlayer1/2.
     InputState input;
 
+    // Per-fixed-tick contact events. Cleared before Arcade contact detection
+    // and applied once in the consequence phase.
+    GameEventQueue events;
+
     // DEPRECATED: superseded by `app.scene` (AppScene) above. No longer read or
     // written anywhere in active routing code as of the scene-state refactor;
     // kept declared (not deleted) per that phase's own scope rules. Safe to
@@ -473,10 +548,18 @@ bool runner_assets_load(GameState *game);
 void runner_assets_unload(GameState *game);
 void runner_session_reset(GameState *game, GameMode mode);
 
+// Render interpolation (Phase 20). Capture before each physics tick and
+// synchronize after a reset or teleport to avoid rendering across a jump.
+void capture_render_transforms(GameState *game);
+void sync_render_transforms(GameState *game);
+float render_lerp(float previous, float current, float alpha);
+
+// Retained for direct collision verification; gameplay uses the complete
+// capture_render_transforms() function above.
 void capture_player_prev_y(GameState *game);
 void consume_arcade_jump_requests(GameState *game);
 void apply_arcade_player_forces(GameState *game, float dt);
-void move_arcade_bullets(GameState *game);
+void move_arcade_bullets(GameState *game, float dt);
 void process(GameState *game, float dt);
 void collisionDetect(GameState *game);
 int processEvents(SDL_Window *window, GameState *game);

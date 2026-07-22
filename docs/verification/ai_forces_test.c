@@ -18,6 +18,11 @@
 
 static int failures = 0;
 
+static bool approximately_equal(float a, float b)
+{
+    return fabsf(a - b) < 0.001f;
+}
+
 #define CHECK(desc, cond)                                            \
     do                                                                 \
     {                                                                   \
@@ -51,33 +56,33 @@ int main(void)
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->boss[0].x = 600.0f; // left of center (640), in the 300-350 y band
     game->boss[0].y = 320.0f;
-    game->boss[0].dx = 0.5f;
-    game->boss[0].dy = 1.0f;
+    game->boss[0].dx = 30.0f;
+    game->boss[0].dy = 60.0f;
     game->boss[1].x = 700.0f; // right of center, in the 300-350 y band
     game->boss[1].y = 320.0f;
-    game->boss[1].dx = -0.5f;
-    game->boss[1].dy = 1.0f;
+    game->boss[1].dx = -30.0f;
+    game->boss[1].dy = 60.0f;
 
-    move_boss_entities(game);
+    move_boss_entities(game, PHYSICS_DT);
     CHECK("boss drift: left-of-center steers dx toward center (positive)",
           game->boss[0].y == 321.0f && game->boss[0].x == 600.5f &&
-          game->boss[0].dy == 1.1f && game->boss[0].dx == 0.6f);
+          game->boss[0].dy == 66.0f && game->boss[0].dx == 36.0f);
     CHECK("boss drift: right-of-center steers dx toward center (negative)",
           game->boss[1].y == 321.0f && game->boss[1].x == 699.5f &&
-          game->boss[1].dy == 1.1f && game->boss[1].dx == -0.6f);
+          game->boss[1].dy == 66.0f && game->boss[1].dx == -36.0f);
 
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->boss[0].x = 100.0f;
     game->boss[0].y = 320.0f;
-    game->boss[0].dx = 0.5f;
-    game->boss[0].dy = 1.45f; // near the 1.5 clamp
+    game->boss[0].dx = 30.0f;
+    game->boss[0].dy = 87.0f; // near the 90 px/s clamp
     game->boss[1].x = 100.0f;
     game->boss[1].y = 0.0f;
     game->boss[1].dx = 0.0f;
     game->boss[1].dy = 0.0f;
 
-    move_boss_entities(game);
-    CHECK("boss drift: gravity clamps at 1.5", game->boss[0].dy == 1.5f);
+    move_boss_entities(game, PHYSICS_DT);
+    CHECK("boss drift: gravity clamps at 90 px/s", game->boss[0].dy == BOSS_MAX_FALL_SPEED_PER_SEC);
 
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->boss[0].x = 1290.0f; // past the right wraparound edge
@@ -89,7 +94,7 @@ int main(void)
     game->boss[1].dx = 0.0f;
     game->boss[1].dy = 0.0f;
 
-    move_boss_entities(game);
+    move_boss_entities(game, PHYSICS_DT);
     CHECK("boss drift: wraps to 0 past the right edge", game->boss[0].x == 0.0f);
     CHECK("boss drift: wraps to 1280 past the left edge", game->boss[1].x == 1280.0f);
 
@@ -100,29 +105,31 @@ int main(void)
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->enemyValues[0].x = 620.0f; // > 610, in the 150-170 y band
     game->enemyValues[0].y = 160.0f;
-    game->enemyValues[0].dx = 1.0f;
+    game->enemyValues[0].dx = 60.0f;
     game->enemyValues[0].dy = 0.0f;
     game->enemyValues[1].x = 580.0f; // < 590, in the 150-170 y band
     game->enemyValues[1].y = 160.0f;
-    game->enemyValues[1].dx = -1.0f;
+    game->enemyValues[1].dx = -60.0f;
     game->enemyValues[1].dy = 0.0f;
 
-    move_regular_enemies(game);
+    move_regular_enemies(game, PHYSICS_DT);
     CHECK("enemy drift: x>610 in band steers dx positive",
-          game->enemyValues[0].x == 621.0f && game->enemyValues[0].dx == 1.2f &&
-          game->enemyValues[0].dy == 0.4f);
+          approximately_equal(game->enemyValues[0].x, 621.0f) &&
+          approximately_equal(game->enemyValues[0].dx, 72.0f) &&
+          approximately_equal(game->enemyValues[0].dy, 24.0f));
     CHECK("enemy drift: x<590 in band steers dx negative",
-          game->enemyValues[1].x == 579.0f && game->enemyValues[1].dx == -1.2f &&
-          game->enemyValues[1].dy == 0.4f);
+          approximately_equal(game->enemyValues[1].x, 579.0f) &&
+          approximately_equal(game->enemyValues[1].dx, -72.0f) &&
+          approximately_equal(game->enemyValues[1].dy, 24.0f));
 
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->enemyValues[0].x = 620.0f;
     game->enemyValues[0].y = 160.0f;
-    game->enemyValues[0].dx = 1.9f;
-    game->enemyValues[0].dy = 2.45f; // near the 2.5 clamp
+    game->enemyValues[0].dx = 114.0f;
+    game->enemyValues[0].dy = 147.0f; // near the 150 px/s clamp
 
-    move_regular_enemies(game);
-    CHECK("enemy drift: gravity clamps at 2.5", game->enemyValues[0].dy == 2.5f);
+    move_regular_enemies(game, PHYSICS_DT);
+    CHECK("enemy drift: gravity clamps at 150 px/s", game->enemyValues[0].dy == ENEMY_MAX_FALL_SPEED_PER_SEC);
 
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->enemyValues[0].x = 1290.0f;
@@ -134,13 +141,13 @@ int main(void)
     game->enemyValues[1].dx = 0.0f;
     game->enemyValues[1].dy = 0.0f;
 
-    move_regular_enemies(game);
+    move_regular_enemies(game, PHYSICS_DT);
     CHECK("enemy drift: wraps to 0 past the right edge", game->enemyValues[0].x == 0.0f);
     CHECK("enemy drift: wraps to 1280 past the left edge", game->enemyValues[1].x == 1280.0f);
 
     // ------------------------------------------------------------------
     // 3. move_smart_enemies(): single-player horizontal chase with the
-    //    inline hop impulse (dy = -6 when dx == 0 at the moment a steering
+    //    inline hop impulse (dy = -360 px/s when dx == 0 at the moment a steering
     //    branch fires).
     // ------------------------------------------------------------------
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
@@ -149,12 +156,14 @@ int main(void)
     game->smartEnemies[0].x = 120.0f; // x - 6 (114) > man.x (100)
     game->smartEnemies[0].y = 100.0f; // < man.y, so the vertical while-loop is skipped
     game->smartEnemies[0].dx = 0.0f; // triggers the hop impulse
-    game->smartEnemies[0].dy = 5.0f;
+    game->smartEnemies[0].dy = 300.0f;
 
-    move_smart_enemies(game);
+    move_smart_enemies(game, PHYSICS_DT);
     CHECK("smart enemy chase (single-player): hop impulse fires and steers left",
-          game->smartEnemies[0].y == 105.0f && game->smartEnemies[0].x == 120.0f &&
-          game->smartEnemies[0].dx == -0.2f && game->smartEnemies[0].dy == -5.0f);
+          approximately_equal(game->smartEnemies[0].y, 105.0f) &&
+          approximately_equal(game->smartEnemies[0].x, 120.0f) &&
+          approximately_equal(game->smartEnemies[0].dx, -12.0f) &&
+          approximately_equal(game->smartEnemies[0].dy, -300.0f));
 
     // ------------------------------------------------------------------
     // 4. smart_enemy_select_target(): the isolated "decide intent" step.
@@ -197,12 +206,12 @@ int main(void)
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->boss[0].x = 600.0f;
     game->boss[0].y = 320.0f;
-    game->boss[0].dx = 0.5f;
-    game->boss[0].dy = 1.0f;
+    game->boss[0].dx = 30.0f;
+    game->boss[0].dy = 60.0f;
 
     process(game, PHYSICS_DT);
     CHECK("process() delegation: boss drift still fires via move_boss_entities()",
-          game->boss[0].dy == 1.1f && game->boss[0].dx == 0.6f);
+          game->boss[0].dy == 66.0f && game->boss[0].dx == 36.0f);
 
     app_shutdown(&game, &window, &renderer);
 

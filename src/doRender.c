@@ -1,5 +1,10 @@
 #include "header.h"
 
+static int render_pixel(float coordinate)
+{
+    return (int)lroundf(coordinate);
+}
+
 void doRender(SDL_Renderer *renderer, GameState *game)
 {
 
@@ -84,7 +89,8 @@ void doRender(SDL_Renderer *renderer, GameState *game)
             if (game->smartEnemies[i].visible)
             {
                 SDL_Rect srcRect = {88 * game->enemy.currentSpriteRun2, 0, 44, 26};
-                SDL_Rect rect = {game->smartEnemies[i].x, game->smartEnemies[i].y, 85, 50};
+                SDL_Rect rect = {render_pixel(render_lerp(game->smartEnemies[i].prevX, game->smartEnemies[i].x, game->renderAlpha)),
+                                 render_pixel(render_lerp(game->smartEnemies[i].prevY, game->smartEnemies[i].y, game->renderAlpha)), 85, 50};
                 SDL_RenderCopyEx(renderer, game->enemy.sheetTextureRun2, &srcRect, &rect, 0, NULL, SDL_FLIP_HORIZONTAL);
             }
         //ENEMY RUN
@@ -92,7 +98,8 @@ void doRender(SDL_Renderer *renderer, GameState *game)
             if (game->enemyValues[i].visible)
             {
                 SDL_Rect srcRect = {64 * game->enemy.currentSpriteRun, 0, 32, 32};
-                SDL_Rect rect = {game->enemyValues[i].x, game->enemyValues[i].y, 55, 55};
+                SDL_Rect rect = {render_pixel(render_lerp(game->enemyValues[i].prevX, game->enemyValues[i].x, game->renderAlpha)),
+                                 render_pixel(render_lerp(game->enemyValues[i].prevY, game->enemyValues[i].y, game->renderAlpha)), 55, 55};
                 SDL_RenderCopyEx(renderer, game->enemy.sheetTextureRun, &srcRect, &rect, 0, NULL, SDL_FLIP_HORIZONTAL);
             }
 
@@ -102,7 +109,8 @@ void doRender(SDL_Renderer *renderer, GameState *game)
             if (game->boss[j].visible)
             {
                 SDL_Rect srcRect = {88 * game->CurrentSheetBoss, 0, 44, 30};
-                SDL_Rect rect = {game->boss[j].x, game->boss[j].y, 81, 55};
+                SDL_Rect rect = {render_pixel(render_lerp(game->boss[j].prevX, game->boss[j].x, game->renderAlpha)),
+                                 render_pixel(render_lerp(game->boss[j].prevY, game->boss[j].y, game->renderAlpha)), 81, 55};
                 SDL_RenderCopyEx(renderer, game->bossTexture, &srcRect, &rect, 0, NULL, SDL_FLIP_HORIZONTAL);
             }
         }
@@ -112,7 +120,8 @@ void doRender(SDL_Renderer *renderer, GameState *game)
             if (game->bullets[i].active)
             {
                 SDL_Rect srcRect = {32 * game->CurrentSheetBullet, 0, 32, 32};
-                SDL_Rect rect = {game->bullets[i].x, game->bullets[i].y, 32, 32};
+                SDL_Rect rect = {render_pixel(render_lerp(game->bullets[i].prevX, game->bullets[i].x, game->renderAlpha)),
+                                 render_pixel(render_lerp(game->bullets[i].prevY, game->bullets[i].y, game->renderAlpha)), 32, 32};
                 SDL_RenderCopyEx(renderer, game->bulletTexture, &srcRect, &rect, 0, NULL, (game->man.facingLeft == 1));
             }
 
@@ -123,7 +132,8 @@ void doRender(SDL_Renderer *renderer, GameState *game)
                 if (game->secondBullets[i].active)
                 {
                     SDL_Rect srcRect = {32 * game->CurrentSheetBullet2, 0, 32, 32};
-                    SDL_Rect rect = {game->secondBullets[i].x, game->secondBullets[i].y, 32, 32};
+                    SDL_Rect rect = {render_pixel(render_lerp(game->secondBullets[i].prevX, game->secondBullets[i].x, game->renderAlpha)),
+                                     render_pixel(render_lerp(game->secondBullets[i].prevY, game->secondBullets[i].y, game->renderAlpha)), 32, 32};
                     SDL_RenderCopyEx(renderer, game->secondBulletTexture, &srcRect, &rect, 0, NULL, (game->secondPlayer.facingLeft == 1));
                 }
             }
@@ -133,14 +143,16 @@ void doRender(SDL_Renderer *renderer, GameState *game)
         if (game->man.visible0 && game->man.onLedge)
         {
             SDL_Rect srcRect = {64 * game->man.currentSpriteRun, 0, 32, 32};
-            SDL_Rect rect = {game->man.x, game->man.y, 55, 55};
+            SDL_Rect rect = {render_pixel(render_lerp(game->man.prevX, game->man.x, game->renderAlpha)),
+                             render_pixel(render_lerp(game->man.prevY, game->man.y, game->renderAlpha)), 55, 55};
             SDL_RenderCopyEx(renderer, game->man.sheetTextureRun, &srcRect, &rect, 0, NULL, (game->man.facingLeft == 1));
         }
         //HERO JUMP
         if (game->man.visible0 && !game->man.onLedge)
         {
             SDL_Rect srcRect = {64 * game->man.currentSpriteJump, 0, 32, 32};
-            SDL_Rect rect = {game->man.x, game->man.y, 55, 55};
+            SDL_Rect rect = {render_pixel(render_lerp(game->man.prevX, game->man.x, game->renderAlpha)),
+                             render_pixel(render_lerp(game->man.prevY, game->man.y, game->renderAlpha)), 55, 55};
             SDL_RenderCopyEx(renderer, game->man.sheetTextureJump, &srcRect, &rect, 0, NULL, (game->man.facingLeft == 1));
         }
         //SECOND HERO RUN
@@ -149,7 +161,8 @@ void doRender(SDL_Renderer *renderer, GameState *game)
             if (game->man.visible0 && game->secondPlayer.onLedge)
             {
                 SDL_Rect srcRect2 = {64 * game->secondPlayer.currentSpriteRun2, 0, 32, 32};
-                SDL_Rect rect2 = {game->secondPlayer.x, game->secondPlayer.y, 55, 55};
+                SDL_Rect rect2 = {render_pixel(render_lerp(game->secondPlayer.prevX, game->secondPlayer.x, game->renderAlpha)),
+                                  render_pixel(render_lerp(game->secondPlayer.prevY, game->secondPlayer.y, game->renderAlpha)), 55, 55};
                 SDL_RenderCopyEx(renderer, game->secondPlayer.sheetTextureRun2, &srcRect2, &rect2, 0, NULL, (game->secondPlayer.facingLeft == 1));
             }
         }
@@ -159,14 +172,16 @@ void doRender(SDL_Renderer *renderer, GameState *game)
             if (game->man.visible0 && !game->secondPlayer.onLedge)
             {
                 SDL_Rect srcRect2 = {64 * game->secondPlayer.currentSpriteJump2, 0, 32, 32};
-                SDL_Rect rect2 = {game->secondPlayer.x, game->secondPlayer.y, 55, 55};
+                SDL_Rect rect2 = {render_pixel(render_lerp(game->secondPlayer.prevX, game->secondPlayer.x, game->renderAlpha)),
+                                  render_pixel(render_lerp(game->secondPlayer.prevY, game->secondPlayer.y, game->renderAlpha)), 55, 55};
                 SDL_RenderCopyEx(renderer, game->secondPlayer.sheetTextureJump2, &srcRect2, &rect2, 0, NULL, (game->secondPlayer.facingLeft == 1));
             }
         }
 
         if (game->man.isDead)
         {
-            SDL_Rect rect = {game->man.x, game->man.y - 10, 38, 83};
+            SDL_Rect rect = {render_pixel(render_lerp(game->man.prevX, game->man.x, game->renderAlpha)),
+                             render_pixel(render_lerp(game->man.prevY, game->man.y, game->renderAlpha) - 10.0f), 38, 83};
             SDL_RenderCopyEx(renderer, game->death, NULL, &rect, 0, NULL, (game->time % 20 < 10));
         }
     }
@@ -196,6 +211,7 @@ void doRender(SDL_Renderer *renderer, GameState *game)
 
 void doRender2(SDL_Renderer *renderer, GameState *game)
 {
+    float renderScrollX = render_lerp(game->prevScrollX, game->scrollX, game->renderAlpha);
     if (game->statusState == STATUS_STATE_GAME)
     {
         SDL_Rect fon = {0, 0, 1280, 720};
@@ -212,29 +228,33 @@ void doRender2(SDL_Renderer *renderer, GameState *game)
    */
     if (game->multiPlayer)
     {
-        SDL_Rect scdPlr = {game->scrollX + game->secondPlayer.x, game->secondPlayer.y, 54, 54};
+        SDL_Rect scdPlr = {render_pixel(renderScrollX + render_lerp(game->secondPlayer.prevX, game->secondPlayer.x, game->renderAlpha)),
+                           render_pixel(render_lerp(game->secondPlayer.prevY, game->secondPlayer.y, game->renderAlpha)), 54, 54};
         SDL_RenderCopyEx(renderer, game->secondPlayerFrames[game->secondPlayer.animFrameSecond], NULL, &scdPlr, 0, NULL, (game->secondPlayer.facingLeft == 1));
     }
 
 
         for (int i = 0; i < 100; i++)
         {
-            SDL_Rect ledgeRect = {game->scrollX + game->ledges[i].x, game->ledges[i].y, game->ledges[i].w, game->ledges[i].h};
+            SDL_Rect ledgeRect = {render_pixel(renderScrollX + (float)game->ledges[i].x), game->ledges[i].y, game->ledges[i].w, game->ledges[i].h};
             SDL_RenderCopy(renderer, game->brick, NULL, &ledgeRect);
         }
         //HERO ANIMATION
-        SDL_Rect rect = {game->scrollX + game->man.x, game->man.y, 54, 54};
+        SDL_Rect rect = {render_pixel(renderScrollX + render_lerp(game->man.prevX, game->man.x, game->renderAlpha)),
+                         render_pixel(render_lerp(game->man.prevY, game->man.y, game->renderAlpha)), 54, 54};
         SDL_RenderCopyEx(renderer, game->manFrames[game->man.animFrame], NULL, &rect, 0, NULL, (game->man.facingLeft == 1));
         if (game->man.isDead)
         {
-            SDL_Rect rect = {game->scrollX + game->man.x, game->man.y - 10, 38, 83};
-            SDL_RenderCopyEx(renderer, game->death, NULL, &rect, 0, NULL, (game->time % 20 < 10));
+            SDL_Rect deathRect = {render_pixel(renderScrollX + render_lerp(game->man.prevX, game->man.x, game->renderAlpha)),
+                                  render_pixel(render_lerp(game->man.prevY, game->man.y, game->renderAlpha) - 10.0f), 38, 83};
+            SDL_RenderCopyEx(renderer, game->death, NULL, &deathRect, 0, NULL, (game->time % 20 < 10));
         }
     }
     //draw the trap image
     for (int i = 0; i < 100; i++)
     {
-        SDL_Rect starRect = {game->scrollX + game->stars[i].x, game->stars[i].y, 56, 56};
+        SDL_Rect starRect = {render_pixel(renderScrollX + render_lerp(game->stars[i].prevX, (float)game->stars[i].x, game->renderAlpha)),
+                             render_pixel(render_lerp(game->stars[i].prevY, (float)game->stars[i].y, game->renderAlpha)), 56, 56};
         SDL_RenderCopy(renderer, game->star, NULL, &starRect);
     }
 
