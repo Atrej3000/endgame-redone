@@ -60,7 +60,7 @@ int main(void)
 
     InputState captured;
     memset(&captured, 0, sizeof(captured));
-    input_capture_arcade(&captured, keys);
+    input_capture_arcade(&captured, keys, &game->app.settings);
 
     CHECK("arcade capture: moveLeftPlayer1 set from SDL_SCANCODE_A",
           captured.moveLeftPlayer1 == true);
@@ -88,7 +88,7 @@ int main(void)
     memset(&runnerCaptured, 0, sizeof(runnerCaptured));
     runnerCaptured.shootHeldPlayer1 = true; // pre-set sentinel value
     runnerCaptured.shootHeldPlayer2 = true; // pre-set sentinel value
-    input_capture_runner(&runnerCaptured, keys);
+    input_capture_runner(&runnerCaptured, keys, &game->app.settings);
 
     CHECK("runner capture: moveLeftPlayer1 set from SDL_SCANCODE_A",
           runnerCaptured.moveLeftPlayer1 == true);

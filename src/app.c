@@ -1,5 +1,7 @@
 #include "app.h"
 #include "display.h"
+#include "input_snapshot.h"
+#include "settings.h"
 
 void destroy_texture(SDL_Texture **tex)
 {
@@ -83,6 +85,12 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
         free_chunk(&game->shootSound);
         free_chunk(&game->damageSound);
         free_music(&game->menuMus);
+        if (game->app.controller)
+        {
+            SDL_GameControllerClose(game->app.controller);
+            game->app.controller = NULL;
+            game->app.controllerJumpHeldLastFrame = false;
+        }
     }
 
     // 6. renderer
@@ -100,6 +108,7 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
     if (outWindow && *outWindow)
     {
         display_capture_window_settings(game);
+        (void)settings_save(&game->app.settings);
         if (game && !display_settings_save(&game->app.display))
         {
             fprintf(stderr, "app_shutdown: could not save display settings\n");
@@ -143,7 +152,7 @@ bool app_init(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **outRen
     }
     *outGame = game;
 
-    if (SDL_Init(SDL_INIT_VIDEO) != 0)
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0)
     {
         fprintf(stderr, "app_init: SDL_Init failed: %s\n", SDL_GetError());
         app_shutdown(outGame, outWindow, outRenderer);
@@ -163,6 +172,7 @@ bool app_init(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **outRen
 
     display_settings_defaults(&game->app.display);
     display_settings_load(&game->app.display);
+    settings_load(&game->app.settings);
     const Uint32 windowFlags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI |
         (game->app.display.fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0U);
 
@@ -207,6 +217,14 @@ bool app_init(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **outRen
         app_shutdown(outGame, outWindow, outRenderer);
         return false;
     }
+    (void)SDL_RenderSetVSync(*outRenderer, game->app.settings.vsync ? 1 : 0);
+    if (!load_font("./resource/text/Fonts/crazy-pixel.ttf", 32, &game->font))
+    {
+        app_shutdown(outGame, outWindow, outRenderer);
+        return false;
+    }
+    settings_apply_audio(&game->app.settings);
+    input_controller_open_first(&game->app);
 
     return true;
 }

@@ -267,6 +267,7 @@ typedef struct
 typedef enum AppScene
 {
     APP_SCENE_MAIN_MENU,
+    APP_SCENE_SETTINGS,
     APP_SCENE_ARCADE_MENU,
     APP_SCENE_ARCADE_GAME,
     APP_SCENE_ARCADE_LEADERBOARD,
@@ -277,6 +278,27 @@ typedef enum AppScene
     APP_SCENE_RUNNER_PAUSE,
     APP_SCENE_QUIT
 } AppScene;
+
+typedef struct PlayerBindings
+{
+    SDL_Scancode moveLeft;
+    SDL_Scancode moveRight;
+    SDL_Scancode jump;
+    SDL_Scancode shoot;
+    SDL_Scancode pause;
+} PlayerBindings;
+
+typedef struct GameSettings
+{
+    PlayerBindings player1;
+    PlayerBindings player2;
+    int musicVolume;
+    int effectsVolume;
+    bool vsync;
+    bool screenShake;
+    int selectedRow;
+    int waitingBinding;
+} GameSettings;
 
 // Single/multiplayer selection. Introduced here (ahead of GameState.multiPlayer's
 // eventual retype from int to GameMode) because arcade_session_reset()/
@@ -305,8 +327,13 @@ typedef struct AppContext
 {
     SDL_Renderer *renderer;
     SDL_Window *window;
+    // First attached SDL game controller. Opened during app_init(), refreshed
+    // on controller hot-plug events, and owned/closed by app_shutdown().
+    SDL_GameController *controller;
+    bool controllerJumpHeldLastFrame;
     AppScene scene;
     DisplaySettings display;
+    GameSettings settings;
 } AppContext;
 
 // Explicit asset-group lifecycle flags, grouped per

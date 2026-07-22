@@ -53,6 +53,7 @@ make mingw-physicsunitstest      # remaining per-second movement units
 make mingw-physicsbodytest       # shared body/collider model
 make mingw-worldcollisiontest    # common static-world solver
 make mingw-displaytest           # display defaults and persisted-size bounds
+make mingw-settingstest          # settings defaults, rebinding, and reset
 make audit-repo                   # resource-path and prototype integrity
 ```
 
@@ -66,7 +67,7 @@ Set `ENDGAME_PERF_LOG=1` before running `endgame-mingw.exe` or `make mingw-run` 
 
 ## Continuous integration
 
-`.github/workflows/mingw-validation.yml` runs the Windows/MinGW build, all 22 focused checks, and repository integrity audit for pull requests and pushes to `main`. Its Linux job validates asset-path case and performs a best-effort Linux build/smoke test.
+`.github/workflows/mingw-validation.yml` runs the Windows/MinGW build, all 23 focused checks, and repository integrity audit for pull requests and pushes to `main`. Its Linux job validates asset-path case and performs a best-effort Linux build/smoke test.
 
 ## Architecture (Phase 26)
 
@@ -117,15 +118,18 @@ Each mode has local multiplayer using one keyboard.
 ### Main menu
 
 1. Press `1`, `2`, or `3` to choose a mode.
-2. Press `Esc` to exit the main menu or return from the second menu.
-3. Press `Q` to leave the second menu or any in-game window.
+2. Press `S` to open Settings.
+3. Press `Esc` to exit the main menu or return from the second menu.
+4. Press `Q` to leave the second menu or any in-game window.
 
 ### Controls
 
 - `P`: pause.
 - `Esc`: leave pause or return to a menu without saving.
 - `F11`: toggle fullscreen; the most recent windowed size and fullscreen mode are persisted in SDL's user preference directory.
-- Player 1: `W`, `A`, `D` move/jump; `Space` shoots.
-- Player 2: arrow keys move/jump; keypad `0` shoots.
+- Settings: Up/Down selects, Left/Right adjusts, Enter rebinds a selected player action or resets defaults, and Esc returns to the main menu. Music/effects volumes, VSync, screen-shake preference, and key bindings are persisted in SDL's user preference directory.
+- Player 1 defaults: `W`, `A`, `D` move/jump; `Space` shoots. These keys are remappable in Settings.
+- Player 2 defaults: arrow keys move/jump; keypad `0` shoots. These keys are remappable in Settings.
+- Controller Player 1: D-pad or left stick moves, `A` jumps, `X` shoots in Arcade. Keyboard and controller input can be used together.
 
 Good luck; have fun.
