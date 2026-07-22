@@ -359,8 +359,8 @@ void process(GameState *game, float dt)
     {
         for (int i = 0; i < 10; i += 2)
         {
-            enemy_spawn(game, i, 620, (i) * -200, 0, 0);
-            enemy_spawn(game, i + 1, 580, (i) * -200, 0, 0);
+            enemy_spawn(game, i, 620, (float)i * -200.0f, 0, 0);
+            enemy_spawn(game, i + 1, 580, (float)i * -200.0f, 0, 0);
         }
     }
 
@@ -368,8 +368,8 @@ void process(GameState *game, float dt)
     {
         for (int j = 0; j < 20; j += 2)
         {
-            enemy_spawn(game, j, 620, (j) * -200, 0, 0);
-            enemy_spawn(game, j + 1, 580, (j) * -200, 0, 0);
+            enemy_spawn(game, j, 620, (float)j * -200.0f, 0, 0);
+            enemy_spawn(game, j + 1, 580, (float)j * -200.0f, 0, 0);
         }
         game->tempScore++;
     }
@@ -378,8 +378,8 @@ void process(GameState *game, float dt)
     {
         for (int j = 0; j < 30; j += 2)
         {
-            enemy_spawn(game, j, 620, (j) * -200, 0, 0);
-            enemy_spawn(game, j + 1, 580, (j) * -200, 0, 0);
+            enemy_spawn(game, j, 620, (float)j * -200.0f, 0, 0);
+            enemy_spawn(game, j + 1, 580, (float)j * -200.0f, 0, 0);
         }
 
         smart_enemy_spawn(game, 0, 1000, 200, 0, 0);
@@ -391,8 +391,8 @@ void process(GameState *game, float dt)
     {
         for (int j = 0; j < 50; j += 2)
         {
-            enemy_spawn(game, j, 620, (j) * -100, 0, 0);
-            enemy_spawn(game, j + 1, 580, (j) * -100, 0, 0);
+            enemy_spawn(game, j, 620, (float)j * -100.0f, 0, 0);
+            enemy_spawn(game, j + 1, 580, (float)j * -100.0f, 0, 0);
         }
         smart_enemy_spawn(game, 2, 1000, 200, 0, 0);
         smart_enemy_spawn(game, 3, 200, 200, 0, 0);
@@ -404,8 +404,8 @@ void process(GameState *game, float dt)
     {
         for (int j = 0; j < 70; j += 2)
         {
-            enemy_spawn(game, j, 620, (j) * -100, 0, 0);
-            enemy_spawn(game, j + 1, 580, (j) * -100, 0, 0);
+            enemy_spawn(game, j, 620, (float)j * -100.0f, 0, 0);
+            enemy_spawn(game, j + 1, 580, (float)j * -100.0f, 0, 0);
         }
         smart_enemy_spawn(game, 4, 1000, 200, 0, 0);
         smart_enemy_spawn(game, 5, 200, 200, 0, 0);
@@ -418,8 +418,8 @@ void process(GameState *game, float dt)
     {
         for (int j = 0; j < 100; j += 2)
         {
-            enemy_spawn(game, j, 620, (j) * -100, 0, 0);
-            enemy_spawn(game, j + 1, 580, (j) * -100, 0, 0);
+            enemy_spawn(game, j, 620, (float)j * -100.0f, 0, 0);
+            enemy_spawn(game, j + 1, 580, (float)j * -100.0f, 0, 0);
         }
         smart_enemy_spawn(game, 0, 1000, 200, 0, 0);
         smart_enemy_spawn(game, 1, 200, 200, 0, 0);
@@ -439,8 +439,8 @@ void process(GameState *game, float dt)
     {
         for (int i = 0; i < NUM_ENEMIES - 1; i += 2)
         {
-            enemy_spawn(game, i, 620, i * (-100), 0, 0);
-            enemy_spawn(game, i + 1, 580, i * (-100), 0, 0);
+            enemy_spawn(game, i, 620, (float)i * -100.0f, 0, 0);
+            enemy_spawn(game, i + 1, 580, (float)i * -100.0f, 0, 0);
         }
         boss_spawn(game, 0, 1100, 0, 0, 0);
         boss_spawn(game, 1, 100, 0, 0, 0);
@@ -795,13 +795,13 @@ void process2(GameState *game, float dt)
         
         if(game->stars[i].mode == 0)
         {
-          game->stars[i].x = game->stars[i].baseX + sinf(game->stars[i].phase +
-              (float)game->time * PHYSICS_DT * TRAP_ANGULAR_SPEED_PER_SEC) * 75.0f;
+          game->stars[i].x = (int)((float)game->stars[i].baseX + sinf(game->stars[i].phase +
+              (float)game->time * PHYSICS_DT * TRAP_ANGULAR_SPEED_PER_SEC) * 75.0f);
         }
         else
         {
-          game->stars[i].y = game->stars[i].baseY + cosf(game->stars[i].phase +
-              (float)game->time * PHYSICS_DT * TRAP_ANGULAR_SPEED_PER_SEC) * 75.0f;
+          game->stars[i].y = (int)((float)game->stars[i].baseY + cosf(game->stars[i].phase +
+              (float)game->time * PHYSICS_DT * TRAP_ANGULAR_SPEED_PER_SEC) * 75.0f);
         }
       }
         // Death-countdown progression itself is owned by runner_update_death()

@@ -91,7 +91,7 @@ MINGW_LIBDIRS := \
 MINGW_LIBS := -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer
 
 MINGW_WARN_FLAGS := -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion \
-	-Wsign-conversion -Wformat=2 -Wnull-dereference -Wdouble-promotion
+	-Wsign-conversion -Wformat=2 -Wnull-dereference -Wdouble-promotion -Werror
 
 # Sources minus main.c, for the non-interactive smoke-test harness below
 # (which supplies its own main()).
