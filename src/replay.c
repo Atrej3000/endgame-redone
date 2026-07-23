@@ -28,6 +28,32 @@ static unsigned int replay_world_signature(const GameState *game)
     return signature;
 }
 
+static bool replay_external_state_is_untouched(const GameState *game,
+                                               ReplayScene scene)
+{
+    const AppScene expectedScene =
+        scene == REPLAY_SCENE_ARCADE ? APP_SCENE_ARCADE_GAME
+                                     : APP_SCENE_RUNNER_GAME;
+    return game->simulationOnly && game->app.scene == expectedScene &&
+           game->app.window == NULL && game->app.renderer == NULL &&
+           game->app.controller == NULL &&
+           game->menu0 == NULL && game->menu1 == NULL &&
+           game->menu2 == NULL && game->mult == NULL &&
+           game->leaders == NULL && game->pause == NULL &&
+           game->font == NULL &&
+           game->audio.menuMusic == NULL &&
+           game->audio.arcadeMusic == NULL &&
+           game->audio.runnerMusic == NULL &&
+           game->audio.select == NULL && game->audio.jump == NULL &&
+           game->audio.shoot == NULL && game->audio.damage == NULL &&
+           game->audio.kick == NULL &&
+           !game->assetFlags.arcadeAssetsLoaded &&
+           !game->assetFlags.runnerAssetsLoaded &&
+           !game->assetFlags.sharedAssetsLoaded &&
+           !game->assetFlags.sharedAudioAssetsLoaded &&
+           game->x_i == 0;
+}
+
 static void replay_capture_result(const GameState *game, ReplayScene scene, GameMode playerMode, int tickCount,
                                   ReplayResult *result)
 {
@@ -53,6 +79,8 @@ static void replay_capture_result(const GameState *game, ReplayScene scene, Game
         .firstStarX = game->stars[0].baseX,
         .firstStarY = game->stars[0].baseY,
         .worldSignature = replay_world_signature(game),
+        .externalStateUntouched =
+            replay_external_state_is_untouched(game, scene),
     };
 }
 
@@ -76,7 +104,11 @@ bool replay_recording_init(ReplayRecording *recording, ReplayScene scene,
 bool replay_recording_set_input(ReplayRecording *recording, int tick,
                                 InputState input)
 {
-    if (recording == NULL || tick < 0 || tick >= recording->tickCount)
+    if (recording == NULL || recording->tickCount < 0 ||
+        recording->tickCount > REPLAY_MAX_TICKS ||
+        !replay_scene_is_valid(recording->scene) ||
+        !replay_mode_is_valid(recording->playerMode) ||
+        tick < 0 || tick >= recording->tickCount)
     {
         return false;
     }
@@ -102,11 +134,14 @@ bool replay_run(const ReplayRecording *recording, ReplayResult *result)
     if (recording->scene == REPLAY_SCENE_ARCADE)
     {
         arcade_session_reset(&game, recording->playerMode);
+        game.app.scene = APP_SCENE_ARCADE_GAME;
     }
     else
     {
         runner_session_reset(&game, recording->playerMode);
+        game.app.scene = APP_SCENE_RUNNER_GAME;
     }
+    game.simulationOnly = true;
 
     // A reset begins in the lives display; the real game moves into gameplay
     // on its first processing tick. Start there explicitly so every recorded
@@ -118,7 +153,6 @@ bool replay_run(const ReplayRecording *recording, ReplayResult *result)
         if (recording->scene == REPLAY_SCENE_ARCADE)
         {
             arcade_simulate(&game, PHYSICS_DT);
-            process_arcade_shooting(&game);
         }
         else
         {
@@ -147,5 +181,6 @@ bool replay_results_equal(const ReplayResult *left, const ReplayResult *right)
            left->secondPlayerY == right->secondPlayerY && left->scrollX == right->scrollX &&
            left->firstLedgeX == right->firstLedgeX && left->firstLedgeY == right->firstLedgeY &&
            left->tenthLedgeY == right->tenthLedgeY && left->firstStarX == right->firstStarX &&
-           left->firstStarY == right->firstStarY && left->worldSignature == right->worldSignature;
+           left->firstStarY == right->firstStarY && left->worldSignature == right->worldSignature &&
+           left->externalStateUntouched == right->externalStateUntouched;
 }

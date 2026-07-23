@@ -13,6 +13,7 @@ typedef struct WaveDefinition
 } WaveDefinition;
 
 void arcade_waves_reset(GameState *game);
+// Null-safe and self-recovers invalid counters to the wave-one baseline.
 void arcade_waves_update(GameState *game);
 const WaveDefinition *arcade_waves_get_definition(int waveNumber);
 void arcade_waves_draw_hud(SDL_Renderer *renderer, const GameState *game);

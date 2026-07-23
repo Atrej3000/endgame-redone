@@ -39,30 +39,36 @@ int main(void)
         return 1;
     }
 
-    // Mirror main()'s own bootstrap sequence.
+    // Mirror main()'s own bootstrap sequence. load_menu0() owns loading the
+    // persisted leaderboard; score is current-session Runner state.
     game->x_score = 0;
-    for (game->x_i = 0; game->x_i < 25; game->x_i++)
-    {
-        game->x_list[game->x_i] = 0;
-    }
     load_menu0(game);
     game->app.scene = APP_SCENE_MAIN_MENU;
 
     // 1. Initial scene.
     CHECK("initial scene is MAIN_MENU", game->app.scene == APP_SCENE_MAIN_MENU);
 
+    game->x_score = 17;
+    game->x_i = 1;
+    game->x_list[0] = 777;
+
     // 2. Valid main-menu -> Arcade-menu transition.
     app_change_scene(game, APP_SCENE_ARCADE_MENU);
     CHECK("MAIN_MENU -> ARCADE_MENU sets scene", game->app.scene == APP_SCENE_ARCADE_MENU);
     CHECK("arcade_menu_enter loaded assets (arcadeAssetsLoaded)", game->assetFlags.arcadeAssetsLoaded == true);
-    CHECK("arcade_menu_enter from MAIN_MENU reset leaderboard (x_score==0)", game->x_score == 0);
+    CHECK("Arcade menu entry preserves Runner session score", game->x_score == 17);
+    CHECK("Arcade menu entry preserves the persisted leaderboard",
+          game->x_i == 1 && game->x_list[0] == 777);
 
     // 3. Runner-menu transition (starting fresh from Main menu again).
     app_change_scene(game, APP_SCENE_MAIN_MENU);
     app_change_scene(game, APP_SCENE_RUNNER_MENU);
     CHECK("MAIN_MENU -> RUNNER_MENU sets scene", game->app.scene == APP_SCENE_RUNNER_MENU);
     CHECK("runner_menu_enter loaded assets (runnerAssetsLoaded)", game->assetFlags.runnerAssetsLoaded == true);
-    CHECK("runner_menu_enter from MAIN_MENU reset leaderboard (x_score==0)", game->x_score == 0);
+    CHECK("Runner menu entry preserves score until a new session starts",
+          game->x_score == 17);
+    CHECK("Runner menu entry preserves the persisted leaderboard",
+          game->x_i == 1 && game->x_list[0] == 777);
 
     // 4. Gameplay -> menu transition: since Phase 4, arcade_menu_enter() only
     // loads assets -- it no longer resets the session (that moved to an
@@ -72,7 +78,7 @@ int main(void)
     // merely by returning from gameplay to the menu. Test-only direct scene
     // assignment to simulate "currently in Arcade gameplay" (see file header).
     app_change_scene(game, APP_SCENE_MAIN_MENU);
-    app_change_scene(game, APP_SCENE_ARCADE_MENU); // real entry, resets x_score to 0
+    app_change_scene(game, APP_SCENE_ARCADE_MENU); // real entry, preserves score history
     game->x_score = 42;                            // sentinel
     game->man.lives = 0;                           // sentinel gameplay state
     game->app.scene = APP_SCENE_ARCADE_GAME;           // test-only: simulate "currently playing"

@@ -52,7 +52,9 @@ jobs:
       # docs/unused-code-assets-audit.md.
       - name: Repository usage integrity check
         shell: bash
-        run: python scripts/audit_repository_usage.py
+        run: |
+          python scripts/test_audit_repository_usage.py
+          python scripts/audit_repository_usage.py
 
       # Every step from here on must use `shell: msys2 {0}` -- gcc/make are
       # only on PATH inside the MSYS2-provided shell, matching the
@@ -185,6 +187,50 @@ jobs:
         shell: msys2 {0}
         run: make mingw-feedbacktest 2>&1 | tee feedbacktest.log
 
+      - name: Pre-Phase-35 state and input audit
+        shell: msys2 {0}
+        run: make mingw-prephase35-statetest 2>&1 | tee prephase35-statetest.log
+
+      - name: Pre-Phase-35 simulation audit
+        shell: msys2 {0}
+        run: make mingw-prephase35-simulationtest 2>&1 | tee prephase35-simulationtest.log
+
+      - name: Pre-Phase-35 lifecycle audit
+        shell: msys2 {0}
+        run: make mingw-prephase35-lifecycletest 2>&1 | tee prephase35-lifecycletest.log
+
+      - name: Pre-Phase-35 integration audit
+        shell: msys2 {0}
+        run: make mingw-prephase35-integrationtest 2>&1 | tee prephase35-integrationtest.log
+
+      - name: Pre-Phase-35 persistence audit
+        shell: msys2 {0}
+        run: make mingw-prephase35-persistencetest 2>&1 | tee prephase35-persistencetest.log
+
+      - name: Pre-Phase-35 UI and leaderboard audit
+        shell: msys2 {0}
+        run: make mingw-prephase35-uitest 2>&1 | tee prephase35-uitest.log
+
+      - name: Pre-Phase-35 robustness and long-session audit
+        shell: msys2 {0}
+        run: make mingw-prephase35-robustnesstest 2>&1 | tee prephase35-robustnesstest.log
+
+      - name: Pre-Phase-35 collision and AI audit
+        shell: msys2 {0}
+        run: make mingw-prephase35-collisionaitest 2>&1 | tee prephase35-collisionaitest.log
+
+      - name: Pre-Phase-35 deterministic restart and soak audit
+        shell: msys2 {0}
+        run: make mingw-prephase35-soaktest 2>&1 | tee prephase35-soaktest.log
+
+      - name: Build runnable Windows package
+        shell: msys2 {0}
+        run: make mingw-package MINGW_PACKAGE_DIR="$RUNNER_TEMP/endgame-windows" 2>&1 | tee package.log
+
+      - name: Verify runnable Windows package
+        shell: msys2 {0}
+        run: make mingw-package-verify MINGW_PACKAGE_DIR="$RUNNER_TEMP/endgame-windows" 2>&1 | tee package-verify.log
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -219,6 +265,17 @@ jobs:
             wavetest.log
             segmenttest.log
             feedbacktest.log
+            prephase35-statetest.log
+            prephase35-simulationtest.log
+            prephase35-lifecycletest.log
+            prephase35-integrationtest.log
+            prephase35-persistencetest.log
+            prephase35-uitest.log
+            prephase35-robustnesstest.log
+            prephase35-collisionaitest.log
+            prephase35-soaktest.log
+            package.log
+            package-verify.log
           if-no-files-found: ignore
 
   # Windows CI, however thorough, cannot prove case-sensitive path
@@ -235,28 +292,25 @@ jobs:
       # This step is the mandatory deliverable for this job and must pass:
       # a real case-sensitive filesystem check of every asset-path literal.
       - name: Repository usage integrity check (case-sensitive filesystem)
-        run: python3 scripts/audit_repository_usage.py
+        run: |
+          python3 scripts/test_audit_repository_usage.py
+          python3 scripts/audit_repository_usage.py
 
-      # Everything below is best-effort only (continue-on-error): an attempt
-      # to also prove the corrected paths load successfully through the
-      # real production loader on Linux, not just that they exist with the
-      # right case. This was authored without access to a Linux toolchain to
-      # test against, so its success is NOT assumed -- a failure here does
-      # not block this job or the PR, only the integrity check above does.
+      # The production build and real loader smoke test are required gates,
+      # not advisory probes. Software-renderer and silent-audio fallbacks keep
+      # this meaningful on a headless hosted runner.
       # The compat-include shim mirrors the same SDL2_image/SDL2_ttf/
       # SDL2_mixer header-layout fix already proven necessary for the
       # Windows/MinGW build (scripts/setup-mingw-sdl2.sh's compat-include),
       # since most Linux distribution SDL2 packages are expected to ship the
       # same flat SDL2/ header layout that required it there.
-      - name: Install SDL2 dev packages (best-effort)
-        continue-on-error: true
+      - name: Install SDL2 dev packages
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config \
             libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libsdl2-mixer-dev
 
-      - name: Create compat-include shims (best-effort)
-        continue-on-error: true
+      - name: Create compat-include shims
         run: |
           mkdir -p /tmp/linux-compat-include/SDL2_image
           mkdir -p /tmp/linux-compat-include/SDL2_ttf
@@ -265,12 +319,10 @@ jobs:
           printf '#pragma once\n#include <SDL2/SDL_ttf.h>\n' > /tmp/linux-compat-include/SDL2_ttf/SDL_ttf.h
           printf '#pragma once\n#include <SDL2/SDL_mixer.h>\n' > /tmp/linux-compat-include/SDL2_mixer/SDL_mixer.h
 
-      - name: Build (best-effort)
-        continue-on-error: true
-        run: make linux LINUX_COMPAT_INCLUDE=/tmp/linux-compat-include
+      - name: Build production executable
+        run: make linux LINUX_COMPAT_INCLUDE=/tmp/linux-compat-include 2>&1 | tee linux-build.log
 
-      - name: Smoke test (best-effort)
-        continue-on-error: true
+      - name: Smoke test
         env:
           # GitHub-hosted Linux runners have neither an audio device nor a
           # display server -- SDL's "dummy" audio/video drivers make
@@ -280,12 +332,21 @@ jobs:
           # SDL_AUDIODRIVER=dummy fix above.
           SDL_AUDIODRIVER: dummy
           SDL_VIDEODRIVER: dummy
-        run: make linux-smoketest LINUX_COMPAT_INCLUDE=/tmp/linux-compat-include
+        run: make linux-smoketest LINUX_COMPAT_INCLUDE=/tmp/linux-compat-include 2>&1 | tee linux-smoketest.log
+
+      - name: Upload Linux production logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-production-validation-logs
+          path: |
+            linux-build.log
+            linux-smoketest.log
+          if-no-files-found: ignore
 
   # Native Linux has sanitizer runtimes that the validated MinGW toolchains do
-  # not ship. This is deliberately separate from the best-effort asset-load
-  # job: replay is headless and therefore an actionable, required memory/UB
-  # signal for every pull request.
+  # not ship. Replay and the headless pre-Phase-35 simulation, integration,
+  # and robustness audits provide an actionable memory/UB signal for every PR.
   linux-sanitizers:
     runs-on: ubuntu-latest
     steps:
@@ -306,8 +367,16 @@ jobs:
           printf '#pragma once\n#include <SDL2/SDL_ttf.h>\n' > /tmp/linux-compat-include/SDL2_ttf/SDL_ttf.h
           printf '#pragma once\n#include <SDL2/SDL_mixer.h>\n' > /tmp/linux-compat-include/SDL2_mixer/SDL_mixer.h
 
-      - name: Replay test under AddressSanitizer and UndefinedBehaviorSanitizer
+      - name: Headless audit tests under AddressSanitizer and UndefinedBehaviorSanitizer
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1
-        run: make linux-asan LINUX_COMPAT_INCLUDE=/tmp/linux-compat-include
+        run: make linux-asan LINUX_COMPAT_INCLUDE=/tmp/linux-compat-include 2>&1 | tee linux-asan.log
+
+      - name: Upload sanitizer log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-sanitizer-log
+          path: linux-asan.log
+          if-no-files-found: ignore

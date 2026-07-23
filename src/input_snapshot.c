@@ -1,34 +1,88 @@
 #include "input_snapshot.h"
 
+static bool scancode_is_valid(SDL_Scancode scancode)
+{
+    return (int)scancode > (int)SDL_SCANCODE_UNKNOWN &&
+           (int)scancode < SDL_NUM_SCANCODES;
+}
+
+static bool keyboard_key_is_held(const Uint8 *keyboardState,
+                                 SDL_Scancode scancode)
+{
+    return scancode_is_valid(scancode) && keyboardState[scancode] != 0U;
+}
+
+void input_state_clear(InputState *input)
+{
+    if (input != NULL)
+    {
+        *input = (InputState){0};
+    }
+}
+
 void input_capture_arcade(InputState *input, const Uint8 *keyboardState, const GameSettings *settings)
 {
-    input->moveLeftPlayer1 = keyboardState[settings->player1.moveLeft];
-    input->moveRightPlayer1 = keyboardState[settings->player1.moveRight];
-    input->jumpHeldPlayer1 = keyboardState[settings->player1.jump];
-    input->shootHeldPlayer1 = keyboardState[settings->player1.shoot];
+    if (input == NULL || keyboardState == NULL || settings == NULL)
+    {
+        return;
+    }
+    input->moveLeftPlayer1 =
+        keyboard_key_is_held(keyboardState, settings->player1.moveLeft);
+    input->moveRightPlayer1 =
+        keyboard_key_is_held(keyboardState, settings->player1.moveRight);
+    input->jumpHeldPlayer1 =
+        keyboard_key_is_held(keyboardState, settings->player1.jump);
+    input->shootHeldPlayer1 =
+        keyboard_key_is_held(keyboardState, settings->player1.shoot);
 
-    input->moveLeftPlayer2 = keyboardState[settings->player2.moveLeft];
-    input->moveRightPlayer2 = keyboardState[settings->player2.moveRight];
-    input->jumpHeldPlayer2 = keyboardState[settings->player2.jump];
-    input->shootHeldPlayer2 = keyboardState[settings->player2.shoot];
+    input->moveLeftPlayer2 =
+        keyboard_key_is_held(keyboardState, settings->player2.moveLeft);
+    input->moveRightPlayer2 =
+        keyboard_key_is_held(keyboardState, settings->player2.moveRight);
+    input->jumpHeldPlayer2 =
+        keyboard_key_is_held(keyboardState, settings->player2.jump);
+    input->shootHeldPlayer2 =
+        keyboard_key_is_held(keyboardState, settings->player2.shoot);
 }
 
 void input_capture_runner(InputState *input, const Uint8 *keyboardState, const GameSettings *settings)
 {
-    input->moveLeftPlayer1 = keyboardState[settings->player1.moveLeft];
-    input->moveRightPlayer1 = keyboardState[settings->player1.moveRight];
-    input->jumpHeldPlayer1 = keyboardState[settings->player1.jump];
+    if (input == NULL || keyboardState == NULL || settings == NULL)
+    {
+        return;
+    }
+    input->moveLeftPlayer1 =
+        keyboard_key_is_held(keyboardState, settings->player1.moveLeft);
+    input->moveRightPlayer1 =
+        keyboard_key_is_held(keyboardState, settings->player1.moveRight);
+    input->jumpHeldPlayer1 =
+        keyboard_key_is_held(keyboardState, settings->player1.jump);
 
-    input->moveLeftPlayer2 = keyboardState[settings->player2.moveLeft];
-    input->moveRightPlayer2 = keyboardState[settings->player2.moveRight];
-    input->jumpHeldPlayer2 = keyboardState[settings->player2.jump];
+    input->moveLeftPlayer2 =
+        keyboard_key_is_held(keyboardState, settings->player2.moveLeft);
+    input->moveRightPlayer2 =
+        keyboard_key_is_held(keyboardState, settings->player2.moveRight);
+    input->jumpHeldPlayer2 =
+        keyboard_key_is_held(keyboardState, settings->player2.jump);
+    input->shootHeldPlayer1 = false;
+    input->shootHeldPlayer2 = false;
 }
 
 void input_apply_controller(InputState *input, AppContext *app, bool includeShoot)
 {
-    if (!input || !app || !app->controller || SDL_GameControllerGetAttached(app->controller) == SDL_FALSE)
+    if (!input || !app)
     {
-        if (app) app->controllerJumpHeldLastFrame = false;
+        return;
+    }
+    if (app->controller &&
+        SDL_GameControllerGetAttached(app->controller) == SDL_FALSE)
+    {
+        input_controller_open_first(app);
+    }
+    if (!app->controller ||
+        SDL_GameControllerGetAttached(app->controller) == SDL_FALSE)
+    {
+        app->controllerJumpHeldLastFrame = false;
         return;
     }
 
@@ -54,16 +108,43 @@ void input_apply_controller(InputState *input, AppContext *app, bool includeShoo
 
 void input_controller_open_first(AppContext *app)
 {
-    if (!app || app->controller) return;
+    if (!app) return;
+    if (app->controller)
+    {
+        if (SDL_GameControllerGetAttached(app->controller) == SDL_TRUE)
+        {
+            return;
+        }
+        SDL_GameControllerClose(app->controller);
+        app->controller = NULL;
+        app->controllerJumpHeldLastFrame = false;
+    }
     const int joystickCount = SDL_NumJoysticks();
     for (int joystickIndex = 0; joystickIndex < joystickCount; joystickIndex++)
     {
         if (SDL_IsGameController(joystickIndex) == SDL_TRUE)
         {
             app->controller = SDL_GameControllerOpen(joystickIndex);
-            if (app->controller) return;
+            if (app->controller)
+            {
+                input_controller_sync_jump_edge(app);
+                return;
+            }
         }
     }
+}
+
+void input_controller_sync_jump_edge(AppContext *app)
+{
+    if (!app || !app->controller ||
+        SDL_GameControllerGetAttached(app->controller) == SDL_FALSE)
+    {
+        if (app) app->controllerJumpHeldLastFrame = false;
+        return;
+    }
+    app->controllerJumpHeldLastFrame =
+        SDL_GameControllerGetButton(app->controller,
+                                    SDL_CONTROLLER_BUTTON_A) != 0;
 }
 
 void input_controller_handle_event(AppContext *app, const SDL_Event *event)

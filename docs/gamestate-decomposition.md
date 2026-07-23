@@ -5,6 +5,12 @@ directly from the tree at commit `81dda1e` (tag `refactor-pre-gamestate-decompos
 after Phase 9's PR #5 merge) via three parallel codebase explorations plus targeted direct reads
 immediately before this document was written.
 
+> **Current-status addendum (pre-Phase 35, 2026-07-23):** inventory counts
+> and migration decisions below are the historical Phase 10 evidence. The
+> Runner leaderboard is now centrally owned by `leaderboard_*`, maintained as
+> a descending top-25 table, and atomically persisted in SDL's per-user
+> preference directory. No code serializes the raw `GameState` layout.
+
 ## 1. Memory-layout safety (must be established before any field moves)
 
 Searched the entire repository (`src/*.c`, `inc/*.h`, `docs/verification/*.c`) for every operation
@@ -17,7 +23,7 @@ that could depend on `GameState`'s layout:
 | Pointer casts of `GameState*` | **One benign match**: `src/app.c:128`'s `(GameState *)calloc(...)`. `docs/verification/smoke_init_shutdown.c` casts `game` to `(void*)` only for `printf("%p", ...)` diagnostics — not byte reinterpretation. |
 | Pointer arithmetic on `GameState*` | **Zero matches** — no array-of-`GameState`, no `game + 1`-style arithmetic; always a single heap instance passed by pointer. |
 | `offsetof(` | **Zero matches** anywhere in the repository. |
-| File I/O writing/reading `GameState` or fields as raw bytes | **Zero matches** — no `fopen`/`fread`/`fwrite`/`fscanf` exists anywhere in `src/*.c`. Cross-checked against `docs/unused-code-assets-audit.md`: the only historical leaderboard file-I/O was dead, uncompilable code, deleted in Phase 7. The live leaderboard (`x_list[25]`) is in-memory only. |
+| File I/O writing/reading `GameState` or fields as raw bytes | **Zero raw-layout serialization.** At Phase 10 there was no live leaderboard I/O. Current settings, display, and leaderboard persistence serialize validated named values through atomic text-file helpers; none reads or writes `sizeof(GameState)` or relies on field offsets. |
 | Whole-struct `memcmp` in tests | **Zero matches.** The only `memcmp` calls in `docs/verification/` (`entity_spawn_test.c:58,75,94`) each compare a single `Enemies` sub-struct (`sizeof(Enemies)`), never `sizeof(GameState)`. |
 | External tooling (`.gdbinit`, disassembly notes, offset references) | **Zero matches** anywhere in `docs/`. |
 
@@ -58,7 +64,7 @@ platform/lifecycle fields specifically*.
 | `arcadeAssetsLoaded`, `runnerAssetsLoaded`, `sharedAssetsLoaded` | Asset-group load state flags | `loadGame.c`'s 3 load + 3 unload functions | `calloc` (false) | matching `*_assets_unload` | matching `*_assets_unload` | **Selected: `AssetLifecycleFlags`** |
 | `scene` | Authoritative scene routing | `scene.c` (`app_change_scene`, sole writer) + 1 documented bootstrap in `main.c` | `calloc` (0 = `APP_SCENE_MAIN_MENU`) | n/a (transitions, not reset) | n/a | **Selected: `AppContext`** |
 | `menu_status`, `menu0_status` | **DEPRECATED** — superseded by `scene`, no longer read/written anywhere in active routing (confirmed again this phase) | none (dead) | `calloc` (0) | never | n/a | Dead — flagged safe-to-remove in Phase 7, still not removed (out of this phase's charter) |
-| `x_score`, `x_list[25]`, `x_i` | Runner leaderboard (in-memory only) | `processEvents.c`/`load_menu.c`/`main.c` | `calloc` (0) | `load_menu.c`'s two reset helpers + `main.c` bootstrap | n/a | Leaderboard state (deferred) |
+| `x_score`, `x_list[25]`, `x_i` | Runner score plus persistent descending top-25 leaderboard | gameplay events + `leaderboard_*` | `calloc`, then `leaderboard_load` from the per-user preference file | `x_score` on new Runner session; table only on load/recovery/record | atomically saved text; no dynamic destruction | Leaderboard state (grouping deferred) |
 | `kills_score`, `kills_score_multi` | Arcade score | `process.c`/`loadGame.c` | `calloc` (0) | `arcade_session_reset` | n/a | Arcade session (deferred) |
 | `time`, `deathCountdown` | Shared per-frame timers | `process.c`/`process2.c`/`runner_death.c` | `calloc` (0 / uninitialized meaning) | `arcade_session_reset` sets `time=0`, `deathCountdown=-1` | n/a | Session (deferred) |
 | `statusState` | Secondary crude state machine (`STATUS_STATE_LIVES`/`STATUS_STATE_GAME`) | `loadGame.c`/`status.c` | `calloc` (0) | `arcade_session_reset` | n/a | HUD/menu state (deferred) |
@@ -104,9 +110,11 @@ identically to production code, so the same mechanical rename applies to both).
   write access from simulation, collision, and event-handling code — a much larger, higher-risk
   migration than either selected group. Recorded as deferred, ready to be picked up as its own
   phase once `AppContext`/`AssetLifecycleFlags` have proven the migration pattern.
-- **Leaderboard/HUD/menu state — deferred**, lower priority than the two selected groups; smaller
-  in field count but with more scattered ownership (leaderboard reset logic alone is duplicated
-  across 3 files per Phase 9's audit) that would need its own cleanup before grouping cleanly.
+- **Leaderboard/HUD/menu state — grouping deferred.** This was lower priority
+  than the two selected Phase 10 groups. The pre-Phase-35 audit has since
+  centralized leaderboard load/record/save/sort/recovery behavior in
+  `leaderboard_*`; moving the remaining fields into a nested struct is still a
+  separate structural change.
 
 ## 4. Access-site migration plan (exact counts, verified by grep before any edit)
 

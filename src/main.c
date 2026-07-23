@@ -2,6 +2,7 @@
 #include "app.h"
 #include "scene.h"
 #include "frame.h"
+#include "fixed_step.h"
 #include "input_snapshot.h"
 #include "settings_menu.h"
 
@@ -17,26 +18,23 @@ int main()
     }
 
     gameState->x_score = 0;
-    for(gameState->x_i = 0; gameState->x_i < 25; gameState->x_i++) {
-        gameState->x_list[gameState->x_i] = 0;
-    }
 
-    load_menu0(gameState);
     // Bootstrap only -- the one direct assignment to `scene` outside
     // app_change_scene(), since there is no "previous scene" transition to
     // run an enter-hook for at program start. calloc already zero-initializes
     // `scene` to APP_SCENE_MAIN_MENU (its first member); set explicitly here
     // for clarity rather than relying on that implicitly.
     gameState->app.scene = APP_SCENE_MAIN_MENU;
+    load_menu0(gameState);
 
-    // Fixed-timestep physics (Phase 11) -- see docs/physics-timestep-map.md.
+    // Fixed-timestep physics clock -- see docs/physics-timestep-map.md.
     // Real elapsed time is measured every loop iteration regardless of
     // scene, so the timestamp stays accurate across scene changes; the
-    // accumulator itself only accrues time while a gameplay scene is
-    // active, so no backlog builds up while paused/in menus/leaderboards.
+    // Its accumulator only accrues inside one gameplay scene and is reset
+    // across every transition, so no mode/session/pause backlog can leak.
     Uint64 perfFrequency = SDL_GetPerformanceFrequency();
     Uint64 previousCounter = SDL_GetPerformanceCounter();
-    double accumulator = 0.0;
+    FixedStepClock fixedClock = {0};
 
     // Opt-in performance logging (Phase 16, see docs/optimization-map.md) --
     // off unless ENDGAME_PERF_LOG is set, in which case a summary line prints
@@ -96,35 +94,51 @@ int main()
             }
         }
 
-        switch (gameState->app.scene) {
+        const AppScene frameScene = gameState->app.scene;
+        if (!fixed_step_scene_is_gameplay(frameScene))
+        {
+            fixed_step_clock_reset(&fixedClock, frameScene);
+        }
+
+        switch (frameScene) {
             case APP_SCENE_MAIN_MENU:
                 menu0_events(gameState);
-                doRender_menu0(renderer, gameState);
+                if (gameState->app.scene == frameScene) doRender_menu0(renderer, gameState);
                 break;
 
             case APP_SCENE_SETTINGS:
                 settings_events(gameState);
-                doRender_settings(renderer, gameState);
+                if (gameState->app.scene == frameScene) doRender_settings(renderer, gameState);
                 break;
 
             case APP_SCENE_ARCADE_MENU:
                 menu_events(gameState);
-                doRender_menu1(renderer, gameState);
+                if (gameState->app.scene == frameScene) doRender_menu1(renderer, gameState);
                 break;
 
             case APP_SCENE_ARCADE_GAME:
             {
+                // Poll discrete input before any catch-up ticks. A pause,
+                // quit, or game-mode transition must take effect before the
+                // simulation can advance again.
+                if (!processEvents(window, gameState))
+                {
+                    fixed_step_clock_reset(&fixedClock, gameState->app.scene);
+                    break;
+                }
                 input_capture_arcade(&gameState->input, keyboardState, &gameState->app.settings);
                 input_apply_controller(&gameState->input, &gameState->app, true);
-                accumulator += frameTime;
+                fixed_step_clock_begin_frame(&fixedClock, frameScene, frameTime);
                 int steps = 0;
                 Uint64 perfPhysicsStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;
-                while (accumulator >= (double)PHYSICS_DT && steps < MAX_PHYSICS_STEPS_PER_FRAME)
+                while (gameState->app.scene == frameScene &&
+                       fixed_step_clock_should_step(&fixedClock, frameScene, steps))
                 {
                     arcade_simulate(gameState, PHYSICS_DT);
-                    accumulator -= (double)PHYSICS_DT;
+                    fixed_step_clock_consume_step(&fixedClock);
                     steps++;
                 }
+                fixed_step_clock_finish_frame(&fixedClock, gameState->app.scene, steps);
                 if (perfLoggingEnabled)
                 {
                     Uint64 perfPhysicsEnd = SDL_GetPerformanceCounter();
@@ -132,7 +146,12 @@ int main()
                     perfPhysicsStepsThisSecond += steps;
                 }
 
-                gameState->renderAlpha = (float)(accumulator / (double)PHYSICS_DT);
+                // Consequences may have changed scene during the first of
+                // several catch-up ticks. Never run the remaining ticks or
+                // render/process the departed gameplay scene.
+                if (gameState->app.scene != frameScene) break;
+
+                gameState->renderAlpha = fixed_step_clock_alpha(&fixedClock);
                 Uint64 perfRenderStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;
                 doRender(renderer, gameState);
                 if (perfLoggingEnabled)
@@ -141,38 +160,47 @@ int main()
                     perfRenderTimeAccum += (double)(perfRenderEnd - perfRenderStart) / (double)perfFrequency;
                     perfRenderCallsThisSecond++;
                 }
-                processEvents(window, gameState);
                 break;
             }
 
             case APP_SCENE_ARCADE_LEADERBOARD:
-                processEvents(window, gameState);
-                doRender_leaderboard(renderer, gameState);
+                if (processEvents(window, gameState) &&
+                    gameState->app.scene == frameScene)
+                {
+                    doRender_leaderboard(renderer, gameState);
+                }
                 break;
 
             case APP_SCENE_ARCADE_PAUSE:
-                doRender_pause(renderer, gameState);
                 pause_events(gameState);
+                if (gameState->app.scene == frameScene) doRender_pause(renderer, gameState);
                 break;
 
             case APP_SCENE_RUNNER_MENU:
                 menu_events(gameState);
-                doRender_menu2(renderer, gameState);
+                if (gameState->app.scene == frameScene) doRender_menu2(renderer, gameState);
                 break;
 
             case APP_SCENE_RUNNER_GAME:
             {
+                if (!processEvents2(window, gameState))
+                {
+                    fixed_step_clock_reset(&fixedClock, gameState->app.scene);
+                    break;
+                }
                 input_capture_runner(&gameState->input, keyboardState, &gameState->app.settings);
                 input_apply_controller(&gameState->input, &gameState->app, false);
-                accumulator += frameTime;
+                fixed_step_clock_begin_frame(&fixedClock, frameScene, frameTime);
                 int steps = 0;
                 Uint64 perfPhysicsStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;
-                while (accumulator >= (double)PHYSICS_DT && steps < MAX_PHYSICS_STEPS_PER_FRAME)
+                while (gameState->app.scene == frameScene &&
+                       fixed_step_clock_should_step(&fixedClock, frameScene, steps))
                 {
                     runner_simulate(gameState, PHYSICS_DT);
-                    accumulator -= (double)PHYSICS_DT;
+                    fixed_step_clock_consume_step(&fixedClock);
                     steps++;
                 }
+                fixed_step_clock_finish_frame(&fixedClock, gameState->app.scene, steps);
                 if (perfLoggingEnabled)
                 {
                     Uint64 perfPhysicsEnd = SDL_GetPerformanceCounter();
@@ -180,7 +208,9 @@ int main()
                     perfPhysicsStepsThisSecond += steps;
                 }
 
-                gameState->renderAlpha = (float)(accumulator / (double)PHYSICS_DT);
+                if (gameState->app.scene != frameScene) break;
+
+                gameState->renderAlpha = fixed_step_clock_alpha(&fixedClock);
                 Uint64 perfRenderStart = perfLoggingEnabled ? SDL_GetPerformanceCounter() : 0;
                 doRender2(renderer, gameState);
                 if (perfLoggingEnabled)
@@ -189,21 +219,20 @@ int main()
                     perfRenderTimeAccum += (double)(perfRenderEnd - perfRenderStart) / (double)perfFrequency;
                     perfRenderCallsThisSecond++;
                 }
-                runner_update_death(gameState); // see src/runner_death.c, docs/runner-death-lifecycle.md --
-                                                 // kept after doRender2, matching the pre-Phase-11
-                                                 // arcade_frame/runner_frame order exactly
-                processEvents2(window, gameState);
                 break;
             }
 
             case APP_SCENE_RUNNER_LEADERBOARD:
-                processEvents2(window, gameState);
-                doRender_leaderboard2(renderer, gameState);
+                if (processEvents2(window, gameState) &&
+                    gameState->app.scene == frameScene)
+                {
+                    doRender_leaderboard2(renderer, gameState);
+                }
                 break;
 
             case APP_SCENE_RUNNER_PAUSE:
-                doRender_pause(renderer, gameState);
                 pause_events(gameState);
+                if (gameState->app.scene == frameScene) doRender_pause(renderer, gameState);
                 break;
 
             default:

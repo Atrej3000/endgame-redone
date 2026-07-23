@@ -3,6 +3,7 @@
 
 static void resolve_player_world_collision(Man *player, const Ledge *ledges, int ledgeCount)
 {
+    if (player == NULL || player->isDead || ledges == NULL || ledgeCount <= 0) return;
     KinematicBody body = kinematic_body_from_man(player);
     Collider collider = player_world_collider();
     WorldCollisionResult result = resolve_kinematic_world(&body, &collider, ledges, ledgeCount);
@@ -12,8 +13,9 @@ static void resolve_player_world_collision(Man *player, const Ledge *ledges, int
 
 static void resolve_enemy_world_collision(Enemies *enemy, const Ledge *ledges, int ledgeCount)
 {
+    if (enemy == NULL || ledges == NULL || ledgeCount <= 0) return;
     KinematicBody body = kinematic_body_from_enemy(enemy);
-    Collider collider = player_world_collider();
+    Collider collider = arcade_enemy_collider(GAME_EVENT_TARGET_BOSS);
     WorldCollisionResult result = resolve_kinematic_world(&body, &collider, ledges, ledgeCount);
     kinematic_body_apply_to_enemy(enemy, &body);
     enemy->onLedge = result.grounded ? 1 : 0;
@@ -34,20 +36,31 @@ static void resolve_smart_enemy_pair_contacts(GameState *game)
             }
             Enemies *moving = &game->smartEnemies[j];
             Enemies *other = &game->smartEnemies[i];
-            const float size = 48.0f;
-
-            if (moving->y + size <= other->y || moving->y >= other->y + size)
+            if (!moving->visible || moving->y >= 1000.0f ||
+                !other->visible || other->y >= 1000.0f)
             {
                 continue;
             }
-            if (moving->dx < 0.0f && moving->x < other->x + size && moving->x + size > other->x + size)
+            const Collider smartCollider =
+                arcade_enemy_collider(GAME_EVENT_TARGET_SMART_ENEMY);
+            const float width = smartCollider.width;
+            const float height = smartCollider.height;
+
+            if (moving->y + height <= other->y ||
+                moving->y >= other->y + height)
             {
-                moving->x = other->x + size;
+                continue;
+            }
+            if (moving->dx < 0.0f && moving->x < other->x + width &&
+                moving->x + width > other->x + width)
+            {
+                moving->x = other->x + width;
                 moving->dx = 0.0f;
             }
-            else if (moving->dx > 0.0f && moving->x + size > other->x && moving->x < other->x)
+            else if (moving->dx > 0.0f &&
+                     moving->x + width > other->x && moving->x < other->x)
             {
-                moving->x = other->x - size;
+                moving->x = other->x - width;
                 moving->dx = 0.0f;
             }
         }
@@ -56,20 +69,30 @@ static void resolve_smart_enemy_pair_contacts(GameState *game)
 
 void collisionDetect(GameState *game)
 {
-    resolve_player_world_collision(&game->man, game->ledges, 100);
+    if (game == NULL) return;
+    resolve_player_world_collision(&game->man, game->ledges, NUM_STARS);
     for (int i = 0; i < 2; i++)
     {
-        resolve_enemy_world_collision(&game->boss[i], game->ledges, 100);
+        if (game->boss[i].visible && game->boss[i].y < 1000.0f)
+        {
+            resolve_enemy_world_collision(&game->boss[i], game->ledges, NUM_STARS);
+        }
     }
-    resolve_player_world_collision(&game->secondPlayer, game->ledges, 100);
+    if (game->multiPlayer)
+    {
+        resolve_player_world_collision(&game->secondPlayer, game->ledges, NUM_STARS);
+    }
     resolve_smart_enemy_pair_contacts(game);
 }
 
 void collisionDetect2(GameState *game)
 {
-    // Preserve Runner's established ordering: hazard contact happens before
-    // static-world resolution.
+    if (game == NULL) return;
+    // Resolve authoritative world position before testing dynamic hazards.
+    resolve_player_world_collision(&game->man, game->ledges, NUM_STARS);
+    if (game->multiPlayer)
+    {
+        resolve_player_world_collision(&game->secondPlayer, game->ledges, NUM_STARS);
+    }
     detect_runner_hazard_contacts(game);
-    resolve_player_world_collision(&game->man, game->ledges, 100);
-    resolve_player_world_collision(&game->secondPlayer, game->ledges, 100);
 }

@@ -4,6 +4,13 @@ Status: updated after Pass 2 (validation and hardening). This document describes
 **as it exists**, not how it should look. Existing code is the source of truth; this is a map,
 not a redesign proposal.
 
+> **Historical-snapshot notice:** Sections describing Pass 1/Pass 2 behavior
+> remain evidence of that audit point, not a claim about the current tree.
+> As of the pre-Phase-35 audit (2026-07-23), the Runner leaderboard is a
+> validated, atomically persisted, descending top-25 table. Mode-menu entry
+> preserves it, and all 25 entries are displayable. The current regression
+> evidence is `mingw-prephase35-uitest`.
+
 **Verification-level key**, used throughout this document from Pass 2 onward:
 - **Compiled** — built with zero errors using a real C11 compiler (MinGW-w64 GCC, this pass).
 - **Runtime-verified** — exercised by an actual running process (the `mingw-smoketest` harness),
@@ -96,10 +103,11 @@ knowing which variable is being switched on. Documented here; not renamed this p
   `collisionDetect.c`/`doRender.c`.
 - Textures/font/music are written by `loadGame.c`/`load_menu.c`, read by `doRender*.c`, and
   (prior to Pass 1) never destroyed by name outside a fully commented-out shutdown block.
-- Leaderboard (`x_list[25]`/`x_i`, `kills_list[25]`) is in-memory only. `LEADERBOARD_TXT`
+- At this historical Pass-2 snapshot, leaderboard (`x_list[25]`/`x_i`, `kills_list[25]`) was in-memory only. `LEADERBOARD_TXT`
   (`header.h:32`, `"./resource/text/Fonts/leaderboard"`) and a second, inconsistent hardcoded
   path (`"../resource/files/leaderboard.txt"`, `processEvents.c:525` region) are referenced only
-  inside fully commented-out `open`/`read`/`write` blocks — no leaderboard file I/O is live.
+  inside fully commented-out `open`/`read`/`write` blocks. Current code supersedes
+  that dead format with `leaderboard.ini` in SDL's per-user preference directory.
 
 ## 5. Resource-lifetime map (pre-Pass-1 baseline)
 
@@ -159,16 +167,19 @@ knowing which variable is being switched on. Documented here; not renamed this p
   `NUM_ENEMIES - 1`. **Compiled** clean; **static-only** confirmation of the corruption target
   (struct field order in `header.h`) and that no other `+= 2` loop in the file shares this odd
   bound (six sibling loops all use small even literals).
-- **Leaderboard display/capacity mismatch (found during Pass 2's explicit leaderboard-bounds
-  check, not fixed)**: `x_list[25]` is the declared capacity, and Pass 1's bound check
+- **Leaderboard display/capacity mismatch (historical Pass-2 finding; fixed
+  pre-Phase 35)**: `x_list[25]` is the declared capacity, and Pass 1's bound check
   (`processEvents.c`) correctly stops writes at 25; but `init_status_x_list()`
   (`x_list_leader.c:4`) only ever displays the first **20** entries (`for (int i = 0; i < 20;
   i++)`), not 25. Any 21st-25th recorded score is stored but never shown on the leaderboard
-  screen. This predates Pass 1 and Pass 2 (neither pass changed the display loop's bound); flagged
-  here as a **static-only, low-confidence-on-intent** finding rather than fixed, since there is no
+  screen. This predated Pass 1 and Pass 2 and was correctly flagged there as a
+  **static-only, low-confidence-on-intent** finding, since there was then no
   evidence (no sorting logic — `mx_sort_arr_int` is confirmed dead/unused — no comment, no level
   design reference) indicating whether 20 or 25 is the "correct" number, and guessing would risk
-  inventing behavior the brief explicitly warns against.
+  inventing behavior the brief explicitly warned against. Current
+  `leaderboard_copy_top_scores()` and the renderer use `LEADERBOARD_CAPACITY`
+  (25), with sorting, persistence, and corruption-recovery coverage in
+  `pre_phase35_ui_test.c`.
 
 ## 6. Build system and environment limitations
 
@@ -241,7 +252,7 @@ knowing which variable is being switched on. Documented here; not renamed this p
 | 16 | Shutdown path (was `main.c:167-223`) | High | Compiled + runtime-verified (idempotent double-`app_shutdown` call, 3 runs) | **Fixed Pass 2** | ~24 texture destroys were commented out; `Mix_CloseAudio`/`IMG_Quit` were never called; `IMG_Init` was never called. Replaced with `app_shutdown()`/`app_init()` in new `src/app.c`. |
 | 17 | `process`/`process2`, `collisionDetect`/`collisionDetect2`, `processEvents`/`processEvents2`, `doRender`/`doRender2` | Informational | Static-only | Deferred | Large paired functions (180–1160 lines) with real shared sub-patterns but materially different mechanics; deduplication needs a build-verified baseline |
 | 18 | `process.c:515` | Critical | Compiled + static-only (struct-layout cross-check) | **Found and fixed Pass 2** | `for (i < NUM_ENEMIES; i += 2)` with `NUM_ENEMIES`=101 (odd) wrote `enemyValues[i+1]` = `enemyValues[101]` on the last iteration — out-of-bounds write into `smartEnemies[0]`'s memory, once per Arcade run when `tempScore` hits 366. Found via Pass 2's mandated project-wide nested-loop sweep. |
-| 19 | `x_list_leader.c:4` vs `x_list[25]` capacity | Low | Static-only | **Found, not fixed** (no evidence of intended value) | Leaderboard display loop only shows the first 20 of up to 25 recorded scores; pre-existing, predates both passes. Not fixed because there's no evidence (no sort logic, no comment) indicating whether 20 or 25 is "correct" — flagged rather than guessed. |
+| 19 | Historical `x_list_leader.c:4` vs `x_list[25]` capacity | Low | Runtime regression (`mingw-prephase35-uitest`) | **Fixed pre-Phase 35** | Rendering and storage now share `LEADERBOARD_CAPACITY` (25); scores are descending, atomically persisted, and malformed files recover to an empty table. |
 
 ## 8. Behavior explicitly preserved (both passes)
 
@@ -253,9 +264,9 @@ knowing which variable is being switched on. Documented here; not renamed this p
 - All existing gameplay constants (collision box sizes, speeds, gravity, spawn thresholds)
   untouched.
 - Large paired mode functions not deduplicated.
-- The existing (odd but intentional-looking) behavior that leaderboard history
-  (`x_score`/`x_list`) resets every time a mode is re-entered from the main menu — preserved,
-  not "fixed," since it's out of scope to judge whether it's a defect.
+- Historical Pass-2 behavior reset leaderboard history on mode re-entry. That
+  behavior was preserved by those passes, then intentionally superseded
+  pre-Phase 35: mode entry preserves the persisted top-25 table.
 - Visual output of HUD text, menu backgrounds, and all sprites is unchanged — Pass 1's
   resource-lifetime fixes only change *when memory is freed/reloaded*, never what is drawn.
 - Pass 2's `app_init`/`app_shutdown` preserve the exact same window title/size/position/flags,

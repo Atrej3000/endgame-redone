@@ -10,6 +10,7 @@ void display_settings_load(DisplaySettings *settings);
 bool display_settings_save(const DisplaySettings *settings);
 
 bool display_configure_renderer(SDL_Renderer *renderer);
+bool display_set_vsync(GameState *game, bool enabled);
 bool display_toggle_fullscreen(GameState *game);
 void display_handle_event(GameState *game, const SDL_Event *event);
 void display_capture_window_settings(GameState *game);

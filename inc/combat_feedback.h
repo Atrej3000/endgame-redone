@@ -1,6 +1,7 @@
 #pragma once
 
 // Deterministic combat feedback and per-entity animation clocks (Phase 34).
+// Public entry points are null-safe; player-indexed triggers accept only 0/1.
 #include "header.h"
 
 void combat_feedback_reset(GameState *game);

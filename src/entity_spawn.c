@@ -1,54 +1,61 @@
 #include "entity_spawn.h"
 
+static bool valid_spawn_parameters(float x, float y, float dx, float dy)
+{
+    return isfinite(x) && isfinite(y) && isfinite(dx) && isfinite(dy);
+}
+
+static void reset_spawn_runtime(Enemies *enemy, float x, float y, float dx, float dy)
+{
+    enemy->x = x;
+    enemy->y = y;
+    enemy->prevX = x;
+    enemy->prevY = y;
+    enemy->dy = dy;
+    enemy->dx = dx;
+    enemy->slowingDown = 0;
+    enemy->onLedge = 0;
+    enemy->isdead = 0;
+    enemy->visible = 1;
+    enemy->countShots = 0;
+    enemy->currentSpriteRun = 0;
+    enemy->currentSpriteRun2 = 0;
+    enemy->animation = (AnimationPlayer){.state = ANIMATION_STATE_IDLE};
+    enemy->hitFlashTicks = 0;
+}
+
 bool enemy_spawn(GameState *game, int index, float x, float y, float dx, float dy)
 {
-    if (index < 0 || index >= NUM_ENEMIES)
+    if (game == NULL || index < 0 || index >= NUM_ENEMIES ||
+        !valid_spawn_parameters(x, y, dx, dy))
     {
         return false;
     }
 
-    game->enemyValues[index].x = x;
-    game->enemyValues[index].y = y;
-    game->enemyValues[index].prevX = x;
-    game->enemyValues[index].prevY = y;
-    game->enemyValues[index].dy = dy;
-    game->enemyValues[index].dx = dx;
-    game->enemyValues[index].visible = 1;
+    reset_spawn_runtime(&game->enemyValues[index], x, y, dx, dy);
     return true;
 }
 
 bool smart_enemy_spawn(GameState *game, int index, float x, float y, float dx, float dy)
 {
-    if (index < 0 || index >= NUM_SMART_ENEMIES)
+    if (game == NULL || index < 0 || index >= NUM_SMART_ENEMIES ||
+        !valid_spawn_parameters(x, y, dx, dy))
     {
         return false;
     }
 
-    game->smartEnemies[index].x = x;
-    game->smartEnemies[index].y = y;
-    game->smartEnemies[index].prevX = x;
-    game->smartEnemies[index].prevY = y;
-    game->smartEnemies[index].dy = dy;
-    game->smartEnemies[index].dx = dx;
-    game->smartEnemies[index].visible = 1;
-    game->smartEnemies[index].countShots = 0;
+    reset_spawn_runtime(&game->smartEnemies[index], x, y, dx, dy);
     return true;
 }
 
 bool boss_spawn(GameState *game, int index, float x, float y, float dx, float dy)
 {
-    if (index < 0 || index >= 2)
+    if (game == NULL || index < 0 || index >= 2 ||
+        !valid_spawn_parameters(x, y, dx, dy))
     {
         return false;
     }
 
-    game->boss[index].x = x;
-    game->boss[index].y = y;
-    game->boss[index].prevX = x;
-    game->boss[index].prevY = y;
-    game->boss[index].dy = dy;
-    game->boss[index].dx = dx;
-    game->boss[index].countShots = 0;
-    game->boss[index].visible = 1;
+    reset_spawn_runtime(&game->boss[index], x, y, dx, dy);
     return true;
 }

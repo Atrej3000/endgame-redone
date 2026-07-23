@@ -4,13 +4,18 @@
 // start-of-tick reference used by the shared world solver's landing test.
 void capture_player_prev_y(GameState *game)
 {
+    if (game == NULL) return;
     game->man.prevY = game->man.y;
     game->secondPlayer.prevY = game->secondPlayer.y;
 }
 
 float render_lerp(float previous, float current, float alpha)
 {
-    if (alpha < 0.0f)
+    if (!isfinite(alpha))
+    {
+        alpha = 1.0f;
+    }
+    else if (alpha < 0.0f)
     {
         alpha = 0.0f;
     }
@@ -23,6 +28,7 @@ float render_lerp(float previous, float current, float alpha)
 
 void capture_render_transforms(GameState *game)
 {
+    if (game == NULL) return;
     game->man.prevX = game->man.x;
     game->man.prevY = game->man.y;
     game->secondPlayer.prevX = game->secondPlayer.x;
@@ -62,5 +68,6 @@ void capture_render_transforms(GameState *game)
 
 void sync_render_transforms(GameState *game)
 {
+    if (game == NULL) return;
     capture_render_transforms(game);
 }

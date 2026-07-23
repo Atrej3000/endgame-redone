@@ -50,7 +50,10 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define DISPLAY_MAX_WIDTH 7680
 #define DISPLAY_MAX_HEIGHT 4320
 #define MAX_BULLETS 1000
-#define MAX_GAME_EVENTS 1024
+// Two full projectile pools can report contacts in the same fixed tick,
+// with room left for player/hazard/transition events.  The former 1,024
+// entry queue silently starved the second pool in that legal state.
+#define MAX_GAME_EVENTS 4096
 
 #define NUM_STARS 100
 #define NUM_ENEMIES 101
@@ -104,6 +107,7 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define JUMP_CUT_SPEED_PER_SEC 460.0f  // a tap remains useful; holding reaches full height
 #define DOUBLE_JUMP_ANIMATION_TICKS 18
 #define PLAYER_DAMAGE_INVULNERABILITY_TICKS 90
+#define ARCADE_SHOT_COOLDOWN_TICKS 23
 
 // Non-player movement uses the same pixels/second and pixels/second-squared
 // convention as the players (Phase 21). Each value preserves the old 60 Hz
@@ -552,6 +556,10 @@ typedef struct
     bool perfLoggingEnabled;
     Uint64 perfProjectileActiveSamples;
     Uint64 perfProjectileTargetChecks;
+    // Headless authoritative simulations set this explicitly. Gameplay
+    // consequences still apply, but game-over must not write preferences,
+    // load menu assets, play transition audio, or invoke UI side effects.
+    bool simulationOnly;
     // Single/multiplayer selection. Written only by arcade_session_reset()/
     // runner_session_reset() (src/loadGame.c) as of the mode-lifecycle
     // refactor -- previously also hardcoded by the old loadGame() on every
@@ -617,8 +625,14 @@ typedef struct
     SDL_Texture *leaders;
     SDL_Texture *fon;
     SDL_Texture *pause;
+    // Generated UI text is cached by value. `label` remains the lives label
+    // for compatibility with the existing status helpers; the score and
+    // kill labels are separate so drawing one HUD value cannot destroy the
+    // texture needed by another value in the same frame.
     SDL_Texture *label;
     SDL_Texture *labelMultiplayer;
+    SDL_Texture *scoreLabel;
+    SDL_Texture *killsLabel;
     SDL_Texture *death;
     SDL_Texture *brick_block;
     SDL_Texture *copper_block;
@@ -630,6 +644,17 @@ typedef struct
     SDL_Texture *secondBulletTexture;
     SDL_Texture *bossTexture;
     int labelW, labelH;
+    int scoreLabelW, scoreLabelH;
+    int killsLabelW, killsLabelH;
+    int multiplayerKillsLabelW, multiplayerKillsLabelH;
+    int cachedLivesValue;
+    int cachedScoreValue;
+    int cachedKillsValue;
+    int cachedMultiplayerKillsValue;
+    bool cachedLivesValid;
+    bool cachedScoreValid;
+    bool cachedKillsValid;
+    bool cachedMultiplayerKillsValid;
 
     //Background
     int CurrentSpriteBack, CurrentSpriteBack2, CurrentSpriteBack3;
@@ -652,8 +677,9 @@ typedef struct
     // entire group's loads succeed (see arcade_assets_load/
     // runner_assets_load/shared_assets_load, src/loadGame.c), and reset to
     // false by the matching *_assets_unload(). sharedAssetsLoaded covers the
-    // handful of textures/font both modes load identically (mult, leaders,
-    // pause, brick, death, font) -- see docs/game-session-lifecycle.md.
+    // handful of textures both modes load identically (mult, leaders,
+    // pause, brick, death, shared animation/effect sheets). The application
+    // font has separate app-lifetime ownership.
     // Accessed as game->assetFlags.arcadeAssetsLoaded, etc.
     AssetLifecycleFlags assetFlags;
 
@@ -717,6 +743,8 @@ void apply_arcade_player_forces(GameState *game, float dt);
 void move_arcade_bullets(GameState *game, float dt);
 void process(GameState *game, float dt);
 void collisionDetect(GameState *game);
+// Returns 1 when the caller may capture held input and advance/render the
+// current frame; returns 0 after a transition, focus loss, or invalid state.
 int processEvents(SDL_Window *window, GameState *game);
 void doRender(SDL_Renderer *renderer, GameState *game);
 void shutdown_status_lives (GameState *game);
@@ -780,6 +808,8 @@ void doRender2(SDL_Renderer *renderer, GameState *game);
 void consume_runner_jump_requests(GameState *game);
 void apply_runner_player_forces(GameState *game, float dt);
 void process2(GameState *game, float dt);
+// Runner equivalent of processEvents(), with the same 1=continue/0=stop
+// frame contract.
 int processEvents2(SDL_Window *window, GameState *game);
 int doRender_leaderboard2(SDL_Renderer *renderer, GameState *game);
 

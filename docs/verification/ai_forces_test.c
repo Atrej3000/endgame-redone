@@ -54,6 +54,8 @@ int main(void)
     //    directions, plus gravity clamp.
     // ------------------------------------------------------------------
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    game->boss[0].visible = 1;
+    game->boss[1].visible = 1;
     game->boss[0].x = 600.0f; // left of center (640), in the 300-350 y band
     game->boss[0].y = 320.0f;
     game->boss[0].dx = 30.0f;
@@ -72,6 +74,8 @@ int main(void)
           game->boss[1].dy == 66.0f && game->boss[1].dx == -36.0f);
 
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    game->boss[0].visible = 1;
+    game->boss[1].visible = 1;
     game->boss[0].x = 100.0f;
     game->boss[0].y = 320.0f;
     game->boss[0].dx = 30.0f;
@@ -85,6 +89,8 @@ int main(void)
     CHECK("boss drift: gravity clamps at 90 px/s", game->boss[0].dy == BOSS_MAX_FALL_SPEED_PER_SEC);
 
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    game->boss[0].visible = 1;
+    game->boss[1].visible = 1;
     game->boss[0].x = 1290.0f; // past the right wraparound edge
     game->boss[0].y = 100.0f; // outside the steering band
     game->boss[0].dx = 0.0f;
@@ -103,6 +109,8 @@ int main(void)
     //    constants, plus gravity clamp and wraparound.
     // ------------------------------------------------------------------
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    game->enemyValues[0].visible = 1;
+    game->enemyValues[1].visible = 1;
     game->enemyValues[0].x = 620.0f; // > 610, in the 150-170 y band
     game->enemyValues[0].y = 160.0f;
     game->enemyValues[0].dx = 60.0f;
@@ -123,6 +131,7 @@ int main(void)
           approximately_equal(game->enemyValues[1].dy, 24.0f));
 
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    game->enemyValues[0].visible = 1;
     game->enemyValues[0].x = 620.0f;
     game->enemyValues[0].y = 160.0f;
     game->enemyValues[0].dx = 114.0f;
@@ -132,6 +141,8 @@ int main(void)
     CHECK("enemy drift: gravity clamps at 150 px/s", game->enemyValues[0].dy == ENEMY_MAX_FALL_SPEED_PER_SEC);
 
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    game->enemyValues[0].visible = 1;
+    game->enemyValues[1].visible = 1;
     game->enemyValues[0].x = 1290.0f;
     game->enemyValues[0].y = 0.0f; // outside the steering band
     game->enemyValues[0].dx = 0.0f;
@@ -151,6 +162,7 @@ int main(void)
     //    branch fires).
     // ------------------------------------------------------------------
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    game->smartEnemies[0].visible = 1;
     game->man.x = 100.0f;
     game->man.y = 200.0f;
     game->smartEnemies[0].x = 120.0f; // x - 6 (114) > man.x (100)
@@ -204,6 +216,7 @@ int main(void)
     //    directly, proving the process.c call-site swap wired up cleanly.
     // ------------------------------------------------------------------
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    game->boss[0].visible = 1;
     game->boss[0].x = 600.0f;
     game->boss[0].y = 320.0f;
     game->boss[0].dx = 30.0f;

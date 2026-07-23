@@ -16,6 +16,13 @@
 void arcade_simulate(GameState *game, float dt);
 void runner_simulate(GameState *game, float dt);
 
+// Fixed-tick gameplay cadence helpers. Authoritative cooldown/death
+// progression happens through these functions from the simulate-only
+// pipeline.
+void arcade_shooting_step(GameState *game);
+void arcade_presentation_step(GameState *game);
+void runner_death_step(GameState *game);
+
 // Full one-shot pass (simulate + render + input), kept for direct callers
 // that want everything in one call with an explicit dt -- no longer called
 // from main()'s gameplay-scene cases (which use arcade_simulate/

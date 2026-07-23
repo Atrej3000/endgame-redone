@@ -26,6 +26,12 @@ static int failures = 0;
         }                                                                       \
     } while (0)
 
+static void reset_arcade_test(GameState *game)
+{
+    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    game->app.scene = APP_SCENE_ARCADE_GAME;
+}
+
 int main(void)
 {
     GameState *game = NULL;
@@ -42,7 +48,7 @@ int main(void)
     // 1. Pool spawn/despawn: addBullet claims the first inactive slot,
     //    removeBullet deactivates without disturbing other slots.
     // ------------------------------------------------------------------
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game);
 
     addBullet(game, 100.0f, 200.0f, 3.0f);
     CHECK("addBullet: slot 0 activated", game->bullets[0].active);
@@ -64,7 +70,7 @@ int main(void)
     //    by BULLET_SPEED_PER_SEC * PHYSICS_DT -- not the old 113x-per-tick bug.
     //    Also confirms the direction (sign of dx at spawn) is preserved.
     // ------------------------------------------------------------------
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game);
     addBullet(game, 100.0f, 200.0f, 3.0f);   // rightward
     addBullet(game, 500.0f, 200.0f, -3.0f);  // leftward
 
@@ -88,7 +94,7 @@ int main(void)
     //    rect registers a hit even though its end-of-tick position alone
     //    (past the target) would miss under the old point-only test.
     // ------------------------------------------------------------------
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game);
     game->man.isDead = 0;
     game->statusState = STATUS_STATE_GAME;
     // Move every enemy/smart-enemy/boss out of the way except one target.
@@ -117,7 +123,7 @@ int main(void)
     //    bullet positioned to cross an enemy the normal way (via
     //    move_arcade_bullets, not hand-jumped) still kills it.
     // ------------------------------------------------------------------
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game);
     game->man.isDead = 0;
     game->statusState = STATUS_STATE_GAME;
     for (int i = 0; i < NUM_ENEMIES; i++) { game->enemyValues[i].x = -10000.0f; game->enemyValues[i].y = -10000.0f; }
