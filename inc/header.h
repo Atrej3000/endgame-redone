@@ -437,6 +437,19 @@ typedef struct
     int count;
 } GameEventQueue;
 
+// Data-driven Arcade progression (Phase 32). Immutable definitions and
+// transition rules live in arcade_waves.c; this is only runtime state.
+typedef struct ArcadeWaveState
+{
+    int waveNumber;
+    int regularSpawned;
+    int smartSpawned;
+    int bossesSpawned;
+    int spawnCooldownTicks;
+    int restTicksRemaining;
+    bool bossTelegraphActive;
+} ArcadeWaveState;
+
 typedef struct
 {
     // scroll thw world
@@ -560,6 +573,8 @@ typedef struct
     // Per-fixed-tick contact events. Cleared before Arcade contact detection
     // and applied once in the consequence phase.
     GameEventQueue events;
+
+    ArcadeWaveState arcadeWaves;
 
     // DEPRECATED: superseded by `app.scene` (AppScene) above. No longer read or
     // written anywhere in active routing code as of the scene-state refactor;

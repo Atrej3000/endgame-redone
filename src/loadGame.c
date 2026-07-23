@@ -1,5 +1,6 @@
 #include "header.h"
 #include "audio_assets.h"
+#include "arcade_waves.h"
 #include "entity_spawn.h"
 
 // ---------------------------------------------------------------------------
@@ -167,6 +168,7 @@ void arcade_session_reset(GameState *game, GameMode mode)
 
     game->kills_score = 0;
     game->kills_score_multi = 0;
+    arcade_waves_reset(game);
 
     game->man.x = 320 - 40;
     game->man.y = 240 - 40;

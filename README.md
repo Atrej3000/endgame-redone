@@ -28,7 +28,7 @@ make mingw-run
 
 ### Focused validation targets
 
-The repository has 24 focused MinGW checks, plus `audit-repo`:
+The repository has 25 focused MinGW checks, plus `audit-repo`:
 
 ```sh
 make mingw-smoketest             # init, asset guard, shutdown
@@ -55,6 +55,7 @@ make mingw-worldcollisiontest    # common static-world solver
 make mingw-displaytest           # display defaults and persisted-size bounds
 make mingw-settingstest          # settings defaults, rebinding, and reset
 make mingw-replaytest            # deterministic seed/input simulation replay
+make mingw-wavetest              # data-driven Arcade wave progression
 make audit-repo                   # resource-path and prototype integrity
 ```
 
@@ -68,7 +69,7 @@ Set `ENDGAME_PERF_LOG=1` before running `endgame-mingw.exe` or `make mingw-run` 
 
 ## Continuous integration
 
-`.github/workflows/mingw-validation.yml` runs the Windows/MinGW build, all 24 focused checks, and repository integrity audit for pull requests and pushes to `main`. Its Linux jobs validate asset-path case, perform a best-effort Linux build/smoke test, and run a required deterministic replay ASan/UBSan check.
+`.github/workflows/mingw-validation.yml` runs the Windows/MinGW build, all 25 focused checks, and repository integrity audit for pull requests and pushes to `main`. Its Linux jobs validate asset-path case, perform a best-effort Linux build/smoke test, and run a required deterministic replay ASan/UBSan check.
 
 ## Asset ownership
 
@@ -108,7 +109,7 @@ Key supporting records:
 
 | Platform | Build | Verification | Runtime validation |
 |---|---|---|---|
-| Windows / MinGW | Local and CI `make mingw`; portable Python DLL copy | 24 focused checks + audit in CI | Headless runtime checks |
+| Windows / MinGW | Local and CI `make mingw`; portable Python DLL copy | 25 focused checks + audit in CI | Headless runtime checks |
 | macOS (bundled frameworks) | Original `make` target | Not run in this environment | Not runtime-validated here |
 | Linux | `make linux-asan` and best-effort `make linux` | Case-sensitive asset audit + required replay ASan/UBSan + best-effort smoke test | Sanitized simulation coverage |
 

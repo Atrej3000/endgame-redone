@@ -1,6 +1,7 @@
 #include "header.h"
 #include "entity_spawn.h"
 #include "ai_forces.h"
+#include "arcade_waves.h"
 #include "collision_pipeline.h"
 #include "game_events.h"
 
@@ -400,107 +401,9 @@ void process(GameState *game, float dt)
     detect_projectile_hits(game);
     game_events_apply(game);
 
-    if (game->time == 120)
-    {
-        for (int i = 0; i < 10; i += 2)
-        {
-            enemy_spawn(game, i, 620, (float)i * -200.0f, 0, 0);
-            enemy_spawn(game, i + 1, 580, (float)i * -200.0f, 0, 0);
-        }
-    }
-
-    if (game->tempScore == 10)
-    {
-        for (int j = 0; j < 20; j += 2)
-        {
-            enemy_spawn(game, j, 620, (float)j * -200.0f, 0, 0);
-            enemy_spawn(game, j + 1, 580, (float)j * -200.0f, 0, 0);
-        }
-        game->tempScore++;
-    }
-
-    if (game->tempScore == 31)
-    {
-        for (int j = 0; j < 30; j += 2)
-        {
-            enemy_spawn(game, j, 620, (float)j * -200.0f, 0, 0);
-            enemy_spawn(game, j + 1, 580, (float)j * -200.0f, 0, 0);
-        }
-
-        smart_enemy_spawn(game, 0, 1000, 200, 0, 0);
-        smart_enemy_spawn(game, 1, 200, 200, 0, 0);
-
-        game->tempScore++;
-    }
-    if (game->tempScore == 72)
-    {
-        for (int j = 0; j < 50; j += 2)
-        {
-            enemy_spawn(game, j, 620, (float)j * -100.0f, 0, 0);
-            enemy_spawn(game, j + 1, 580, (float)j * -100.0f, 0, 0);
-        }
-        smart_enemy_spawn(game, 2, 1000, 200, 0, 0);
-        smart_enemy_spawn(game, 3, 200, 200, 0, 0);
-
-        game->tempScore++;
-    }
-
-    if (game->tempScore == 133)
-    {
-        for (int j = 0; j < 70; j += 2)
-        {
-            enemy_spawn(game, j, 620, (float)j * -100.0f, 0, 0);
-            enemy_spawn(game, j + 1, 580, (float)j * -100.0f, 0, 0);
-        }
-        smart_enemy_spawn(game, 4, 1000, 200, 0, 0);
-        smart_enemy_spawn(game, 5, 200, 200, 0, 0);
-        smart_enemy_spawn(game, 6, 1000, 500, 0, 0);
-        smart_enemy_spawn(game, 7, 200, 500, 0, 0);
-
-        game->tempScore++;
-    }
-    if (game->tempScore == 224)
-    {
-        for (int j = 0; j < 100; j += 2)
-        {
-            enemy_spawn(game, j, 620, (float)j * -100.0f, 0, 0);
-            enemy_spawn(game, j + 1, 580, (float)j * -100.0f, 0, 0);
-        }
-        smart_enemy_spawn(game, 0, 1000, 200, 0, 0);
-        smart_enemy_spawn(game, 1, 200, 200, 0, 0);
-        smart_enemy_spawn(game, 2, 1000, 500, 0, 0);
-        smart_enemy_spawn(game, 3, 200, 500, 0, 0);
-        game->tempScore++;
-    }
-    if (game->tempScore == 345)
-    {
-        boss_spawn(game, 0, 1100, 0, 0, 0);
-        boss_spawn(game, 1, 100, 0, 0, 0);
-
-        game->tempScore++;
-    }
-
-    if (game->tempScore == 366)
-    {
-        for (int i = 0; i < NUM_ENEMIES - 1; i += 2)
-        {
-            enemy_spawn(game, i, 620, (float)i * -100.0f, 0, 0);
-            enemy_spawn(game, i + 1, 580, (float)i * -100.0f, 0, 0);
-        }
-        boss_spawn(game, 0, 1100, 0, 0, 0);
-        boss_spawn(game, 1, 100, 0, 0, 0);
-
-        smart_enemy_spawn(game, 0, 1000, 200, 0, 0);
-        smart_enemy_spawn(game, 1, 200, 200, 0, 0);
-        smart_enemy_spawn(game, 2, 1000, 500, 0, 0);
-        smart_enemy_spawn(game, 3, 200, 500, 0, 0);
-
-        game->tempScore++;
-    }
-    if (game->tempScore > 506)
-    {
-        game->tempScore = 365;
-    }
+    // Phase 32: composition and cadence now live in the WaveDefinition table
+    // rather than score-equality chains. Score remains a score only.
+    arcade_waves_update(game);
 
     if (game->time > 0)
     {
