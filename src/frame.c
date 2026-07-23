@@ -1,19 +1,26 @@
 #include "header.h"
+#include "combat_feedback.h"
+#include "collision_pipeline.h"
 #include "frame.h"
 #include "game_events.h"
 
 void arcade_simulate(GameState *game, float dt)
 {
+    if (combat_feedback_step(game)) return;
     capture_render_transforms(game);
     consume_arcade_jump_requests(game);
     apply_arcade_player_forces(game, dt);
     move_arcade_bullets(game, dt);
     process(game, dt);
     collisionDetect(game);
+    game_events_begin(game);
+    detect_arcade_hazards(game);
+    game_events_apply(game);
 }
 
 void runner_simulate(GameState *game, float dt)
 {
+    if (combat_feedback_step(game)) return;
     capture_render_transforms(game);
     consume_runner_jump_requests(game);
     apply_runner_player_forces(game, dt);

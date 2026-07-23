@@ -130,42 +130,48 @@ void detect_arcade_hazards(GameState *game)
 {
     for (int i = 0; i < NUM_ENEMIES; i++)
     {
-        if (collide2d(game->man.x, game->man.y, game->enemyValues[i].x, game->enemyValues[i].y, 48, 48, 32, 32))
+        if (game->enemyValues[i].y < 1000.0f && game->enemyValues[i].visible)
         {
-            game_events_push_player_contact(game, GAME_EVENT_ARCADE_PLAYER_HIT, 0);
-        }
-        if (game->enemyValues[i].y > 730 && game->enemyValues[i].y < 734)
-        {
-            game_events_push_target_contact(game, GAME_EVENT_ARCADE_ENEMY_ESCAPED, i);
-        }
-        for (int j = 0; j < 2; j++)
-        {
-            if (collide2d(game->man.x, game->man.y, game->boss[j].x, game->boss[j].y, 48, 48, 32, 32))
+            if (collide2d(game->man.x, game->man.y, game->enemyValues[i].x, game->enemyValues[i].y,
+                          48, 48, 32, 32))
             {
                 game_events_push_player_contact(game, GAME_EVENT_ARCADE_PLAYER_HIT, 0);
             }
-            if (game->multiPlayer)
+            if (game->enemyValues[i].y > 730 && game->enemyValues[i].y < 734)
             {
-                if (collide2d(game->secondPlayer.x, game->secondPlayer.y, game->boss[j].x, game->boss[j].y, 30, 30, 30, 30))
-                {
-                    game_events_push_player_contact(game, GAME_EVENT_ARCADE_PLAYER_HIT, 1);
-                }
+                game_events_push_target_contact(game, GAME_EVENT_ARCADE_ENEMY_ESCAPED, i);
             }
-            if (game->boss[j].y > 730 && game->boss[j].y < 740)
-            {
-                game_events_push_target_contact(game, GAME_EVENT_ARCADE_BOSS_ESCAPED, j);
-            }
-        }
-        if (game->multiPlayer)
-        {
-            if (collide2d(game->secondPlayer.x, game->secondPlayer.y, game->enemyValues[i].x, game->enemyValues[i].y, 48, 48, 32, 32))
+            if (game->multiPlayer && collide2d(game->secondPlayer.x, game->secondPlayer.y,
+                                                game->enemyValues[i].x, game->enemyValues[i].y,
+                                                48, 48, 32, 32))
             {
                 game_events_push_player_contact(game, GAME_EVENT_ARCADE_PLAYER_HIT, 1);
             }
         }
     }
+    for (int j = 0; j < 2; j++)
+    {
+        if (game->boss[j].y >= 1000.0f || !game->boss[j].visible) continue;
+        if (collide2d(game->man.x, game->man.y, game->boss[j].x, game->boss[j].y, 48, 48, 32, 32))
+        {
+            game_events_push_player_contact(game, GAME_EVENT_ARCADE_PLAYER_HIT, 0);
+        }
+        if (game->multiPlayer && collide2d(game->secondPlayer.x, game->secondPlayer.y,
+                                            game->boss[j].x, game->boss[j].y, 30, 30, 30, 30))
+        {
+            game_events_push_player_contact(game, GAME_EVENT_ARCADE_PLAYER_HIT, 1);
+        }
+        if (game->boss[j].y > 730 && game->boss[j].y < 740)
+        {
+            game_events_push_target_contact(game, GAME_EVENT_ARCADE_BOSS_ESCAPED, j);
+        }
+    }
     for (int i = 0; i < NUM_SMART_ENEMIES; i++)
     {
+        if (game->smartEnemies[i].y >= 1000.0f || !game->smartEnemies[i].visible)
+        {
+            continue;
+        }
         if (collide2d(game->man.x, game->man.y, game->smartEnemies[i].x, game->smartEnemies[i].y, 30, 30, 30, 30))
         {
             game_events_push_player_contact(game, GAME_EVENT_ARCADE_PLAYER_HIT, 0);

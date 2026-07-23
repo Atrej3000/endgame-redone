@@ -1,6 +1,7 @@
 #include "header.h"
 #include "audio_assets.h"
 #include "arcade_waves.h"
+#include "combat_feedback.h"
 #include "entity_spawn.h"
 #include "runner_segments.h"
 
@@ -46,6 +47,50 @@ static bool shared_assets_load(GameState *game)
     {
         ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/V_g(rn)0.png", &game->manFrames[0]);
     }
+    if (game->man.sheetTextureIdle == NULL)
+    {
+        ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/mask_dude/idle.png", &game->man.sheetTextureIdle);
+    }
+    if (game->man.sheetTextureRun == NULL)
+    {
+        ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/mask_dude/run.png", &game->man.sheetTextureRun);
+    }
+    if (game->man.sheetTextureJump == NULL)
+    {
+        ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/mask_dude/jump.png", &game->man.sheetTextureJump);
+    }
+    if (game->man.sheetTextureFall == NULL)
+    {
+        ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/mask_dude/fall.png", &game->man.sheetTextureFall);
+    }
+    if (game->man.sheetTextureHit == NULL)
+    {
+        ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/mask_dude/hit.png", &game->man.sheetTextureHit);
+    }
+    if (game->man.sheetTextureDoubleJump == NULL)
+    {
+        ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/mask_dude/double_jump.png", &game->man.sheetTextureDoubleJump);
+    }
+    if (game->man.sheetTextureWallJump == NULL)
+    {
+        ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/mask_dude/wall_jump.png", &game->man.sheetTextureWallJump);
+    }
+    if (game->appearanceEffect == NULL)
+    {
+        ok = ok && load_texture(game->app.renderer, "./resource/images/effects/appearing.png", &game->appearanceEffect);
+    }
+    if (game->disappearanceEffect == NULL)
+    {
+        ok = ok && load_texture(game->app.renderer, "./resource/images/effects/disappearing.png", &game->disappearanceEffect);
+    }
+    if (game->shadowEffect == NULL)
+    {
+        ok = ok && load_texture(game->app.renderer, "./resource/images/effects/shadow.png", &game->shadowEffect);
+    }
+    if (game->dustParticle == NULL)
+    {
+        ok = ok && load_texture(game->app.renderer, "./resource/images/effects/dust_particle.png", &game->dustParticle);
+    }
 
     if (!ok)
     {
@@ -65,6 +110,17 @@ void shared_assets_unload(GameState *game)
     destroy_texture(&game->brick);
     destroy_texture(&game->death);
     destroy_texture(&game->manFrames[0]);
+    destroy_texture(&game->man.sheetTextureIdle);
+    destroy_texture(&game->man.sheetTextureRun);
+    destroy_texture(&game->man.sheetTextureJump);
+    destroy_texture(&game->man.sheetTextureFall);
+    destroy_texture(&game->man.sheetTextureHit);
+    destroy_texture(&game->man.sheetTextureDoubleJump);
+    destroy_texture(&game->man.sheetTextureWallJump);
+    destroy_texture(&game->appearanceEffect);
+    destroy_texture(&game->disappearanceEffect);
+    destroy_texture(&game->shadowEffect);
+    destroy_texture(&game->dustParticle);
     if (game->font)
     {
         TTF_CloseFont(game->font);
@@ -97,14 +153,17 @@ bool arcade_assets_load(GameState *game)
     ok = ok && load_texture(game->app.renderer, "./resource/images/enemies/boss.png", &game->bossTexture);
     ok = ok && load_texture(game->app.renderer, "./resource/images/bullets/bullet_fireball.png", &game->bulletTexture);
     ok = ok && load_texture(game->app.renderer, "./resource/images/bullets/bullet_fireball2.png", &game->secondBulletTexture);
-    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/run/Run_(32x32).png", &game->secondPlayer.sheetTextureRun2);
-    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/jump/Double_Jump_(32x32).png", &game->secondPlayer.sheetTextureJump2);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/pink_man/idle.png", &game->secondPlayer.sheetTextureIdle);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/pink_man/run.png", &game->secondPlayer.sheetTextureRun);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/pink_man/jump.png", &game->secondPlayer.sheetTextureJump);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/pink_man/fall.png", &game->secondPlayer.sheetTextureFall);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/pink_man/hit.png", &game->secondPlayer.sheetTextureHit);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/pink_man/double_jump.png", &game->secondPlayer.sheetTextureDoubleJump);
+    ok = ok && load_texture(game->app.renderer, "./resource/images/secondplayer/pink_man/wall_jump.png", &game->secondPlayer.sheetTextureWallJump);
 
     // manFrames[0] is loaded by shared_assets_load() above -- both modes
     // load the byte-for-byte identical path (see docs/game-session-lifecycle.md),
     // so it belongs in the shared bucket, not here.
-    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/run/Run_(32x32).png", &game->man.sheetTextureRun);
-    ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/jump/Double_Jump_(32x32).png", &game->man.sheetTextureJump);
     ok = ok && load_texture(game->app.renderer, "./resource/images/enemies/shroom_Run(32x32).png", &game->enemy.sheetTextureRun);
     ok = ok && load_texture(game->app.renderer, "./resource/images/enemies/turtle_Run(44x26).png", &game->enemy.sheetTextureRun2);
     ok = ok && load_texture(game->app.renderer, "./resource/images/background/Sunset.png", &game->sheetTextureBack);
@@ -138,10 +197,13 @@ void arcade_assets_unload(GameState *game)
     destroy_texture(&game->bossTexture);
     destroy_texture(&game->bulletTexture);
     destroy_texture(&game->secondBulletTexture);
-    destroy_texture(&game->secondPlayer.sheetTextureRun2);
-    destroy_texture(&game->secondPlayer.sheetTextureJump2);
-    destroy_texture(&game->man.sheetTextureRun);
-    destroy_texture(&game->man.sheetTextureJump);
+    destroy_texture(&game->secondPlayer.sheetTextureIdle);
+    destroy_texture(&game->secondPlayer.sheetTextureRun);
+    destroy_texture(&game->secondPlayer.sheetTextureJump);
+    destroy_texture(&game->secondPlayer.sheetTextureFall);
+    destroy_texture(&game->secondPlayer.sheetTextureHit);
+    destroy_texture(&game->secondPlayer.sheetTextureDoubleJump);
+    destroy_texture(&game->secondPlayer.sheetTextureWallJump);
     destroy_texture(&game->enemy.sheetTextureRun);
     destroy_texture(&game->enemy.sheetTextureRun2);
     destroy_texture(&game->sheetTextureBack);
@@ -166,6 +228,7 @@ void arcade_assets_unload(GameState *game)
 void arcade_session_reset(GameState *game, GameMode mode)
 {
     game->multiPlayer = mode;
+    combat_feedback_reset(game);
 
     game->kills_score = 0;
     game->kills_score_multi = 0;
@@ -184,6 +247,9 @@ void arcade_session_reset(GameState *game, GameMode mode)
     game->man.isDead = 0;
     game->man.coyoteTicksRemaining = 0;
     game->man.jumpKeyHeldLastTick = false;
+    game->man.airJumpsRemaining = 0;
+    game->man.doubleJumpAnimationTicks = 0;
+    game->man.damageInvulnerabilityTicks = 0;
     game->statusState = STATUS_STATE_LIVES;
 
     // Clear any edge-triggered jump request left over from a previous
@@ -248,6 +314,9 @@ void arcade_session_reset(GameState *game, GameMode mode)
         game->secondPlayer.isDead = 0;
         game->secondPlayer.coyoteTicksRemaining = 0;
         game->secondPlayer.jumpKeyHeldLastTick = false;
+        game->secondPlayer.airJumpsRemaining = 0;
+        game->secondPlayer.doubleJumpAnimationTicks = 0;
+        game->secondPlayer.damageInvulnerabilityTicks = 0;
         game->statusState = STATUS_STATE_LIVES;
     }
 
@@ -289,6 +358,8 @@ void arcade_session_reset(GameState *game, GameMode mode)
 
     game->time = 0;
     game->deathCountdown = -1;
+    combat_feedback_trigger_player_spawn(game, 0);
+    if (game->multiPlayer) combat_feedback_trigger_player_spawn(game, 1);
 
     for (int i = 0; i < 12; i++)
     {
@@ -448,6 +519,7 @@ void runner_assets_unload(GameState *game)
 void runner_session_reset(GameState *game, GameMode mode)
 {
     game->multiPlayer = mode;
+    combat_feedback_reset(game);
 
     game->x_score = 0;
 
@@ -463,6 +535,9 @@ void runner_session_reset(GameState *game, GameMode mode)
     game->man.isDead = 0;
     game->man.coyoteTicksRemaining = 0;
     game->man.jumpKeyHeldLastTick = false;
+    game->man.airJumpsRemaining = 0;
+    game->man.doubleJumpAnimationTicks = 0;
+    game->man.damageInvulnerabilityTicks = 0;
     game->statusState = STATUS_STATE_LIVES;
 
     // Clear any edge-triggered jump request left over from a previous
@@ -497,6 +572,9 @@ void runner_session_reset(GameState *game, GameMode mode)
         game->secondPlayer.isDead = 0;
         game->secondPlayer.coyoteTicksRemaining = 0;
         game->secondPlayer.jumpKeyHeldLastTick = false;
+        game->secondPlayer.airJumpsRemaining = 0;
+        game->secondPlayer.doubleJumpAnimationTicks = 0;
+        game->secondPlayer.damageInvulnerabilityTicks = 0;
         game->statusState = STATUS_STATE_LIVES;
     }
 
@@ -506,5 +584,7 @@ void runner_session_reset(GameState *game, GameMode mode)
 
     game->iter = 0; // deprecated; segment streaming owns Runner extension.
     runner_segments_reset(game);
+    combat_feedback_trigger_player_spawn(game, 0);
+    if (game->multiPlayer) combat_feedback_trigger_player_spawn(game, 1);
     sync_render_transforms(game);
 }

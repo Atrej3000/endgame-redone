@@ -25,6 +25,7 @@ int processEvents(SDL_Window *window, GameState *game)
         break;
         case SDL_KEYDOWN:
         {
+            if (event.key.repeat != 0) break;
             GameCommand command = translate_arcade_command(event.key.keysym.sym);
             if (event.key.keysym.scancode == game->app.settings.player1.pause) command = GAME_COMMAND_PAUSE;
             else if (command == GAME_COMMAND_PAUSE) command = GAME_COMMAND_NONE;
@@ -191,12 +192,6 @@ int processEvents(SDL_Window *window, GameState *game)
     // shared with deterministic replay in process_arcade_shooting().
     process_arcade_shooting(game);
 
-    // Body-contact hazards + fall-off-screen, and the resulting game-over
-    // transition (Phase 19, see docs/collision-ordering-map.md) --
-    // extracted verbatim into src/collision_pipeline.c, same position.
-    game_events_begin(game);
-    detect_arcade_hazards(game);
-    game_events_apply(game);
     return done;
 }
 
@@ -219,6 +214,7 @@ int processEvents2(SDL_Window *window, GameState *game)
         break;
         case SDL_KEYDOWN:
         {
+            if (event.key.repeat != 0) break;
             // Cheat code -- SDLK_0 is not represented in GameCommand (not
             // duplicated anywhere else, so routing it through the
             // translation boundary would add indirection with no benefit).

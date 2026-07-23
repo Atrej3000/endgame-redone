@@ -1,5 +1,6 @@
 #include "game_events.h"
 #include "app.h"
+#include "combat_feedback.h"
 #include "scene.h"
 
 void game_events_begin(GameState *game)
@@ -115,6 +116,7 @@ static bool apply_regular_enemy_hit(GameState *game, const GameEvent *event)
         return false;
     }
     play_damage_sound(game);
+    combat_feedback_trigger_enemy_hit(game, enemy, true, false);
     enemy->y = 1000.0f;
     enemy->visible = 0;
     if (event->secondPlayerProjectile)
@@ -137,6 +139,8 @@ static bool apply_smart_enemy_hit(GameState *game, const GameEvent *event)
         return false;
     }
     enemy->countShots++;
+    const bool defeated = enemy->countShots > 5;
+    combat_feedback_trigger_enemy_hit(game, enemy, defeated, false);
     if (!event->secondPlayerProjectile && enemy->countShots > 5)
     {
         play_kick_sound(game);
@@ -167,6 +171,8 @@ static bool apply_boss_hit(GameState *game, const GameEvent *event)
         return false;
     }
     boss->countShots++;
+    const bool defeated = boss->countShots > 30;
+    combat_feedback_trigger_enemy_hit(game, boss, defeated, true);
     if (boss->countShots > 30)
     {
         play_damage_sound(game);
@@ -185,19 +191,48 @@ static bool apply_boss_hit(GameState *game, const GameEvent *event)
     return true;
 }
 
-static void defeat_arcade_player(GameState *game, int playerIndex, bool moveOffscreen)
+static bool damage_arcade_player(GameState *game, int playerIndex, bool fell)
 {
     Man *player = (playerIndex == 0) ? &game->man : &game->secondPlayer;
-    player->lives = 0;
-    if (moveOffscreen)
+    if (player->damageInvulnerabilityTicks > 0 || game->gameLives <= 0)
     {
-        player->y = 1000.0f;
+        return false;
     }
+    game->gameLives--;
+    player->damageInvulnerabilityTicks = PLAYER_DAMAGE_INVULNERABILITY_TICKS;
+    player->doubleJumpAnimationTicks = 0;
+    if (fell)
+    {
+        player->y = 240.0f;
+    }
+    else
+    {
+        player->x = playerIndex == 0 ? 280.0f : 1000.0f;
+        player->y = 200.0f;
+    }
+    player->dx = 0.0f;
+    player->dy = 0.0f;
+    player->onLedge = 0;
+    player->coyoteTicksRemaining = 0;
+    player->airJumpsRemaining = 0;
+    sync_render_transforms(game);
+    if (game->gameLives == 0)
+    {
+        game->man.lives = 0;
+        if (game->multiPlayer) game->secondPlayer.lives = 0;
+    }
+    return true;
 }
 
-static void apply_arcade_enemy_escaped(GameState *game)
+static void apply_arcade_enemy_escaped(GameState *game, int enemyIndex)
 {
+    if (enemyIndex < 0 || enemyIndex >= NUM_ENEMIES || game->enemyValues[enemyIndex].y >= 1000.0f)
+    {
+        return;
+    }
     game->gameLives--;
+    game->enemyValues[enemyIndex].y = 1000.0f;
+    game->enemyValues[enemyIndex].visible = 0;
     if (!game->multiPlayer)
     {
         game->kills_score++;
@@ -259,17 +294,23 @@ void game_events_apply(GameState *game)
         const GameEvent *event = &game->events.events[i];
         if (event->type == GAME_EVENT_ARCADE_PLAYER_HIT)
         {
-            defeat_arcade_player(game, event->projectileIndex, true);
+            if (damage_arcade_player(game, event->projectileIndex, false))
+            {
+                combat_feedback_trigger_player_hit(game, event->projectileIndex);
+            }
             continue;
         }
         if (event->type == GAME_EVENT_ARCADE_PLAYER_FELL)
         {
-            defeat_arcade_player(game, event->projectileIndex, false);
+            if (damage_arcade_player(game, event->projectileIndex, true))
+            {
+                combat_feedback_trigger_player_hit(game, event->projectileIndex);
+            }
             continue;
         }
         if (event->type == GAME_EVENT_ARCADE_ENEMY_ESCAPED)
         {
-            apply_arcade_enemy_escaped(game);
+            apply_arcade_enemy_escaped(game, event->targetIndex);
             continue;
         }
         if (event->type == GAME_EVENT_ARCADE_BOSS_ESCAPED)
@@ -286,6 +327,7 @@ void game_events_apply(GameState *game)
         if (event->type == GAME_EVENT_RUNNER_PLAYER_HIT ||
             event->type == GAME_EVENT_RUNNER_PLAYER_FELL)
         {
+            combat_feedback_trigger_player_hit(game, event->projectileIndex);
             runner_trigger_death(game);
             continue;
         }

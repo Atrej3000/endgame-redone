@@ -10,7 +10,7 @@
 // Simulate-only halves of the frame pipeline (Phase 11 -- see
 // docs/physics-timestep-map.md): called from main()'s fixed-timestep
 // accumulator, 0-N times per real frame, independent of rendering/input.
-// arcade_simulate = process + collisionDetect; runner_simulate additionally
+// arcade_simulate = process + world/contact collision; runner_simulate additionally
 // includes runner_update_death (the death-lifecycle step belongs with
 // simulation, not rendering).
 void arcade_simulate(GameState *game, float dt);

@@ -1,10 +1,7 @@
 #pragma once
 
-// Collision/hazard/transition resolution, extracted from process()/
-// processEvents()/collisionDetect() (Phase 19, see
-// docs/collision-ordering-map.md). Each function's statement order and
-// arithmetic are moved verbatim from their original location -- this is a
-// structural extraction only, not a behavior change or a reordering.
+// Collision/hazard/transition resolution. Hazard detection is kept in the
+// fixed simulation path so its consequences cannot vary with render rate.
 #include "header.h"
 #include "scene.h"
 
@@ -13,7 +10,7 @@
 void detect_projectile_hits(GameState *game);
 
 // Arcade: pure body-contact, reached-bottom, and fall detection. Its
-// transition-check event preserves the legacy once-per-real-frame cadence.
+// transition-check event is evaluated once per fixed physics tick.
 void detect_arcade_hazards(GameState *game);
 
 // Runner: pure star-contact detection (once per fixed tick) and pure fall

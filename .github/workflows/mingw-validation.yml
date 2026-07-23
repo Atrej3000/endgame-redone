@@ -181,6 +181,10 @@ jobs:
         shell: msys2 {0}
         run: make mingw-segmenttest 2>&1 | tee segmenttest.log
 
+      - name: Combat feedback and animation test
+        shell: msys2 {0}
+        run: make mingw-feedbacktest 2>&1 | tee feedbacktest.log
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -214,6 +218,7 @@ jobs:
             replaytest.log
             wavetest.log
             segmenttest.log
+            feedbacktest.log
           if-no-files-found: ignore
 
   # Windows CI, however thorough, cannot prove case-sensitive path

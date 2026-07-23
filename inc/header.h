@@ -78,7 +78,7 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 // exactly). Enemies/bosses/bullets/background/traps are unconverted this
 // phase -- still frame-tied, deliberately out of scope.
 #define GRAVITY_PER_SEC2 1800.0f              // was GRAVITY 0.5f/frame
-#define JUMP_SPEED_PER_SEC 600.0f             // was dy = -10/frame (one-shot impulse)
+#define JUMP_SPEED_PER_SEC 840.0f             // taller, deliberate full-height jump
 #define RUN_ACCEL_PER_SEC2 1800.0f            // was dx += 0.5f/frame
 #define RUN_MAX_SPEED_PER_SEC 360.0f          // was clamp to +-6/frame
 // ARCADE_JUMP_HOLD_ACCEL_PER_SEC2/RUNNER_JUMP_HOLD_ACCEL_PER_SEC2 (the old
@@ -101,7 +101,9 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 // behavior, reasonable starting defaults, easy to retune since they're named.
 #define COYOTE_TICKS 6         // ~100ms at the fixed 60Hz tick
 #define JUMP_BUFFER_TICKS 6    // ~100ms
-#define JUMP_CUT_SPEED_PER_SEC 200.0f  // roughly a third of JUMP_SPEED_PER_SEC
+#define JUMP_CUT_SPEED_PER_SEC 460.0f  // a tap remains useful; holding reaches full height
+#define DOUBLE_JUMP_ANIMATION_TICKS 18
+#define PLAYER_DAMAGE_INVULNERABILITY_TICKS 90
 
 // Non-player movement uses the same pixels/second and pixels/second-squared
 // convention as the players (Phase 21). Each value preserves the old 60 Hz
@@ -125,6 +127,38 @@ static inline long ucode_endgame_win32_random(void) { return rand(); }
 #define RUNNER_MULTIPLAYER_CAMERA_SPEED_PER_SEC 180.0f
 #define TRAP_ANGULAR_SPEED_PER_SEC 3.6f
 
+// Phase 34 feedback is advanced at the fixed-tick rate. Keeping these short
+// makes hits readable without interrupting responsive input or UI rendering.
+#define FEEDBACK_HIT_STOP_TICKS 2
+#define FEEDBACK_BOSS_HIT_STOP_TICKS 3
+#define FEEDBACK_HIT_FLASH_TICKS 5
+#define FEEDBACK_MUZZLE_FLASH_TICKS 3
+#define FEEDBACK_SCREEN_SHAKE_TICKS 6
+#define FEEDBACK_ANIMATION_TICKS 4
+#define MAX_FEEDBACK_PARTICLES 48
+
+typedef enum AnimationState
+{
+    ANIMATION_STATE_IDLE,
+    ANIMATION_STATE_RUN,
+    ANIMATION_STATE_JUMP,
+    ANIMATION_STATE_DOUBLE_JUMP,
+    ANIMATION_STATE_WALL_JUMP,
+    ANIMATION_STATE_FALL,
+    ANIMATION_STATE_HIT,
+    ANIMATION_STATE_DEAD
+} AnimationState;
+
+// A per-entity animation clock. Sprite-sheet layout remains owned by the
+// renderer; gameplay owns only the readable state and stable frame cadence.
+typedef struct AnimationPlayer
+{
+    AnimationState state;
+    int frame;
+    int ticksUntilNextFrame;
+    int frameCount;
+} AnimationPlayer;
+
 typedef struct
 {
     float x, y, w, h;
@@ -136,6 +170,8 @@ typedef struct
 
     int currentSpriteRun, currentSpriteRun2;
     SDL_Texture *sheetTextureRun, *sheetTextureRun2;
+    AnimationPlayer animation;
+    int hitFlashTicks;
 } Enemies;
 
 // Pool slot (Phase 14, see docs/projectile-correctness-map.md): `active`
@@ -174,6 +210,11 @@ typedef struct
     // variable jump height (Phase 15) cuts dy short the tick the key goes
     // from held to not-held while still rising fast.
     bool jumpKeyHeldLastTick;
+    // A grounded (or coyote) jump grants one airborne jump. It is reset only
+    // by landing, so holding a key cannot manufacture extra jumps.
+    int airJumpsRemaining;
+    int doubleJumpAnimationTicks;
+    int damageInvulnerabilityTicks;
     short lives;
     char *name;
     int onLedge, isDead;//, isdead, visible, countShots;
@@ -182,7 +223,11 @@ typedef struct
         currentSpriteJump, currentSpriteJump2,
         facingLeft, slowingDown, visible0;
     SDL_Texture *sheetTextureIdle, *sheetTextureRun,
-            *sheetTextureRun2, *sheetTextureJump, *sheetTextureJump2;
+            *sheetTextureRun2, *sheetTextureJump, *sheetTextureJump2,
+            *sheetTextureFall, *sheetTextureHit, *sheetTextureDoubleJump,
+            *sheetTextureWallJump;
+    AnimationPlayer animation;
+    int hitFlashTicks;
 } Man;
 
 typedef struct
@@ -462,6 +507,37 @@ typedef struct RunnerSegmentState
     int difficultyTier;
 } RunnerSegmentState;
 
+typedef struct FeedbackParticle
+{
+    bool active;
+    float x;
+    float y;
+    float dx;
+    float dy;
+    int ticksRemaining;
+    int totalTicks;
+    Uint8 red;
+    Uint8 green;
+    Uint8 blue;
+} FeedbackParticle;
+
+// Presentation feedback triggered by authoritative hit/shoot consequences.
+// It carries no collision or score state, so it can be frozen independently
+// during hit-stop and rendered without changing game outcomes.
+typedef struct CombatFeedbackState
+{
+    int hitStopTicks;
+    int screenShakeTicks;
+    int screenShakeOffsetX;
+    int screenShakeOffsetY;
+    int muzzleFlashTicks[2];
+    int appearingTicks[2];
+    int disappearingTicks[2];
+    float transitionX[2];
+    float transitionY[2];
+    FeedbackParticle particles[MAX_FEEDBACK_PARTICLES];
+} CombatFeedbackState;
+
 typedef struct
 {
     // scroll thw world
@@ -546,6 +622,10 @@ typedef struct
     SDL_Texture *death;
     SDL_Texture *brick_block;
     SDL_Texture *copper_block;
+    SDL_Texture *appearanceEffect;
+    SDL_Texture *disappearanceEffect;
+    SDL_Texture *shadowEffect;
+    SDL_Texture *dustParticle;
     SDL_Texture *bulletTexture;
     SDL_Texture *secondBulletTexture;
     SDL_Texture *bossTexture;
@@ -588,6 +668,7 @@ typedef struct
 
     ArcadeWaveState arcadeWaves;
     RunnerSegmentState runnerSegments;
+    CombatFeedbackState feedback;
 
     // DEPRECATED: superseded by `app.scene` (AppScene) above. No longer read or
     // written anywhere in active routing code as of the scene-state refactor;
