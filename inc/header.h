@@ -450,6 +450,18 @@ typedef struct ArcadeWaveState
     bool bossTelegraphActive;
 } ArcadeWaveState;
 
+// Procedural Runner world state (Phase 33). Segment templates are immutable
+// data in runner_segments.c; this tracks safe streaming through the fixed
+// ledge/star buffers.
+typedef struct RunnerSegmentState
+{
+    int nextSegmentNumber;
+    int nextWriteSlot;
+    int nextExtensionScore;
+    int lastSegmentType;
+    int difficultyTier;
+} RunnerSegmentState;
+
 typedef struct
 {
     // scroll thw world
@@ -575,6 +587,7 @@ typedef struct
     GameEventQueue events;
 
     ArcadeWaveState arcadeWaves;
+    RunnerSegmentState runnerSegments;
 
     // DEPRECATED: superseded by `app.scene` (AppScene) above. No longer read or
     // written anywhere in active routing code as of the scene-state refactor;

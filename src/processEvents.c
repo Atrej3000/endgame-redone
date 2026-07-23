@@ -287,33 +287,6 @@ int processEvents2(SDL_Window *window, GameState *game)
     // they now run at the fixed physics tick rate instead of the render
     // rate.
 
-    if (game->x_score == (50 * game->iter + 5))
-    {
-        int bulb = 700;
-        for (int i = 0; i < 50; i++)
-        {
-
-            game->ledges[i].w = 180;
-            game->ledges[i].h = 60;
-            game->ledges[i].x = i * 300 + 29400;
-            game->ledges[i].y = bulb - random_sign(3, 40);
-            while (game->ledges[i].y >= 700)
-                game->ledges[i].y -= 50;
-            while (game->ledges[i].y <= 100)
-                game->ledges[i].y += 50;
-            bulb = game->ledges[i].y;
-
-            // random() returns long on POSIX; modulo bounds the value before
-            // its exact conversion to the int-backed world coordinates.
-            game->stars[i].x = game->ledges[i].x - random_sign(1, 1) * (int)(random() % 120L);
-            game->stars[i].y = game->ledges[i].y - (int)(random() % 120L);
-        }
-        game->iter++;
-    }
-    const int distanceScore = (int)(game->man.x / 293.0f);
-    if (distanceScore > game->x_score)
-        game->x_score = distanceScore;
-
     // Fall-off-screen hazard, and the resulting game-over transition
     // (Phase 19, see docs/collision-ordering-map.md) -- extracted verbatim
     // into src/collision_pipeline.c, same position.

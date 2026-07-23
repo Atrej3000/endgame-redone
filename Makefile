@@ -252,6 +252,7 @@ mingw-headertest: $(BUILD_DIR)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_audio_assets.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_replay.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_arcade_waves.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_runner_segments.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	@echo "HEADER SELF-CONTAINMENT TEST: ALL PASS"
 
 # Non-interactive GameState nested-struct grouping test: verifies
@@ -441,6 +442,14 @@ mingw-wavetest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/wavetest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/wavetest.exe
 
+# Verifies Phase 33's authored Runner segment catalog, its bounded terrain
+# transitions, and alternating streaming-buffer extensions.
+mingw-segmenttest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/runner_segments_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/segmenttest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/segmenttest.exe
+
 # Repository usage integrity check: confirms every resource/-shaped string
 # literal in src/*.c points at a file that exists with exact case, and every
 # inc/header.h function prototype has a matching definition. See
@@ -512,4 +521,4 @@ linux-asan: $(LINUX_BUILD_DIR)
 linux-clean:
 	rm -rf $(LINUX_BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest mingw-projectiletest mingw-gamefeeltest mingw-inputsnapshottest mingw-aiforcestest mingw-collisionorderingtest mingw-interpolationtest mingw-physicsunitstest mingw-physicsbodytest mingw-worldcollisiontest mingw-displaytest mingw-settingstest mingw-replaytest mingw-wavetest print-mingw-versions audit-repo linux linux-smoketest linux-asan linux-clean mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest mingw-projectiletest mingw-gamefeeltest mingw-inputsnapshottest mingw-aiforcestest mingw-collisionorderingtest mingw-interpolationtest mingw-physicsunitstest mingw-physicsbodytest mingw-worldcollisiontest mingw-displaytest mingw-settingstest mingw-replaytest mingw-wavetest mingw-segmenttest print-mingw-versions audit-repo linux linux-smoketest linux-asan linux-clean mingw-clean
