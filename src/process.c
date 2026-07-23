@@ -4,6 +4,7 @@
 #include "arcade_waves.h"
 #include "collision_pipeline.h"
 #include "game_events.h"
+#include "runner_segments.h"
 
 // Simulation is also used by the headless replay/sanitizer harness. Effects
 // are optional there (and during a recoverable asset-load failure), while the
@@ -757,6 +758,9 @@ void process2(GameState *game, float dt)
         // gameLives here, unboundedly (deathCountdown was never decremented),
         // independent of runner_resolve_death()'s own decrement; removed.
     }
+    // World streaming belongs to the fixed simulation path so live play and
+    // deterministic replay generate the same tested segment sequence.
+    runner_segments_update(game);
     if (game->multiPlayer)
     {
         if (game->time >= 200)

@@ -2,6 +2,7 @@
 #include "audio_assets.h"
 #include "arcade_waves.h"
 #include "entity_spawn.h"
+#include "runner_segments.h"
 
 // ---------------------------------------------------------------------------
 // Shared assets: textures/font whose content is identical regardless of which
@@ -503,30 +504,7 @@ void runner_session_reset(GameState *game, GameMode mode)
     game->scrollX = 0;
     game->deathCountdown = -1;
 
-    int bulb = 700;
-    game->iter = 1;
-    for (int i = 0; i < 100; i++)
-    {
-        game->ledges[i].w = 180;
-        game->ledges[i].h = 60;
-        game->ledges[i].x = i * 300;
-        game->ledges[i].y = bulb - random_sign(3, 40);
-        while (game->ledges[i].y >= 700)
-            game->ledges[i].y -= 50;
-        while (game->ledges[i].y <= 100)
-            game->ledges[i].y += 50;
-        bulb = game->ledges[i].y;
-
-        // random() returns long on POSIX, while these world fields are int.
-        // The modulo bounds make the narrowing exact on every platform.
-        game->stars[i].baseX = game->ledges[i].x - random_sign(1, 1) * (int)(random() % 120L);
-        game->stars[i].baseY = game->ledges[i].y - (int)(random() % 120L);
-        game->stars[i].mode = (int)(random() % 2L);
-        game->stars[i].phase = 2.0f * 3.14f * (float)(random() % 360) / 360.0f;
-        game->stars[i].x = game->stars[i].baseX;
-        game->stars[i].y = game->stars[i].baseY;
-    }
-    game->ledges[99].x = 00;
-    game->ledges[99].y = 100;
+    game->iter = 0; // deprecated; segment streaming owns Runner extension.
+    runner_segments_reset(game);
     sync_render_transforms(game);
 }
