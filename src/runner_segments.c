@@ -90,6 +90,14 @@ static void extend_world(GameState *game)
 
 void runner_segments_update(GameState *game)
 {
+    // A lightweight simulation caller may use a zero-initialized GameState
+    // without starting a Runner session. Only runner_segments_reset() arms
+    // world streaming, so it cannot overwrite independently configured traps.
+    if (game->runnerSegments.nextExtensionScore <= 0)
+    {
+        return;
+    }
+
     const int distanceScore = (int)(game->man.x / 293.0f);
     if (distanceScore > game->x_score)
     {

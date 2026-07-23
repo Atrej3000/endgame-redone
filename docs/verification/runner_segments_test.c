@@ -13,6 +13,13 @@ static void expect_true(bool condition, const char *message)
 
 int main(void)
 {
+    GameState uninitialized = {0};
+    runner_segments_update(&uninitialized);
+    expect_true(uninitialized.runnerSegments.nextSegmentNumber == 0 &&
+                    uninitialized.runnerSegments.nextExtensionScore == 0 &&
+                    uninitialized.ledges[0].x == 0,
+                "uninitialized game state does not stream a Runner world");
+
     for (int type = RUNNER_SEGMENT_RECOVERY; type < RUNNER_SEGMENT_COUNT; type++)
     {
         const RunnerSegmentDefinition *definition = runner_segments_get_definition((RunnerSegmentType)type);
