@@ -58,10 +58,6 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
         destroy_texture(&game->man.sheetTextureRun2);
         destroy_texture(&game->man.sheetTextureJump2);
 
-        destroy_texture(&game->secondPlayer.sheetTextureIdle);
-        destroy_texture(&game->secondPlayer.sheetTextureRun);
-        destroy_texture(&game->secondPlayer.sheetTextureJump);
-
         if (game->app.controller)
         {
             SDL_GameControllerClose(game->app.controller);

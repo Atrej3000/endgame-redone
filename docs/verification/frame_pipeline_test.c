@@ -14,6 +14,7 @@
 #include "app.h"
 #include "scene.h"
 #include "frame.h"
+#include "game_events.h"
 
 static int failures = 0;
 
@@ -162,17 +163,21 @@ int main(void)
     game->app.scene = APP_SCENE_ARCADE_GAME; // test-only precondition
     game->man.lives = 0;
 
-    processEvents(window, game);
+    game_events_begin(game);
+    game_events_push_transition_check(game, GAME_EVENT_ARCADE_GAME_OVER_CHECK);
+    game_events_apply(game);
 
-    CHECK("processEvents(): game-over transition fires when scene is still ARCADE_GAME",
+    CHECK("arcade simulation consequence: game-over transition fires when scene is still ARCADE_GAME",
           game->app.scene == APP_SCENE_ARCADE_MENU);
 
     game->app.scene = APP_SCENE_MAIN_MENU; // test-only precondition, simulating an earlier q press
     game->man.lives = 0;
 
-    processEvents(window, game);
+    game_events_begin(game);
+    game_events_push_transition_check(game, GAME_EVENT_ARCADE_GAME_OVER_CHECK);
+    game_events_apply(game);
 
-    CHECK("processEvents(): guard does not overwrite an already-changed scene",
+    CHECK("arcade simulation consequence: guard does not overwrite an already-changed scene",
           game->app.scene == APP_SCENE_MAIN_MENU);
 
     // -------------------------------------------------------------------

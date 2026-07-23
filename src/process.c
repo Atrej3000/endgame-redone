@@ -3,6 +3,7 @@
 #include "ai_forces.h"
 #include "arcade_waves.h"
 #include "collision_pipeline.h"
+#include "combat_feedback.h"
 #include "game_events.h"
 #include "runner_segments.h"
 
@@ -42,6 +43,7 @@ void addBullet(GameState *game, float x, float y, float dx)
         game->bullets[i].prevX = x;
         game->bullets[i].prevY = y;
         game->bullets[i].active = true;
+        combat_feedback_trigger_shot(game, 0, x, y);
     }
 }
 
@@ -71,6 +73,7 @@ void addSecondBullet(GameState *game, float x, float y, float dx)
         game->secondBullets[i].prevX = x;
         game->secondBullets[i].prevY = y;
         game->secondBullets[i].active = true;
+        combat_feedback_trigger_shot(game, 1, x, y);
     }
 }
 
@@ -193,6 +196,14 @@ void move_arcade_bullets(GameState *game, float dt)
 // fixed here, not shipped).
 void consume_arcade_jump_requests(GameState *game)
 {
+    Man *players[2] = {&game->man, &game->secondPlayer};
+    for (int i = 0; i < 2; i++)
+    {
+        if (players[i]->onLedge) players[i]->airJumpsRemaining = 1;
+        if (players[i]->doubleJumpAnimationTicks > 0) players[i]->doubleJumpAnimationTicks--;
+        if (players[i]->damageInvulnerabilityTicks > 0) players[i]->damageInvulnerabilityTicks--;
+    }
+
     if (game->input.jumpBufferTicksPlayer1 > 0)
     {
         if (game->man.onLedge || game->man.coyoteTicksRemaining > 0)
@@ -202,6 +213,14 @@ void consume_arcade_jump_requests(GameState *game)
             game->man.coyoteTicksRemaining = 0;
             game->input.jumpBufferTicksPlayer1 = 0;
 
+            play_effect(game->audio.jump, 32);
+        }
+        else if (game->man.airJumpsRemaining > 0)
+        {
+            game->man.dy = -JUMP_SPEED_PER_SEC;
+            game->man.airJumpsRemaining--;
+            game->man.doubleJumpAnimationTicks = DOUBLE_JUMP_ANIMATION_TICKS;
+            game->input.jumpBufferTicksPlayer1 = 0;
             play_effect(game->audio.jump, 32);
         }
         else
@@ -219,6 +238,14 @@ void consume_arcade_jump_requests(GameState *game)
             game->secondPlayer.coyoteTicksRemaining = 0;
             game->input.jumpBufferTicksPlayer2 = 0;
 
+            play_effect(game->audio.jump, 32);
+        }
+        else if (game->secondPlayer.airJumpsRemaining > 0)
+        {
+            game->secondPlayer.dy = -JUMP_SPEED_PER_SEC;
+            game->secondPlayer.airJumpsRemaining--;
+            game->secondPlayer.doubleJumpAnimationTicks = DOUBLE_JUMP_ANIMATION_TICKS;
+            game->input.jumpBufferTicksPlayer2 = 0;
             play_effect(game->audio.jump, 32);
         }
         else
@@ -509,6 +536,7 @@ void process(GameState *game, float dt)
             }
         }
     }
+    combat_feedback_update_animations(game);
 }
 
 // Consumes the edge-triggered, buffered jump-request countdowns for Runner
@@ -523,6 +551,14 @@ void process(GameState *game, float dt)
 // check runs before this tick's coyote refresh/decay, not after.
 void consume_runner_jump_requests(GameState *game)
 {
+    Man *players[2] = {&game->man, &game->secondPlayer};
+    for (int i = 0; i < 2; i++)
+    {
+        if (players[i]->onLedge) players[i]->airJumpsRemaining = 1;
+        if (players[i]->doubleJumpAnimationTicks > 0) players[i]->doubleJumpAnimationTicks--;
+        if (players[i]->damageInvulnerabilityTicks > 0) players[i]->damageInvulnerabilityTicks--;
+    }
+
     if (game->input.jumpBufferTicksPlayer1 > 0)
     {
         if (game->man.onLedge || game->man.coyoteTicksRemaining > 0)
@@ -532,6 +568,14 @@ void consume_runner_jump_requests(GameState *game)
             game->man.coyoteTicksRemaining = 0;
             game->input.jumpBufferTicksPlayer1 = 0;
 
+            play_effect(game->audio.jump, 32);
+        }
+        else if (game->man.airJumpsRemaining > 0)
+        {
+            game->man.dy = -JUMP_SPEED_PER_SEC;
+            game->man.airJumpsRemaining--;
+            game->man.doubleJumpAnimationTicks = DOUBLE_JUMP_ANIMATION_TICKS;
+            game->input.jumpBufferTicksPlayer1 = 0;
             play_effect(game->audio.jump, 32);
         }
         else
@@ -549,6 +593,14 @@ void consume_runner_jump_requests(GameState *game)
             game->secondPlayer.coyoteTicksRemaining = 0;
             game->input.jumpBufferTicksPlayer2 = 0;
 
+            play_effect(game->audio.jump, 32);
+        }
+        else if (game->secondPlayer.airJumpsRemaining > 0)
+        {
+            game->secondPlayer.dy = -JUMP_SPEED_PER_SEC;
+            game->secondPlayer.airJumpsRemaining--;
+            game->secondPlayer.doubleJumpAnimationTicks = DOUBLE_JUMP_ANIMATION_TICKS;
+            game->input.jumpBufferTicksPlayer2 = 0;
             play_effect(game->audio.jump, 32);
         }
         else
@@ -773,4 +825,5 @@ void process2(GameState *game, float dt)
         if (game->scrollX > 0)
             game->scrollX = 0;
     }
+    combat_feedback_update_animations(game);
 }

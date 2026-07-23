@@ -91,6 +91,32 @@ int main(void)
           game->man.dy == 50.0f);
 
     // ------------------------------------------------------------------
+    // 1b. Double jump: a grounded jump grants exactly one airborne jump;
+    // a third press cannot reset vertical velocity until landing again.
+    // ------------------------------------------------------------------
+    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    game->man.onLedge = 1;
+    game->input.jumpBufferTicksPlayer1 = JUMP_BUFFER_TICKS;
+    consume_arcade_jump_requests(game);
+    CHECK("double jump: first grounded jump grants one airborne jump",
+          game->man.dy == -JUMP_SPEED_PER_SEC && game->man.airJumpsRemaining == 1);
+
+    game->man.onLedge = 0;
+    game->man.coyoteTicksRemaining = 0;
+    game->man.dy = -200.0f;
+    game->input.jumpBufferTicksPlayer1 = JUMP_BUFFER_TICKS;
+    consume_arcade_jump_requests(game);
+    CHECK("double jump: second press in the air applies a full second impulse and animation",
+          game->man.dy == -JUMP_SPEED_PER_SEC && game->man.airJumpsRemaining == 0 &&
+          game->man.doubleJumpAnimationTicks > 0);
+
+    game->man.dy = -200.0f;
+    game->input.jumpBufferTicksPlayer1 = JUMP_BUFFER_TICKS;
+    consume_arcade_jump_requests(game);
+    CHECK("double jump: a third airborne press cannot add another jump",
+          game->man.dy == -200.0f);
+
+    // ------------------------------------------------------------------
     // 2. Jump buffering, Runner side (input_state_test.c already covers this
     //    thoroughly for Arcade -- this proves consume_runner_jump_requests()
     //    has the identical behavior, not just the identical impulse

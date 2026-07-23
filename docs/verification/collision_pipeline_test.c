@@ -55,14 +55,24 @@ int main(void)
     game->man.lives = 3;
     game->enemyValues[0].x = 100.0f; // co-located -> guaranteed collide2d hit
     game->enemyValues[0].y = 100.0f;
+    game->enemyValues[0].visible = 1;
 
     game_events_begin(game);
     detect_arcade_hazards(game);
     CHECK("arcade detection: contact queues an event without changing lives",
           game->events.count >= 1 && game->man.lives == 3 && game->man.y == 100.0f);
     game_events_apply(game);
-    CHECK("arcade hazard: man-vs-enemy contact sets lives to 0",
-          game->man.lives == 0 && game->man.y == 1000.0f);
+    CHECK("arcade hazard: man-vs-enemy contact removes exactly one shared life and respawns",
+          game->gameLives == 9 && game->man.lives == 3 && game->man.y == 200.0f &&
+          game->man.damageInvulnerabilityTicks == PLAYER_DAMAGE_INVULNERABILITY_TICKS);
+
+    game->man.x = 100.0f;
+    game->man.y = 100.0f;
+    game_events_begin(game);
+    detect_arcade_hazards(game);
+    game_events_apply(game);
+    CHECK("arcade hazard: contact during invulnerability does not remove another life",
+          game->gameLives == 9);
 
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = 200.0f;
@@ -70,11 +80,12 @@ int main(void)
     game->man.lives = 3;
     game->boss[0].x = 200.0f;
     game->boss[0].y = 200.0f;
+    game->boss[0].visible = 1;
 
     game_events_begin(game);
     detect_arcade_hazards(game);
     game_events_apply(game);
-    CHECK("arcade hazard: man-vs-boss contact sets lives to 0", game->man.lives == 0);
+    CHECK("arcade hazard: man-vs-boss contact removes exactly one shared life", game->gameLives == 9);
 
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = 300.0f;
@@ -82,11 +93,12 @@ int main(void)
     game->man.lives = 3;
     game->smartEnemies[0].x = 300.0f;
     game->smartEnemies[0].y = 300.0f;
+    game->smartEnemies[0].visible = 1;
 
     game_events_begin(game);
     detect_arcade_hazards(game);
     game_events_apply(game);
-    CHECK("arcade hazard: man-vs-smartEnemy contact sets lives to 0", game->man.lives == 0);
+    CHECK("arcade hazard: man-vs-smartEnemy contact removes exactly one shared life", game->gameLives == 9);
 
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = -5000.0f; // out of contact range of everything
@@ -96,12 +108,14 @@ int main(void)
     game->kills_score = 0;
     game->tempScore = 0;
     game->enemyValues[0].y = 732.0f; // in the 730-734 reached-bottom band
+    game->enemyValues[0].visible = 1;
 
     game_events_begin(game);
     detect_arcade_hazards(game);
     game_events_apply(game);
     CHECK("arcade hazard: enemy reached bottom decrements gameLives and scores a kill",
-          game->gameLives == 2 && game->kills_score == 1 && game->tempScore == 1);
+          game->gameLives == 2 && game->kills_score == 1 && game->tempScore == 1 &&
+          game->enemyValues[0].y == 1000.0f && game->enemyValues[0].visible == 0);
 
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = -5000.0f;
@@ -109,6 +123,7 @@ int main(void)
     game->man.lives = 3;
     game->gameLives = 1; // one enemy reaching bottom will zero this
     game->enemyValues[0].y = 732.0f;
+    game->enemyValues[0].visible = 1;
 
     game_events_begin(game);
     detect_arcade_hazards(game);
@@ -122,6 +137,7 @@ int main(void)
     game->man.lives = 3;
     game->gameLives = 3;
     game->boss[0].y = 735.0f; // in the 730-740 boss-reached-bottom band
+    game->boss[0].visible = 1;
 
     game_events_begin(game);
     detect_arcade_hazards(game);
@@ -137,7 +153,8 @@ int main(void)
     game_events_begin(game);
     detect_arcade_hazards(game);
     game_events_apply(game);
-    CHECK("arcade hazard: fall-off-screen sets man.lives to 0", game->man.lives == 0);
+    CHECK("arcade hazard: fall-off-screen removes one shared life and respawns man",
+          game->gameLives == 9 && game->man.lives == 3 && game->man.y == 240.0f);
 
     arcade_session_reset(game, GAME_MODE_MULTIPLAYER);
     game->man.x = -5000.0f;
@@ -147,12 +164,13 @@ int main(void)
     game->secondPlayer.lives = 3;
     game->enemyValues[0].x = 400.0f; // co-located with secondPlayer only
     game->enemyValues[0].y = 400.0f;
+    game->enemyValues[0].visible = 1;
 
     game_events_begin(game);
     detect_arcade_hazards(game);
     game_events_apply(game);
-    CHECK("arcade hazard: secondPlayer-vs-enemy contact sets secondPlayer.lives to 0",
-          game->secondPlayer.lives == 0 && game->man.lives == 3);
+    CHECK("arcade hazard: secondPlayer-vs-enemy contact removes one shared life",
+          game->gameLives == 9 && game->secondPlayer.lives == 3 && game->man.lives == 3);
 
     // ------------------------------------------------------------------
     // 2. GAME_EVENT_ARCADE_GAME_OVER_CHECK: single/multi-player, and
