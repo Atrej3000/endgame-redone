@@ -173,6 +173,10 @@ jobs:
         shell: msys2 {0}
         run: make mingw-replaytest 2>&1 | tee replaytest.log
 
+      - name: Data-driven Arcade waves test
+        shell: msys2 {0}
+        run: make mingw-wavetest 2>&1 | tee wavetest.log
+
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -204,6 +208,7 @@ jobs:
             displaytest.log
             settingstest.log
             replaytest.log
+            wavetest.log
           if-no-files-found: ignore
 
   # Windows CI, however thorough, cannot prove case-sensitive path

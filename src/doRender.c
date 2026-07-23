@@ -1,4 +1,5 @@
 #include "header.h"
+#include "arcade_waves.h"
 
 static int render_pixel(float coordinate)
 {
@@ -182,6 +183,7 @@ void doRender(SDL_Renderer *renderer, GameState *game)
     //score of kills
     init_status_kills(game);
     draw_status_kills(game);
+    arcade_waves_draw_hud(renderer, game);
 
     //We are done drawing, "present" or show to the screen what wer've drawn
     SDL_RenderPresent(renderer);
