@@ -250,6 +250,7 @@ mingw-headertest: $(BUILD_DIR)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_display.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_settings.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_audio_assets.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_replay.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	@echo "HEADER SELF-CONTAINMENT TEST: ALL PASS"
 
 # Non-interactive GameState nested-struct grouping test: verifies
@@ -421,6 +422,16 @@ mingw-settingstest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/settingstest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/settingstest.exe
 
+# Verifies Phase 31's deterministic replay boundary: recorded seed, mode,
+# and per-fixed-tick input replay to an identical state, while changed input
+# or seed changes the expected authoritative result. It needs no SDL window,
+# renderer, audio device, or loaded game assets.
+mingw-replaytest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/replay_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/replaytest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/replaytest.exe
+
 # Repository usage integrity check: confirms every resource/-shaped string
 # literal in src/*.c points at a file that exists with exact case, and every
 # inc/header.h function prototype has a matching definition. See
@@ -447,7 +458,7 @@ mingw-clean:
 # provide the SDL2_image/-style layout.
 # ---------------------------------------------------------------------------
 CC_LINUX := gcc
-LINUX_WARN_FLAGS := -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion \
+LINUX_WARN_FLAGS := -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Wpedantic -Wshadow -Wconversion \
 	-Wsign-conversion -Wformat=2 -Wnull-dereference -Wdouble-promotion
 LINUX_PKGS := sdl2 SDL2_image SDL2_ttf SDL2_mixer
 LINUX_COMPAT_INCLUDE :=
@@ -477,7 +488,19 @@ linux-smoketest: $(LINUX_BUILD_DIR)
 		-o $(LINUX_BUILD_DIR)/smoketest $(LINUX_LIBS)
 	./$(LINUX_BUILD_DIR)/smoketest
 
+# Required Linux ASan/UBSan verification. This uses the replay test because
+# it exercises the production simulation without a display/audio device.
+LINUX_SANITIZER_FLAGS := $(LINUX_WARN_FLAGS) -Werror -g -O1 \
+	-fsanitize=address,undefined -fno-omit-frame-pointer
+
+linux-asan: $(LINUX_BUILD_DIR)
+	$(CC_LINUX) $(MINGW_SRCS_NO_MAIN) docs/verification/replay_test.c \
+		$(LINUX_SANITIZER_FLAGS) $(LINUX_INCLUDES) \
+		-o $(LINUX_BUILD_DIR)/replay-asan $(LINUX_LIBS)
+	ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+		./$(LINUX_BUILD_DIR)/replay-asan
+
 linux-clean:
 	rm -rf $(LINUX_BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest mingw-projectiletest mingw-gamefeeltest mingw-inputsnapshottest mingw-aiforcestest mingw-collisionorderingtest mingw-interpolationtest mingw-physicsunitstest mingw-physicsbodytest mingw-worldcollisiontest mingw-displaytest mingw-settingstest print-mingw-versions audit-repo linux linux-smoketest linux-clean mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest mingw-projectiletest mingw-gamefeeltest mingw-inputsnapshottest mingw-aiforcestest mingw-collisionorderingtest mingw-interpolationtest mingw-physicsunitstest mingw-physicsbodytest mingw-worldcollisiontest mingw-displaytest mingw-settingstest mingw-replaytest print-mingw-versions audit-repo linux linux-smoketest linux-asan linux-clean mingw-clean

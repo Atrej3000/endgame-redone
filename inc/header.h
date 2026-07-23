@@ -655,6 +655,7 @@ int pause_events(GameState *gameState);
 void addBullet(GameState *game, float x, float y, float dx);
 void addSecondBullet(GameState *game, float x, float y, float dx);
 void removeSecondBullet(GameState *game, int i);
+void process_arcade_shooting(GameState *game);
 
 void init_status_kills(GameState *game);
 void draw_status_kills(GameState *game);
