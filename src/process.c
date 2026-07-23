@@ -395,15 +395,16 @@ void process(GameState *game, float dt)
     // BULLET
     game->time++;
 
+    // Schedule the next wave entity before this tick's projectile/contact
+    // consequences. A target destroyed this tick therefore remains gone for
+    // the whole tick; the following tick owns the next spawn/transition.
+    arcade_waves_update(game);
+
     // Contact detection produces events only; consequences execute once in
     // the dedicated Phase 24 consequence pass below.
     game_events_begin(game);
     detect_projectile_hits(game);
     game_events_apply(game);
-
-    // Phase 32: composition and cadence now live in the WaveDefinition table
-    // rather than score-equality chains. Score remains a score only.
-    arcade_waves_update(game);
 
     if (game->time > 0)
     {

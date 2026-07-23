@@ -80,6 +80,11 @@ static bool fully_spawned(const ArcadeWaveState *state, const WaveDefinition *de
            state->smartSpawned == definition->smartEnemies && state->bossesSpawned == definition->bosses;
 }
 
+static bool wave_has_spawned_nothing(const ArcadeWaveState *state)
+{
+    return state->regularSpawned == 0 && state->smartSpawned == 0 && state->bossesSpawned == 0;
+}
+
 static bool spawn_next(GameState *game, const WaveDefinition *definition)
 {
     ArcadeWaveState *state = &game->arcadeWaves;
@@ -121,6 +126,11 @@ void arcade_waves_update(GameState *game)
     }
     if (!fully_spawned(state, definition))
     {
+        // A fresh session normally begins with no active enemies. If callers
+        // intentionally stage an entity before the scheduler's first tick
+        // (focused collision tests and future scripted intros), do not claim
+        // its slot as a Wave 1 spawn.
+        if (wave_has_spawned_nothing(state) && active_entities(game)) return;
         if (spawn_next(game, definition)) state->spawnCooldownTicks = definition->spawnIntervalTicks;
         return;
     }

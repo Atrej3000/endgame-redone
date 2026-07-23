@@ -62,6 +62,17 @@ int main(void)
     expect_true(game.arcadeWaves.spawnCooldownTicks == waveOne->spawnIntervalTicks,
                 "spawning uses the wave's declared cadence");
 
+    GameState staged = {0};
+    clear_entities(&staged);
+    arcade_waves_reset(&staged);
+    staged.enemyValues[0].x = 40.0f;
+    staged.enemyValues[0].y = 100.0f;
+    staged.enemyValues[0].visible = 1;
+    arcade_waves_update(&staged);
+    expect_true(staged.arcadeWaves.regularSpawned == 0 && staged.enemyValues[0].x == 40.0f &&
+                    staged.enemyValues[0].y == 100.0f,
+                "an untracked active entity is not overwritten by a fresh wave spawn");
+
     clear_entities(&game);
     mark_wave_spawned(&game, waveOne);
     game.arcadeWaves.spawnCooldownTicks = 0;
