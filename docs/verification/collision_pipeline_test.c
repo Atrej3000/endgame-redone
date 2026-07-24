@@ -33,6 +33,18 @@ static int failures = 0;
         }                                                                       \
     } while (0)
 
+static void reset_arcade_test(GameState *game, GameMode mode)
+{
+    arcade_session_reset(game, mode);
+    game->app.scene = APP_SCENE_ARCADE_GAME;
+}
+
+static void reset_runner_test(GameState *game, GameMode mode)
+{
+    runner_session_reset(game, mode);
+    game->app.scene = APP_SCENE_RUNNER_GAME;
+}
+
 int main(void)
 {
     GameState *game = NULL;
@@ -49,7 +61,7 @@ int main(void)
     // 1. detect_arcade_hazards() + game_events_apply(): body contact (enemy/boss/smartEnemy),
     //    reached-bottom, and fall-off-screen.
     // ------------------------------------------------------------------
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = 100.0f;
     game->man.y = 100.0f;
     game->man.lives = 3;
@@ -74,7 +86,7 @@ int main(void)
     CHECK("arcade hazard: contact during invulnerability does not remove another life",
           game->gameLives == 9);
 
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = 200.0f;
     game->man.y = 200.0f;
     game->man.lives = 3;
@@ -87,7 +99,7 @@ int main(void)
     game_events_apply(game);
     CHECK("arcade hazard: man-vs-boss contact removes exactly one shared life", game->gameLives == 9);
 
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = 300.0f;
     game->man.y = 300.0f;
     game->man.lives = 3;
@@ -100,7 +112,7 @@ int main(void)
     game_events_apply(game);
     CHECK("arcade hazard: man-vs-smartEnemy contact removes exactly one shared life", game->gameLives == 9);
 
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = -5000.0f; // out of contact range of everything
     game->man.y = -5000.0f;
     game->man.lives = 3;
@@ -113,11 +125,11 @@ int main(void)
     game_events_begin(game);
     detect_arcade_hazards(game);
     game_events_apply(game);
-    CHECK("arcade hazard: enemy reached bottom decrements gameLives and scores a kill",
-          game->gameLives == 2 && game->kills_score == 1 && game->tempScore == 1 &&
+    CHECK("arcade hazard: enemy reached bottom decrements gameLives without awarding a kill",
+          game->gameLives == 2 && game->kills_score == 0 && game->tempScore == 0 &&
           game->enemyValues[0].y == 1000.0f && game->enemyValues[0].visible == 0);
 
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = -5000.0f;
     game->man.y = -5000.0f;
     game->man.lives = 3;
@@ -131,7 +143,7 @@ int main(void)
     CHECK("arcade hazard: gameLives reaching 0 via reached-bottom also zeros man.lives",
           game->gameLives == 0 && game->man.lives == 0);
 
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = -5000.0f;
     game->man.y = -5000.0f;
     game->man.lives = 3;
@@ -145,7 +157,7 @@ int main(void)
     CHECK("arcade hazard: boss reached bottom forces gameLives and man.lives to 0",
           game->gameLives == 0 && game->man.lives == 0);
 
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = -5000.0f;
     game->man.y = 720.0f; // >= 719
     game->man.lives = 3;
@@ -154,9 +166,9 @@ int main(void)
     detect_arcade_hazards(game);
     game_events_apply(game);
     CHECK("arcade hazard: fall-off-screen removes one shared life and respawns man",
-          game->gameLives == 9 && game->man.lives == 3 && game->man.y == 240.0f);
+          game->gameLives == 9 && game->man.lives == 3 && game->man.y == 200.0f);
 
-    arcade_session_reset(game, GAME_MODE_MULTIPLAYER);
+    reset_arcade_test(game, GAME_MODE_MULTIPLAYER);
     game->man.x = -5000.0f;
     game->man.y = -5000.0f;
     game->secondPlayer.x = 400.0f;
@@ -176,8 +188,9 @@ int main(void)
     // 2. GAME_EVENT_ARCADE_GAME_OVER_CHECK: single/multi-player, and
     //    the double-transition guard.
     // ------------------------------------------------------------------
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game, GAME_MODE_SINGLE_PLAYER);
     game->man.lives = 0;
+    game->gameLives = 0;
     game->app.scene = APP_SCENE_ARCADE_GAME;
 
     game_events_begin(game);
@@ -193,7 +206,7 @@ int main(void)
     CHECK("arcade transition: guard does not overwrite an earlier transition",
           game->app.scene == APP_SCENE_MAIN_MENU);
 
-    arcade_session_reset(game, GAME_MODE_MULTIPLAYER);
+    reset_arcade_test(game, GAME_MODE_MULTIPLAYER);
     game->man.lives = 0;
     game->secondPlayer.lives = 3;
     game->app.scene = APP_SCENE_ARCADE_GAME;
@@ -205,6 +218,7 @@ int main(void)
           game->app.scene == APP_SCENE_ARCADE_GAME);
 
     game->secondPlayer.lives = 0;
+    game->gameLives = 0;
     game_events_begin(game);
     game_events_push_transition_check(game, GAME_EVENT_ARCADE_GAME_OVER_CHECK);
     game_events_apply(game);
@@ -215,7 +229,7 @@ int main(void)
     // 3. detect_runner_hazard_contacts() + game_events_apply(): star contact triggers the
     //    single-shot death lifecycle.
     // ------------------------------------------------------------------
-    runner_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_runner_test(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = 50.0f;
     game->man.y = 50.0f;
     game->stars[0].x = 50.0f; // co-located -> guaranteed collide2d hit
@@ -229,7 +243,7 @@ int main(void)
     CHECK("runner hazard: star contact triggers death",
           game->man.isDead == 1 && game->deathCountdown == 120);
 
-    runner_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_runner_test(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = -5000.0f;
     game->man.y = -5000.0f;
 
@@ -239,30 +253,30 @@ int main(void)
     CHECK("runner hazard: no contact leaves isDead at 0", game->man.isDead == 0);
 
     // ------------------------------------------------------------------
-    // 4. detect_runner_fall_hazards() + game_events_apply(): falling off the bottom or the left
+    // 4. detect_runner_fixed_hazards() + game_events_apply(): falling off the bottom or the left
     //    edge, both players.
     // ------------------------------------------------------------------
-    runner_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_runner_test(game, GAME_MODE_SINGLE_PLAYER);
     game->man.y = 720.0f; // >= 719
 
     game_events_begin(game);
-    detect_runner_fall_hazards(game);
+    detect_runner_fixed_hazards(game);
     game_events_apply(game);
     CHECK("runner fall hazard: y past the bottom edge triggers death", game->man.isDead == 1);
 
-    runner_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_runner_test(game, GAME_MODE_SINGLE_PLAYER);
     game->man.x = -5.0f; // < 0
 
     game_events_begin(game);
-    detect_runner_fall_hazards(game);
+    detect_runner_fixed_hazards(game);
     game_events_apply(game);
     CHECK("runner fall hazard: x past the left edge triggers death", game->man.isDead == 1);
 
-    runner_session_reset(game, GAME_MODE_MULTIPLAYER);
+    reset_runner_test(game, GAME_MODE_MULTIPLAYER);
     game->secondPlayer.y = 720.0f;
 
     game_events_begin(game);
-    detect_runner_fall_hazards(game);
+    detect_runner_fixed_hazards(game);
     game_events_apply(game);
     CHECK("runner fall hazard: secondPlayer past the bottom edge triggers the shared death flag",
           game->man.isDead == 1);
@@ -271,7 +285,7 @@ int main(void)
     // 5. GAME_EVENT_RUNNER_GAME_OVER_CHECK: score-persist plus the
     //    game-over transition, and the double-transition guard.
     // ------------------------------------------------------------------
-    runner_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_runner_test(game, GAME_MODE_SINGLE_PLAYER);
     game->gameLives = 0;
     game->x_score = 42;
     game->app.scene = APP_SCENE_RUNNER_GAME;
@@ -293,7 +307,7 @@ int main(void)
     // 6. detect_projectile_hits(): detection remains pure and the dedicated
     //    consequence phase performs the kill/score exactly once.
     // ------------------------------------------------------------------
-    arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
+    reset_arcade_test(game, GAME_MODE_SINGLE_PLAYER);
     game->kills_score = 0;
     game->enemyValues[0].x = 40.0f;
     game->enemyValues[0].y = 100.0f;

@@ -129,7 +129,7 @@ int main(void)
     shared_assets_unload(game);
     CHECK("sharedAssetsLoaded is false after shared_assets_unload()", game->assetFlags.sharedAssetsLoaded == false);
     CHECK("mult is NULL after shared_assets_unload()", game->mult == NULL);
-    CHECK("font is NULL after shared_assets_unload()", game->font == NULL);
+    CHECK("application-owned font survives shared_assets_unload()", game->font != NULL);
     // Arcade/Runner's own flags are untouched by unloading the shared bucket.
     CHECK("arcadeAssetsLoaded untouched by shared_assets_unload()", game->assetFlags.arcadeAssetsLoaded == true);
     CHECK("runnerAssetsLoaded untouched by shared_assets_unload()", game->assetFlags.runnerAssetsLoaded == true);

@@ -1,13 +1,63 @@
 #include "ai_forces.h"
 
+static bool valid_ai_step(const GameState *game, float dt)
+{
+    return game != NULL && isfinite(dt) && dt > 0.0f &&
+           dt <= (float)MAX_FRAME_TIME;
+}
+
+static bool enemy_runtime_is_finite(const Enemies *enemy)
+{
+    return enemy != NULL &&
+           isfinite(enemy->x) && isfinite(enemy->y) &&
+           isfinite(enemy->prevX) && isfinite(enemy->prevY) &&
+           isfinite(enemy->dx) && isfinite(enemy->dy);
+}
+
+static void deactivate_invalid_enemy(Enemies *enemy)
+{
+    if (enemy == NULL) return;
+    enemy->x = 0.0f;
+    enemy->y = 1000.0f;
+    enemy->prevX = enemy->x;
+    enemy->prevY = enemy->y;
+    enemy->dx = 0.0f;
+    enemy->dy = 0.0f;
+    enemy->visible = 0;
+}
+
 void move_boss_entities(GameState *game, float dt)
 {
+    if (!valid_ai_step(game, dt)) return;
     for (int i = 0; i < 2; i++)
     {
+        if (!game->boss[i].visible)
+        {
+            continue;
+        }
+        if (!enemy_runtime_is_finite(&game->boss[i]))
+        {
+            deactivate_invalid_enemy(&game->boss[i]);
+            continue;
+        }
+        if (game->boss[i].y >= 1000.0f)
+        {
+            continue;
+        }
         game->boss[i].y += game->boss[i].dy * dt;
         game->boss[i].x += game->boss[i].dx * dt;
+        if (!isfinite(game->boss[i].x) || !isfinite(game->boss[i].y))
+        {
+            deactivate_invalid_enemy(&game->boss[i]);
+            continue;
+        }
 
         game->boss[i].dy += BOSS_GRAVITY_PER_SEC2 * dt;
+        if (!isfinite(game->boss[i].dy))
+        {
+            deactivate_invalid_enemy(&game->boss[i]);
+            continue;
+        }
         if (game->boss[i].dy > BOSS_MAX_FALL_SPEED_PER_SEC)
         {
             game->boss[i].dy = BOSS_MAX_FALL_SPEED_PER_SEC;
@@ -45,11 +95,30 @@ void move_boss_entities(GameState *game, float dt)
 // STUPID BOTS
 void move_regular_enemies(GameState *game, float dt)
 {
+    if (!valid_ai_step(game, dt)) return;
     for (int i = 0; i < NUM_ENEMIES; i++)
     {
         Enemies *enemy = &game->enemyValues[i];
+        if (!enemy->visible)
+        {
+            continue;
+        }
+        if (!enemy_runtime_is_finite(enemy))
+        {
+            deactivate_invalid_enemy(enemy);
+            continue;
+        }
+        if (enemy->y >= 1000.0f)
+        {
+            continue;
+        }
         enemy->y += enemy->dy * dt;
         enemy->x += enemy->dx * dt;
+        if (!isfinite(enemy->x) || !isfinite(enemy->y))
+        {
+            deactivate_invalid_enemy(enemy);
+            continue;
+        }
 
         if (enemy->x > 610 && enemy->y > 150 && enemy->y < 170)
         {
@@ -82,6 +151,11 @@ void move_regular_enemies(GameState *game, float dt)
             enemy->prevY = enemy->y;
         }
         enemy->dy += ENEMY_GRAVITY_PER_SEC2 * dt;
+        if (!isfinite(enemy->dy))
+        {
+            deactivate_invalid_enemy(enemy);
+            continue;
+        }
         if (enemy->dy >= ENEMY_MAX_FALL_SPEED_PER_SEC)
         {
             enemy->dy = ENEMY_MAX_FALL_SPEED_PER_SEC;
@@ -90,12 +164,35 @@ void move_regular_enemies(GameState *game, float dt)
 }
 Man *smart_enemy_select_target(GameState *game, const Enemies *smartEnemy)
 {
+    if (game == NULL || smartEnemy == NULL ||
+        !isfinite(smartEnemy->x) || !isfinite(smartEnemy->y))
+    {
+        return NULL;
+    }
+    const bool firstAvailable = !game->man.isDead &&
+                                isfinite(game->man.x) && isfinite(game->man.y);
+    const bool secondAvailable = game->multiPlayer &&
+                                 !game->secondPlayer.isDead &&
+                                 isfinite(game->secondPlayer.x) &&
+                                 isfinite(game->secondPlayer.y);
     if (!game->multiPlayer)
+    {
+        return firstAvailable ? &game->man : NULL;
+    }
+    if (!firstAvailable)
+    {
+        return secondAvailable ? &game->secondPlayer : NULL;
+    }
+    if (!secondAvailable)
     {
         return &game->man;
     }
-    if ((pow((smartEnemy->x - game->man.x), 2) + pow((smartEnemy->y - game->man.y), 2)) <
-        (pow((smartEnemy->x - game->secondPlayer.x), 2) + pow(smartEnemy->y - game->secondPlayer.y, 2)))
+    const double firstDx = (double)smartEnemy->x - (double)game->man.x;
+    const double firstDy = (double)smartEnemy->y - (double)game->man.y;
+    const double secondDx = (double)smartEnemy->x - (double)game->secondPlayer.x;
+    const double secondDy = (double)smartEnemy->y - (double)game->secondPlayer.y;
+    if (firstDx * firstDx + firstDy * firstDy <
+        secondDx * secondDx + secondDy * secondDy)
     {
         return &game->man;
     }
@@ -104,8 +201,27 @@ Man *smart_enemy_select_target(GameState *game, const Enemies *smartEnemy)
 
 void move_smart_enemies(GameState *game, float dt)
 {
+    if (!valid_ai_step(game, dt)) return;
     for (int i = 0; i < NUM_SMART_ENEMIES; i++)
     {
+        if (!game->smartEnemies[i].visible)
+        {
+            continue;
+        }
+        if (!enemy_runtime_is_finite(&game->smartEnemies[i]))
+        {
+            deactivate_invalid_enemy(&game->smartEnemies[i]);
+            continue;
+        }
+        if (game->smartEnemies[i].y >= 1000.0f)
+        {
+            continue;
+        }
+        Man *target = smart_enemy_select_target(game, &game->smartEnemies[i]);
+        if (target == NULL)
+        {
+            continue;
+        }
         if (game->smartEnemies[i].y > 720 && game->smartEnemies[i].y < 750)
         {
             game->smartEnemies[i].y = 200;
@@ -168,6 +284,7 @@ void move_smart_enemies(GameState *game, float dt)
             if (game->smartEnemies[i].y > 800)
             {
                 game->smartEnemies[i].y = 1000;
+                game->smartEnemies[i].visible = 0;
             }
             game->smartEnemies[i].dy += SMART_ENEMY_GRAVITY_PER_SEC2 * dt;
         }
@@ -181,7 +298,7 @@ void move_smart_enemies(GameState *game, float dt)
                 game->smartEnemies[i].prevX = game->smartEnemies[i].x;
                 game->smartEnemies[i].prevY = game->smartEnemies[i].y;
             }
-            if (smart_enemy_select_target(game, &game->smartEnemies[i]) == &game->man)
+            if (target == &game->man)
             {
                 game->smartEnemies[i].y += game->smartEnemies[i].dy * dt;
                 if (game->smartEnemies[i].y > game->man.y)
@@ -288,7 +405,12 @@ void move_smart_enemies(GameState *game, float dt)
             if (game->smartEnemies[i].y > 800)
             {
                 game->smartEnemies[i].y = 1000;
+                game->smartEnemies[i].visible = 0;
             }
+        }
+        if (!enemy_runtime_is_finite(&game->smartEnemies[i]))
+        {
+            deactivate_invalid_enemy(&game->smartEnemies[i]);
         }
     }
 }

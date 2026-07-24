@@ -53,8 +53,16 @@ void kinematic_body_apply_to_enemy(Enemies *enemy, const KinematicBody *body);
 
 Collider player_world_collider(void);
 Collider projectile_collider(void);
+// Authoritative gameplay target boxes. Rendering may use a larger sprite
+// footprint, but every gameplay contact query for a given entity type uses
+// these adapters instead of repeating interaction-specific literals.
+Collider arcade_enemy_collider(GameEventTarget target);
+Collider runner_hazard_collider(void);
+// Compatibility alias for older callers/tests. Equivalent to the regular
+// Arcade enemy gameplay collider.
 Collider enemy_projectile_collider(void);
 bool colliders_can_interact(const Collider *first, const Collider *second);
+// Collision queries reject null, non-finite, or negative-size operands.
 bool collider_bounds_overlap(const KinematicBody *firstBody, const Collider *firstCollider,
                              const KinematicBody *secondBody, const Collider *secondCollider);
 bool collider_swept_horizontal_overlap(const KinematicBody *movingBody, const Collider *movingCollider,

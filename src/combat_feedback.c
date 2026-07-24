@@ -1,5 +1,7 @@
 #include "combat_feedback.h"
 
+#include <stdint.h>
+
 #define FEEDBACK_PARTICLE_GRAVITY_PER_SEC2 900.0f
 #define FEEDBACK_PARTICLE_TICKS 18
 #define FEEDBACK_DEATH_PARTICLE_TICKS 26
@@ -38,6 +40,11 @@ static FeedbackParticle *claim_particle(GameState *game)
 static void spawn_particle(GameState *game, float x, float y, float dx, float dy,
                            int lifetime, Uint8 red, Uint8 green, Uint8 blue)
 {
+    if (game == NULL || lifetime <= 0 ||
+        !isfinite(x) || !isfinite(y) || !isfinite(dx) || !isfinite(dy))
+    {
+        return;
+    }
     FeedbackParticle *particle = claim_particle(game);
     *particle = (FeedbackParticle){true, x, y, dx, dy, lifetime, lifetime, red, green, blue};
 }
@@ -46,7 +53,7 @@ static void spawn_burst(GameState *game, float x, float y, bool defeated, bool b
 {
     const int count = defeated ? 6 : 3;
     const int lifetime = defeated ? FEEDBACK_DEATH_PARTICLE_TICKS : FEEDBACK_PARTICLE_TICKS;
-    const Uint8 red = boss ? 255U : (defeated ? 255U : 255U);
+    const Uint8 red = 255U;
     const Uint8 green = boss ? 95U : (defeated ? 185U : 240U);
     const Uint8 blue = boss ? 45U : (defeated ? 45U : 110U);
     for (int i = 0; i < count; i++)
@@ -59,12 +66,13 @@ static void spawn_burst(GameState *game, float x, float y, bool defeated, bool b
 
 void combat_feedback_reset(GameState *game)
 {
+    if (game == NULL) return;
     game->feedback = (CombatFeedbackState){0};
 }
 
 void combat_feedback_trigger_player_spawn(GameState *game, int playerIndex)
 {
-    if (playerIndex < 0 || playerIndex > 1)
+    if (game == NULL || playerIndex < 0 || playerIndex > 1)
     {
         return;
     }
@@ -76,19 +84,20 @@ void combat_feedback_trigger_player_spawn(GameState *game, int playerIndex)
 
 void combat_feedback_trigger_shot(GameState *game, int playerIndex, float x, float y)
 {
-    if (playerIndex < 0 || playerIndex > 1)
+    if (game == NULL || playerIndex < 0 || playerIndex > 1)
     {
         return;
     }
     game->feedback.muzzleFlashTicks[playerIndex] = FEEDBACK_MUZZLE_FLASH_TICKS;
-    const float direction = playerIndex == 0 && game->man.facingLeft ? -1.0f : 1.0f;
+    const Man *player = playerIndex == 0 ? &game->man : &game->secondPlayer;
+    const float direction = player->facingLeft ? -1.0f : 1.0f;
     spawn_particle(game, x, y, direction * 120.0f, -35.0f,
                    FEEDBACK_PARTICLE_TICKS / 2, 255U, 230U, 100U);
 }
 
 void combat_feedback_trigger_enemy_hit(GameState *game, Enemies *enemy, bool defeated, bool boss)
 {
-    if (enemy == NULL)
+    if (game == NULL || enemy == NULL)
     {
         return;
     }
@@ -100,6 +109,10 @@ void combat_feedback_trigger_enemy_hit(GameState *game, Enemies *enemy, bool def
 
 void combat_feedback_trigger_player_hit(GameState *game, int playerIndex)
 {
+    if (game == NULL || playerIndex < 0 || playerIndex > 1)
+    {
+        return;
+    }
     Man *player = playerIndex == 0 ? &game->man : &game->secondPlayer;
     player->hitFlashTicks = FEEDBACK_HIT_FLASH_TICKS;
     game->feedback.disappearingTicks[playerIndex] = FEEDBACK_TRANSITION_TICKS;
@@ -117,6 +130,13 @@ static void update_particles(CombatFeedbackState *feedback)
         FeedbackParticle *particle = &feedback->particles[i];
         if (!particle->active)
         {
+            continue;
+        }
+        if (particle->ticksRemaining <= 0 || particle->totalTicks <= 0 ||
+            !isfinite(particle->x) || !isfinite(particle->y) ||
+            !isfinite(particle->dx) || !isfinite(particle->dy))
+        {
+            particle->active = false;
             continue;
         }
         particle->x += particle->dx * PHYSICS_DT;
@@ -164,6 +184,7 @@ static void decrement_feedback_timers(GameState *game)
 
 bool combat_feedback_step(GameState *game)
 {
+    if (game == NULL) return false;
     decrement_feedback_timers(game);
     update_particles(&game->feedback);
 
@@ -190,6 +211,7 @@ bool combat_feedback_step(GameState *game)
 
 static void update_animation(AnimationPlayer *animation, AnimationState state, int frameCount)
 {
+    if (animation == NULL || frameCount < 1) return;
     if (animation->state != state || animation->frameCount != frameCount)
     {
         *animation = (AnimationPlayer){state, 0, FEEDBACK_ANIMATION_TICKS, frameCount};
@@ -198,13 +220,21 @@ static void update_animation(AnimationPlayer *animation, AnimationState state, i
     if (frameCount <= 1)
     {
         animation->frame = 0;
+        animation->ticksUntilNextFrame = FEEDBACK_ANIMATION_TICKS;
         return;
     }
-    animation->ticksUntilNextFrame--;
-    if (animation->ticksUntilNextFrame <= 0)
+    if (animation->frame < 0 || animation->frame >= frameCount)
+    {
+        animation->frame = 0;
+    }
+    if (animation->ticksUntilNextFrame <= 1)
     {
         animation->frame = (animation->frame + 1) % frameCount;
         animation->ticksUntilNextFrame = FEEDBACK_ANIMATION_TICKS;
+    }
+    else
+    {
+        animation->ticksUntilNextFrame--;
     }
 }
 
@@ -280,6 +310,7 @@ static void update_enemy_animation(Enemies *enemy, int frameCount)
 
 void combat_feedback_update_animations(GameState *game)
 {
+    if (game == NULL) return;
     update_player_animation(game, &game->man);
     if (game->multiPlayer)
     {
@@ -292,6 +323,7 @@ void combat_feedback_update_animations(GameState *game)
 
 void combat_feedback_begin_render(SDL_Renderer *renderer, const GameState *game)
 {
+    if (renderer == NULL || game == NULL) return;
     const SDL_Rect viewport = {game->feedback.screenShakeOffsetX,
                                game->feedback.screenShakeOffsetY, WIDTH, HEIGHT};
     SDL_RenderSetViewport(renderer, &viewport);
@@ -304,8 +336,17 @@ static void draw_flash_rect(SDL_Renderer *renderer, int x, int y, int width, int
     SDL_RenderFillRect(renderer, &rect);
 }
 
+static int feedback_render_pixel(float value)
+{
+    if (isnan(value)) return 0;
+    if (value <= (float)INT_MIN) return INT_MIN;
+    if (value >= (float)INT_MAX) return INT_MAX;
+    return (int)lroundf(value);
+}
+
 void combat_feedback_draw(SDL_Renderer *renderer, const GameState *game, float worldOffsetX)
 {
+    if (renderer == NULL || game == NULL) return;
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     const Man *players[2] = {&game->man, &game->secondPlayer};
     if (game->shadowEffect != NULL)
@@ -313,8 +354,8 @@ void combat_feedback_draw(SDL_Renderer *renderer, const GameState *game, float w
         for (int i = 0; i < 2; i++)
         {
             if (i == 1 && !game->multiPlayer) continue;
-            SDL_Rect shadow = {(int)lroundf(worldOffsetX + players[i]->x + 3.0f),
-                               (int)lroundf(players[i]->y + 47.0f), 48, 12};
+            SDL_Rect shadow = {feedback_render_pixel(worldOffsetX + players[i]->x + 3.0f),
+                               feedback_render_pixel(players[i]->y + 47.0f), 48, 12};
             SDL_RenderCopy(renderer, game->shadowEffect, NULL, &shadow);
         }
     }
@@ -325,9 +366,15 @@ void combat_feedback_draw(SDL_Renderer *renderer, const GameState *game, float w
         {
             continue;
         }
-        const int alpha = particle->totalTicks > 0
-            ? particle->ticksRemaining * 255 / particle->totalTicks : 0;
-        SDL_Rect rect = {(int)lroundf(worldOffsetX + particle->x), (int)lroundf(particle->y), 10, 10};
+        int alpha = 0;
+        if (particle->totalTicks > 0 && particle->ticksRemaining > 0)
+        {
+            const int64_t scaled = (int64_t)particle->ticksRemaining * 255;
+            const int64_t computed = scaled / particle->totalTicks;
+            alpha = computed > 255 ? 255 : (int)computed;
+        }
+        SDL_Rect rect = {feedback_render_pixel(worldOffsetX + particle->x),
+                         feedback_render_pixel(particle->y), 10, 10};
         if (game->dustParticle != NULL)
         {
             SDL_SetTextureColorMod(game->dustParticle, particle->red, particle->green, particle->blue);
@@ -343,33 +390,41 @@ void combat_feedback_draw(SDL_Renderer *renderer, const GameState *game, float w
 
     for (int i = 0; i < 2; i++)
     {
+        if (i == 1 && !game->multiPlayer) continue;
         if (game->feedback.muzzleFlashTicks[i] > 0)
         {
             const int direction = i == 0 && players[i]->facingLeft ? -1 : 1;
-            SDL_Rect muzzle = {(int)lroundf(worldOffsetX + players[i]->x + 25.0f * (float)direction),
-                                (int)lroundf(players[i]->y + 20.0f), 16, 10};
+            SDL_Rect muzzle = {feedback_render_pixel(worldOffsetX + players[i]->x +
+                                                     25.0f * (float)direction),
+                               feedback_render_pixel(players[i]->y + 20.0f), 16, 10};
             SDL_SetRenderDrawColor(renderer, 255U, 222U, 80U, 220U);
             SDL_RenderFillRect(renderer, &muzzle);
         }
         if (players[i]->hitFlashTicks > 0)
         {
-            draw_flash_rect(renderer, (int)lroundf(worldOffsetX + players[i]->x),
-                            (int)lroundf(players[i]->y), 54, 54);
+            draw_flash_rect(renderer, feedback_render_pixel(worldOffsetX + players[i]->x),
+                            feedback_render_pixel(players[i]->y), 54, 54);
         }
-        const int appearingFrame = FEEDBACK_TRANSITION_TICKS - game->feedback.appearingTicks[i];
         if (game->feedback.appearingTicks[i] > 0 && game->appearanceEffect != NULL)
         {
+            const int ticks = game->feedback.appearingTicks[i] > FEEDBACK_TRANSITION_TICKS
+                ? FEEDBACK_TRANSITION_TICKS : game->feedback.appearingTicks[i];
+            const int appearingFrame = FEEDBACK_TRANSITION_TICKS - ticks;
             SDL_Rect source = {96 * appearingFrame, 0, 96, 96};
-            SDL_Rect destination = {(int)lroundf(worldOffsetX + game->feedback.transitionX[i] - 21.0f),
-                                    (int)lroundf(game->feedback.transitionY[i] - 21.0f), 96, 96};
+            SDL_Rect destination = {
+                feedback_render_pixel(worldOffsetX + game->feedback.transitionX[i] - 21.0f),
+                feedback_render_pixel(game->feedback.transitionY[i] - 21.0f), 96, 96};
             SDL_RenderCopy(renderer, game->appearanceEffect, &source, &destination);
         }
-        const int disappearingFrame = FEEDBACK_TRANSITION_TICKS - game->feedback.disappearingTicks[i];
         if (game->feedback.disappearingTicks[i] > 0 && game->disappearanceEffect != NULL)
         {
+            const int ticks = game->feedback.disappearingTicks[i] > FEEDBACK_TRANSITION_TICKS
+                ? FEEDBACK_TRANSITION_TICKS : game->feedback.disappearingTicks[i];
+            const int disappearingFrame = FEEDBACK_TRANSITION_TICKS - ticks;
             SDL_Rect source = {96 * disappearingFrame, 0, 96, 96};
-            SDL_Rect destination = {(int)lroundf(worldOffsetX + game->feedback.transitionX[i] - 21.0f),
-                                    (int)lroundf(game->feedback.transitionY[i] - 21.0f), 96, 96};
+            SDL_Rect destination = {
+                feedback_render_pixel(worldOffsetX + game->feedback.transitionX[i] - 21.0f),
+                feedback_render_pixel(game->feedback.transitionY[i] - 21.0f), 96, 96};
             SDL_RenderCopy(renderer, game->disappearanceEffect, &source, &destination);
         }
     }
@@ -381,25 +436,26 @@ void combat_feedback_draw(SDL_Renderer *renderer, const GameState *game, float w
     for (int i = 0; i < NUM_ENEMIES; i++)
     {
         if (game->enemyValues[i].hitFlashTicks > 0)
-            draw_flash_rect(renderer, (int)lroundf(worldOffsetX + game->enemyValues[i].x),
-                            (int)lroundf(game->enemyValues[i].y), 55, 55);
+            draw_flash_rect(renderer, feedback_render_pixel(worldOffsetX + game->enemyValues[i].x),
+                            feedback_render_pixel(game->enemyValues[i].y), 55, 55);
     }
     for (int i = 0; i < NUM_SMART_ENEMIES; i++)
     {
         if (game->smartEnemies[i].hitFlashTicks > 0)
-            draw_flash_rect(renderer, (int)lroundf(worldOffsetX + game->smartEnemies[i].x),
-                            (int)lroundf(game->smartEnemies[i].y), 85, 50);
+            draw_flash_rect(renderer, feedback_render_pixel(worldOffsetX + game->smartEnemies[i].x),
+                            feedback_render_pixel(game->smartEnemies[i].y), 85, 50);
     }
     for (int i = 0; i < 2; i++)
     {
         if (game->boss[i].hitFlashTicks > 0)
-            draw_flash_rect(renderer, (int)lroundf(worldOffsetX + game->boss[i].x),
-                            (int)lroundf(game->boss[i].y), 81, 55);
+            draw_flash_rect(renderer, feedback_render_pixel(worldOffsetX + game->boss[i].x),
+                            feedback_render_pixel(game->boss[i].y), 81, 55);
     }
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 }
 
 void combat_feedback_end_render(SDL_Renderer *renderer)
 {
+    if (renderer == NULL) return;
     SDL_RenderSetViewport(renderer, NULL);
 }

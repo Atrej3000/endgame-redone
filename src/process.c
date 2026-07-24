@@ -7,6 +7,42 @@
 #include "game_events.h"
 #include "runner_segments.h"
 
+#include <stdint.h>
+
+static bool valid_simulation_dt(const GameState *game, float dt)
+{
+    return game != NULL && isfinite(dt) && dt > 0.0f &&
+           dt <= (float)MAX_FRAME_TIME;
+}
+
+static void advance_simulation_time(GameState *game)
+{
+    if (game->time < 0 || game->time == INT_MAX)
+    {
+        game->time = 0;
+    }
+    else
+    {
+        game->time++;
+    }
+}
+
+static void move_wrapping_coordinate(int *coordinate, int delta, int leftEdge)
+{
+    if (coordinate == NULL || delta < 0) return;
+    const int64_t next = (int64_t)*coordinate - (int64_t)delta;
+    *coordinate = next < (int64_t)leftEdge ? WIDTH : (int)next;
+}
+
+static int advance_wrapped_counter(int counter, int frameCount)
+{
+    if (frameCount <= 1 || counter < 0 || counter >= frameCount)
+    {
+        return 0;
+    }
+    return counter == frameCount - 1 ? 0 : counter + 1;
+}
+
 // Simulation is also used by the headless replay/sanitizer harness. Effects
 // are optional there (and during a recoverable asset-load failure), while the
 // authoritative movement/result must remain valid.
@@ -23,6 +59,10 @@ static void play_effect(Mix_Chunk *effect, int volume)
 // malloc/free -- a shot claims the first inactive slot in place.
 void addBullet(GameState *game, float x, float y, float dx)
 {
+    if (game == NULL || !isfinite(x) || !isfinite(y) || !isfinite(dx))
+    {
+        return;
+    }
 
     int found = -1;
     for (int i = 0; i < MAX_BULLETS; i++)
@@ -49,11 +89,20 @@ void addBullet(GameState *game, float x, float y, float dx)
 
 void removeBullet(GameState *game, int i)
 {
+    if (game == NULL || i < 0 || i >= MAX_BULLETS)
+    {
+        return;
+    }
     game->bullets[i].active = false;
 }
 
 void addSecondBullet(GameState *game, float x, float y, float dx)
 {
+    if (game == NULL || !game->multiPlayer ||
+        !isfinite(x) || !isfinite(y) || !isfinite(dx))
+    {
+        return;
+    }
     int found = -1;
     for (int i = 0; i < MAX_BULLETS; i++)
     {
@@ -79,16 +128,29 @@ void addSecondBullet(GameState *game, float x, float y, float dx)
 
 void removeSecondBullet(GameState *game, int i)
 {
+    if (game == NULL || i < 0 || i >= MAX_BULLETS)
+    {
+        return;
+    }
     game->secondBullets[i].active = false;
 }
 
-// Discrete Arcade shooting is kept separate from SDL event polling so the
-// deterministic replay can execute the exact same InputState-driven action
-// without needing a live window. processEvents() still invokes this once per
-// real frame in production, preserving the existing cooldown contract.
-void process_arcade_shooting(GameState *game)
+// Authoritative shooting cadence belongs to the fixed simulation tick. The
+// counters are remaining cooldown ticks rather than a render-frame latch, so
+// zero-step and multi-step render frames produce the same projectile stream.
+void arcade_shooting_step(GameState *game)
 {
-    if (game->input.shootHeldPlayer1 && game->shotCount == 0)
+    if (game == NULL || game->gameLives <= 0)
+    {
+        return;
+    }
+
+    if (game->shotCount > 0)
+    {
+        game->shotCount--;
+    }
+    if (!game->man.isDead && game->input.shootHeldPlayer1 &&
+        game->shotCount <= 0)
     {
         if (!game->man.facingLeft)
         {
@@ -98,16 +160,17 @@ void process_arcade_shooting(GameState *game)
         {
             addBullet(game, game->man.x, game->man.y + 15, -3);
         }
-        game->shotCount++;
-    }
-    if (game->time % 23 == 0)
-    {
-        game->shotCount = 0;
+        game->shotCount = ARCADE_SHOT_COOLDOWN_TICKS;
     }
 
     if (game->multiPlayer)
     {
-        if (game->input.shootHeldPlayer2 && game->shotCountMultiplayer == 0)
+        if (game->shotCountMultiplayer > 0)
+        {
+            game->shotCountMultiplayer--;
+        }
+        if (!game->secondPlayer.isDead && game->input.shootHeldPlayer2 &&
+            game->shotCountMultiplayer <= 0)
         {
             if (!game->secondPlayer.facingLeft)
             {
@@ -117,12 +180,65 @@ void process_arcade_shooting(GameState *game)
             {
                 addSecondBullet(game, game->secondPlayer.x, game->secondPlayer.y + 15, -3);
             }
-            game->shotCountMultiplayer++;
+            game->shotCountMultiplayer = ARCADE_SHOT_COOLDOWN_TICKS;
         }
-        if (game->time % 23 == 0)
-        {
-            game->shotCountMultiplayer = 0;
-        }
+    }
+}
+
+// Kept for processEvents() ABI compatibility. Real-frame event polling must
+// never advance gameplay; arcade_simulate() calls arcade_shooting_step().
+void process_arcade_shooting(GameState *game)
+{
+    (void)game;
+}
+
+void arcade_presentation_step(GameState *game)
+{
+    if (game == NULL)
+    {
+        return;
+    }
+
+    game->CurrentSheetBullet =
+        advance_wrapped_counter(game->CurrentSheetBullet, 60);
+    if (game->time % 2 == 0)
+    {
+        game->CurrentSheetBullet2 =
+            advance_wrapped_counter(game->CurrentSheetBullet2, 30);
+        move_wrapping_coordinate(&game->cloud1.x, 2, -312);
+        move_wrapping_coordinate(&game->cloud2.x, 3, -416);
+        move_wrapping_coordinate(&game->cloud3.x, 2, -280);
+        move_wrapping_coordinate(&game->cloud4.x, 3, -292);
+        move_wrapping_coordinate(&game->cloud5.x, 2, -216);
+        move_wrapping_coordinate(&game->cloud6.x, 3, -162);
+        move_wrapping_coordinate(&game->cloud7.x, 2, -264);
+        move_wrapping_coordinate(&game->cloud8.x, 3, -352);
+    }
+
+    // The legacy render-frame path advanced the train twice (+4 and +2).
+    // Keep one authoritative fixed-tick movement at the primary +4 speed.
+    if (game->train.x > WIDTH - 4)
+    {
+        game->train.x = -480;
+    }
+    else
+    {
+        game->train.x += 4;
+    }
+
+    if (game->time % 4 == 0)
+    {
+        game->CurrentSpriteBack =
+            advance_wrapped_counter(game->CurrentSpriteBack, 2);
+        game->enemy.currentSpriteRun =
+            advance_wrapped_counter(game->enemy.currentSpriteRun, 4);
+        game->enemy.currentSpriteRun2 =
+            advance_wrapped_counter(game->enemy.currentSpriteRun2, 6);
+    }
+    if (game->time % 5 == 0)
+    {
+        game->CurrentSheetBoss =
+            advance_wrapped_counter(game->CurrentSheetBoss, 4);
     }
 }
 
@@ -145,16 +261,30 @@ void process_arcade_shooting(GameState *game)
 // bigger.
 void move_arcade_bullets(GameState *game, float dt)
 {
+    if (!valid_simulation_dt(game, dt)) return;
     for (int i = 0; i < MAX_BULLETS; i++)
     {
         if (game->bullets[i].active)
         {
             game->bullets[i].prevX = game->bullets[i].x;
-            game->bullets[i].dx = (game->bullets[i].dx >= 0) ? BULLET_SPEED_PER_SEC : -BULLET_SPEED_PER_SEC;
-            game->bullets[i].x += game->bullets[i].dx * dt;
-            if ((game->bullets[i].x < 0) || (game->bullets[i].x > 1280))
+            game->bullets[i].prevY = game->bullets[i].y;
+            if (game->bullets[i].dx > 0.0f)
+            {
+                game->bullets[i].dx = BULLET_SPEED_PER_SEC;
+            }
+            else if (game->bullets[i].dx < 0.0f)
+            {
+                game->bullets[i].dx = -BULLET_SPEED_PER_SEC;
+            }
+            const float nextX = game->bullets[i].x + game->bullets[i].dx * dt;
+            if (!isfinite(game->bullets[i].x) || !isfinite(game->bullets[i].y) ||
+                !isfinite(game->bullets[i].dx) || !isfinite(nextX))
             {
                 removeBullet(game, i);
+            }
+            else
+            {
+                game->bullets[i].x = nextX;
             }
         }
     }
@@ -166,11 +296,26 @@ void move_arcade_bullets(GameState *game, float dt)
             if (game->secondBullets[i].active)
             {
                 game->secondBullets[i].prevX = game->secondBullets[i].x;
-                game->secondBullets[i].dx = (game->secondBullets[i].dx >= 0) ? BULLET_SPEED_PER_SEC : -BULLET_SPEED_PER_SEC;
-                game->secondBullets[i].x += game->secondBullets[i].dx * dt;
-                if ((game->secondBullets[i].x < 0) || (game->secondBullets[i].x > 1280))
+                game->secondBullets[i].prevY = game->secondBullets[i].y;
+                if (game->secondBullets[i].dx > 0.0f)
+                {
+                    game->secondBullets[i].dx = BULLET_SPEED_PER_SEC;
+                }
+                else if (game->secondBullets[i].dx < 0.0f)
+                {
+                    game->secondBullets[i].dx = -BULLET_SPEED_PER_SEC;
+                }
+                const float nextX =
+                    game->secondBullets[i].x + game->secondBullets[i].dx * dt;
+                if (!isfinite(game->secondBullets[i].x) ||
+                    !isfinite(game->secondBullets[i].y) ||
+                    !isfinite(game->secondBullets[i].dx) || !isfinite(nextX))
                 {
                     removeSecondBullet(game, i);
+                }
+                else
+                {
+                    game->secondBullets[i].x = nextX;
                 }
             }
         }
@@ -196,8 +341,10 @@ void move_arcade_bullets(GameState *game, float dt)
 // fixed here, not shipped).
 void consume_arcade_jump_requests(GameState *game)
 {
+    if (game == NULL) return;
     Man *players[2] = {&game->man, &game->secondPlayer};
-    for (int i = 0; i < 2; i++)
+    const int playerCount = game->multiPlayer ? 2 : 1;
+    for (int i = 0; i < playerCount; i++)
     {
         if (players[i]->onLedge) players[i]->airJumpsRemaining = 1;
         if (players[i]->doubleJumpAnimationTicks > 0) players[i]->doubleJumpAnimationTicks--;
@@ -229,7 +376,7 @@ void consume_arcade_jump_requests(GameState *game)
         }
     }
 
-    if (game->input.jumpBufferTicksPlayer2 > 0)
+    if (game->multiPlayer && game->input.jumpBufferTicksPlayer2 > 0)
     {
         if (game->secondPlayer.onLedge || game->secondPlayer.coyoteTicksRemaining > 0)
         {
@@ -262,13 +409,16 @@ void consume_arcade_jump_requests(GameState *game)
     {
         game->man.coyoteTicksRemaining--;
     }
-    if (game->secondPlayer.onLedge)
+    if (game->multiPlayer)
     {
-        game->secondPlayer.coyoteTicksRemaining = COYOTE_TICKS;
-    }
-    else if (game->secondPlayer.coyoteTicksRemaining > 0)
-    {
-        game->secondPlayer.coyoteTicksRemaining--;
+        if (game->secondPlayer.onLedge)
+        {
+            game->secondPlayer.coyoteTicksRemaining = COYOTE_TICKS;
+        }
+        else if (game->secondPlayer.coyoteTicksRemaining > 0)
+        {
+            game->secondPlayer.coyoteTicksRemaining--;
+        }
     }
 }
 
@@ -289,6 +439,7 @@ void consume_arcade_jump_requests(GameState *game)
 // produces sees identical held-key state.
 void apply_arcade_player_forces(GameState *game, float dt)
 {
+    if (!valid_simulation_dt(game, dt)) return;
     bool manJumpHeld = game->input.jumpHeldPlayer1;
     if (manJumpHeld)
     {
@@ -310,7 +461,7 @@ void apply_arcade_player_forces(GameState *game, float dt)
     }
     game->man.jumpKeyHeldLastTick = manJumpHeld;
 
-    if (game->input.moveLeftPlayer1)
+    if (game->input.moveLeftPlayer1 && !game->input.moveRightPlayer1)
     {
         game->man.dx -= RUN_ACCEL_PER_SEC2 * dt;
         if (game->man.dx < -RUN_MAX_SPEED_PER_SEC)
@@ -326,7 +477,7 @@ void apply_arcade_player_forces(GameState *game, float dt)
             game->man.currentSpriteRun %= 4;
         }
     }
-    else if (game->input.moveRightPlayer1)
+    else if (game->input.moveRightPlayer1 && !game->input.moveLeftPlayer1)
     {
         game->man.dx += RUN_ACCEL_PER_SEC2 * dt;
         if (game->man.dx > RUN_MAX_SPEED_PER_SEC)
@@ -373,7 +524,7 @@ void apply_arcade_player_forces(GameState *game, float dt)
         }
         game->secondPlayer.jumpKeyHeldLastTick = secondPlayerJumpHeld;
 
-        if (game->input.moveLeftPlayer2)
+        if (game->input.moveLeftPlayer2 && !game->input.moveRightPlayer2)
         {
             game->secondPlayer.dx -= RUN_ACCEL_PER_SEC2 * dt;
             if (game->secondPlayer.dx < -RUN_MAX_SPEED_PER_SEC)
@@ -389,7 +540,7 @@ void apply_arcade_player_forces(GameState *game, float dt)
                 game->secondPlayer.currentSpriteRun2 %= 4;
             }
         }
-        else if (game->input.moveRightPlayer2)
+        else if (game->input.moveRightPlayer2 && !game->input.moveLeftPlayer2)
         {
             game->secondPlayer.dx += RUN_ACCEL_PER_SEC2 * dt;
             if (game->secondPlayer.dx > RUN_MAX_SPEED_PER_SEC)
@@ -420,8 +571,9 @@ void apply_arcade_player_forces(GameState *game, float dt)
 
 void process(GameState *game, float dt)
 {
+    if (!valid_simulation_dt(game, dt)) return;
     // BULLET
-    game->time++;
+    advance_simulation_time(game);
 
     // Schedule the next wave entity before this tick's projectile/contact
     // consequences. A target destroyed this tick therefore remains gone for
@@ -433,8 +585,23 @@ void process(GameState *game, float dt)
     game_events_begin(game);
     detect_projectile_hits(game);
     game_events_apply(game);
+    // Cull only after swept contact consequences have consumed the final
+    // in-bounds-to-out-of-bounds segment.
+    for (int i = 0; i < MAX_BULLETS; i++)
+    {
+        if (game->bullets[i].active &&
+            (game->bullets[i].x < 0.0f || game->bullets[i].x > (float)WIDTH))
+        {
+            removeBullet(game, i);
+        }
+        if (game->multiPlayer && game->secondBullets[i].active &&
+            (game->secondBullets[i].x < 0.0f || game->secondBullets[i].x > (float)WIDTH))
+        {
+            removeSecondBullet(game, i);
+        }
+    }
 
-    if (game->time > 0)
+    if (game->statusState == STATUS_STATE_LIVES)
     {
         shutdown_status_lives(game);
         game->statusState = STATUS_STATE_GAME;
@@ -551,8 +718,10 @@ void process(GameState *game, float dt)
 // check runs before this tick's coyote refresh/decay, not after.
 void consume_runner_jump_requests(GameState *game)
 {
+    if (game == NULL) return;
     Man *players[2] = {&game->man, &game->secondPlayer};
-    for (int i = 0; i < 2; i++)
+    const int playerCount = game->multiPlayer ? 2 : 1;
+    for (int i = 0; i < playerCount; i++)
     {
         if (players[i]->onLedge) players[i]->airJumpsRemaining = 1;
         if (players[i]->doubleJumpAnimationTicks > 0) players[i]->doubleJumpAnimationTicks--;
@@ -584,7 +753,7 @@ void consume_runner_jump_requests(GameState *game)
         }
     }
 
-    if (game->input.jumpBufferTicksPlayer2 > 0)
+    if (game->multiPlayer && game->input.jumpBufferTicksPlayer2 > 0)
     {
         if (game->secondPlayer.onLedge || game->secondPlayer.coyoteTicksRemaining > 0)
         {
@@ -617,13 +786,16 @@ void consume_runner_jump_requests(GameState *game)
     {
         game->man.coyoteTicksRemaining--;
     }
-    if (game->secondPlayer.onLedge)
+    if (game->multiPlayer)
     {
-        game->secondPlayer.coyoteTicksRemaining = COYOTE_TICKS;
-    }
-    else if (game->secondPlayer.coyoteTicksRemaining > 0)
-    {
-        game->secondPlayer.coyoteTicksRemaining--;
+        if (game->secondPlayer.onLedge)
+        {
+            game->secondPlayer.coyoteTicksRemaining = COYOTE_TICKS;
+        }
+        else if (game->secondPlayer.coyoteTicksRemaining > 0)
+        {
+            game->secondPlayer.coyoteTicksRemaining--;
+        }
     }
 }
 
@@ -641,6 +813,7 @@ void consume_runner_jump_requests(GameState *game)
 // SDL_GetKeyboardState() itself -- see apply_arcade_player_forces() above.
 void apply_runner_player_forces(GameState *game, float dt)
 {
+    if (!valid_simulation_dt(game, dt)) return;
     bool manJumpHeld = game->input.jumpHeldPlayer1;
     if (!manJumpHeld && game->man.jumpKeyHeldLastTick && game->man.dy < -JUMP_CUT_SPEED_PER_SEC)
     {
@@ -650,7 +823,7 @@ void apply_runner_player_forces(GameState *game, float dt)
     }
     game->man.jumpKeyHeldLastTick = manJumpHeld;
 
-    if (game->input.moveLeftPlayer1)
+    if (game->input.moveLeftPlayer1 && !game->input.moveRightPlayer1)
     {
         game->man.dx -= RUN_ACCEL_PER_SEC2 * dt;
         if (game->man.dx < -RUN_MAX_SPEED_PER_SEC)
@@ -660,7 +833,7 @@ void apply_runner_player_forces(GameState *game, float dt)
         game->man.facingLeft = 1;
         game->man.slowingDown = 0;
     }
-    else if (game->input.moveRightPlayer1)
+    else if (game->input.moveRightPlayer1 && !game->input.moveLeftPlayer1)
     {
         game->man.dx += RUN_ACCEL_PER_SEC2 * dt;
         if (game->man.dx > RUN_MAX_SPEED_PER_SEC)
@@ -690,7 +863,7 @@ void apply_runner_player_forces(GameState *game, float dt)
         }
         game->secondPlayer.jumpKeyHeldLastTick = secondPlayerJumpHeld;
 
-        if (game->input.moveLeftPlayer2)
+        if (game->input.moveLeftPlayer2 && !game->input.moveRightPlayer2)
         {
             game->secondPlayer.dx -= RUN_ACCEL_PER_SEC2 * dt;
             if (game->secondPlayer.dx < -RUN_MAX_SPEED_PER_SEC)
@@ -700,7 +873,7 @@ void apply_runner_player_forces(GameState *game, float dt)
             game->secondPlayer.facingLeft = 1;
             game->secondPlayer.slowingDown = 0;
         }
-        else if (game->input.moveRightPlayer2)
+        else if (game->input.moveRightPlayer2 && !game->input.moveLeftPlayer2)
         {
             game->secondPlayer.dx += RUN_ACCEL_PER_SEC2 * dt;
             if (game->secondPlayer.dx > RUN_MAX_SPEED_PER_SEC)
@@ -725,7 +898,8 @@ void apply_runner_player_forces(GameState *game, float dt)
 
 void process2(GameState *game, float dt)
 {
-    game->time++;
+    if (!valid_simulation_dt(game, dt)) return;
+    advance_simulation_time(game);
 
     if (game->time > 00)
     {
@@ -804,8 +978,8 @@ void process2(GameState *game, float dt)
               (float)game->time * PHYSICS_DT * TRAP_ANGULAR_SPEED_PER_SEC) * 75.0f);
         }
       }
-        // Death-countdown progression itself is owned by runner_update_death()
-        // (src/runner_death.c), called once per frame from runner_frame() --
+        // Death-countdown progression itself is owned by runner_death_step()
+        // (src/runner_death.c), called once per fixed simulation tick --
         // see docs/runner-death-lifecycle.md. This used to also decrement
         // gameLives here, unboundedly (deathCountdown was never decremented),
         // independent of runner_resolve_death()'s own decrement; removed.

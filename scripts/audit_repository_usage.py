@@ -22,7 +22,8 @@ repository root. Three checks:
    - reports (informationally, never as an error) when two or more distinct
      string literals resolve to the same canonical file.
 2. Dangling-prototype check: confirms every non-static function prototype
-   declared in inc/header.h has a matching definition somewhere in src/*.c.
+   declared in inc/*.h has a matching non-static definition somewhere in
+   src/*.c. Both declarations and definitions may span multiple lines.
 3. Duplicate-declaration check (added Phase 10): confirms no function name is
    declared as a prototype in more than one inc/*.h file. header.h and the
    focused headers (scene.h, frame.h, entity_spawn.h, input_command.h, app.h)
@@ -61,7 +62,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = REPO_ROOT / "src"
 INC_DIR = REPO_ROOT / "inc"
-HEADER_FILE = REPO_ROOT / "inc" / "header.h"
 
 # Paths (relative to repo root, forward slashes) that are known-fine despite
 # not matching this script's normal checks. Empty as of Phase 8 -- the three
@@ -72,7 +72,7 @@ HEADER_FILE = REPO_ROOT / "inc" / "header.h"
 # cannot see) -- never to silence an undiagnosed mismatch.
 ALLOWLIST_ASSET_PATHS = set()
 
-# Function names declared in header.h that are known-fine despite this
+# Function names declared in inc/*.h that are known-fine despite this
 # script not finding a matching definition (e.g. a platform-specific
 # definition guarded by an #ifdef this script doesn't evaluate). Empty as of
 # Phase 7 -- every declared prototype has exactly one unconditional
@@ -88,11 +88,6 @@ ALLOWLIST_PROTOTYPES = set()
 ALLOWLIST_DUPLICATE_DECLARATIONS = set()
 
 ASSET_LITERAL_RE = re.compile(r'"([^"]*resource/[^"]*)"')
-PROTOTYPE_RE = re.compile(
-    r'^\s*(?:[A-Za-z_][\w\s\*]*?)\s+([A-Za-z_]\w*)\s*\([^;{}]*\)\s*;\s*$'
-)
-
-
 class Findings:
     """Accumulates errors / known exceptions / informational notices for one
     check, each a list of human-readable strings."""
@@ -213,40 +208,191 @@ def check_asset_paths():
     return findings
 
 
+def _mask_comments_and_literals(text):
+    """Replace comments and quoted literals with spaces, preserving newlines.
+
+    This keeps top-level brace/semicolon scanning deterministic without being
+    confused by examples in comments or punctuation inside string literals.
+    It is intentionally a small C lexer rather than a preprocessor.
+    """
+    output = []
+    index = 0
+    state = "code"
+    while index < len(text):
+        char = text[index]
+        following = text[index + 1] if index + 1 < len(text) else ""
+        if state == "code":
+            if char == "/" and following == "*":
+                output.extend((" ", " "))
+                index += 2
+                state = "block_comment"
+                continue
+            if char == "/" and following == "/":
+                output.extend((" ", " "))
+                index += 2
+                state = "line_comment"
+                continue
+            if char == '"':
+                output.append(" ")
+                index += 1
+                state = "string"
+                continue
+            if char == "'":
+                output.append(" ")
+                index += 1
+                state = "character"
+                continue
+            output.append(char)
+            index += 1
+            continue
+
+        if state == "block_comment":
+            if char == "*" and following == "/":
+                output.extend((" ", " "))
+                index += 2
+                state = "code"
+            else:
+                output.append("\n" if char == "\n" else " ")
+                index += 1
+            continue
+
+        if state == "line_comment":
+            if char == "\n":
+                output.append("\n")
+                state = "code"
+            else:
+                output.append(" ")
+            index += 1
+            continue
+
+        if char == "\\" and following:
+            output.append(" ")
+            output.append("\n" if following == "\n" else " ")
+            index += 2
+            continue
+        if (state == "string" and char == '"') or (
+            state == "character" and char == "'"
+        ):
+            output.append(" ")
+            index += 1
+            state = "code"
+            continue
+        output.append("\n" if char == "\n" else " ")
+        index += 1
+
+    return "".join(output)
+
+
+def _without_preprocessor_lines(text):
+    """Blank preprocessor directives, including continued macro lines."""
+    output = []
+    continuing = False
+    for line in text.splitlines(keepends=True):
+        directive = continuing or line.lstrip().startswith("#")
+        continuing = directive and line.rstrip("\r\n").rstrip().endswith("\\")
+        if directive:
+            output.append("".join("\n" if char == "\n" else " " for char in line))
+        else:
+            output.append(line)
+    return "".join(output)
+
+
+def _top_level_constructs(text):
+    """Yield (kind, text, line) for top-level ';' and '{' constructs."""
+    cleaned = _without_preprocessor_lines(_mask_comments_and_literals(text))
+    brace_depth = 0
+    buffer = []
+    start_line = None
+    line_number = 1
+
+    for char in cleaned:
+        if brace_depth == 0:
+            if char == ";":
+                buffer.append(char)
+                yield "declaration", "".join(buffer), start_line or line_number
+                buffer = []
+                start_line = None
+            elif char == "{":
+                yield "definition", "".join(buffer), start_line or line_number
+                buffer = []
+                start_line = None
+                brace_depth = 1
+            elif char == "}":
+                buffer = []
+                start_line = None
+            else:
+                if start_line is None and not char.isspace():
+                    start_line = line_number
+                buffer.append(char)
+        else:
+            if char == "{":
+                brace_depth += 1
+            elif char == "}":
+                brace_depth -= 1
+                if brace_depth == 0:
+                    buffer = []
+                    start_line = None
+        if char == "\n":
+            line_number += 1
+
+
+def _function_name(candidate):
+    """Return a non-static function name from a top-level C construct."""
+    opening = candidate.find("(")
+    if opening < 0:
+        return None
+    prefix = candidate[:opening].rstrip()
+    suffix = candidate[opening + 1 :].lstrip()
+    if (
+        not prefix
+        or "=" in prefix
+        or re.match(r"^(?:static|typedef)\b", prefix)
+        or prefix.startswith("_Static_assert")
+        or suffix.startswith("*")
+    ):
+        return None
+    match = re.search(r"([A-Za-z_]\w*)\s*$", prefix)
+    if match is None or not prefix[: match.start()].strip():
+        return None
+    return match.group(1)
+
+
 def find_prototypes():
-    """Yield function names declared as prototypes in header.h."""
-    text = HEADER_FILE.read_text(encoding="utf-8", errors="replace")
-    for line in text.splitlines():
-        match = PROTOTYPE_RE.match(line)
-        if match:
-            yield match.group(1)
+    """Yield (header_file, line, name) for every public inc/*.h prototype."""
+    for h_file in sorted(INC_DIR.glob("*.h")):
+        text = h_file.read_text(encoding="utf-8", errors="replace")
+        for kind, candidate, line_number in _top_level_constructs(text):
+            if kind != "declaration":
+                continue
+            name = _function_name(candidate)
+            if name is not None:
+                yield h_file.relative_to(REPO_ROOT), line_number, name
 
 
 def find_definitions():
-    """Return the set of function names that have what looks like a
-    definition (a line ending in the argument list with no trailing
-    semicolon, i.e. not a prototype or a call statement) somewhere in
-    src/*.c."""
+    """Return non-static function definitions found in src/*.c.
+
+    Top-level scanning handles brace-on-same-line, brace-on-next-line, and
+    multiline signatures while excluding static functions, declarations,
+    comments, literals, and aggregate initializers.
+    """
     definitions = set()
-    # Accepts both brace-on-next-line and brace-on-same-line (K&R) styles --
-    # a definition's argument-list line never ends in ';' (that's what
-    # distinguishes it from a prototype or a call statement), but the line
-    # may or may not be followed immediately by '{'.
-    def_re = re.compile(r'^\s*(?:static\s+)?(?:[A-Za-z_][\w\s\*]*?)\s+([A-Za-z_]\w*)\s*\([^;{}]*\)\s*\{?\s*$')
     for c_file in sorted(SRC_DIR.glob("*.c")):
         text = c_file.read_text(encoding="utf-8", errors="replace")
-        for line in text.splitlines():
-            match = def_re.match(line)
-            if match:
-                definitions.add(match.group(1))
+        for kind, candidate, _ in _top_level_constructs(text):
+            if kind != "definition":
+                continue
+            name = _function_name(candidate)
+            if name is not None:
+                definitions.add(name)
     return definitions
 
 
 def check_dangling_prototypes():
     findings = Findings()
     definitions = find_definitions()
-    for name in find_prototypes():
-        site = "inc/header.h"
+    for h_file, line_number, name in find_prototypes():
+        site = f"{h_file}:{line_number}"
         if name in ALLOWLIST_PROTOTYPES:
             findings.known_exceptions.append(
                 f"{site}: allowlisted exception for prototype '{name}' (see ALLOWLIST_PROTOTYPES comment)"
@@ -260,15 +406,9 @@ def check_dangling_prototypes():
 
 
 def find_header_prototypes():
-    """Yield (header_file, function_name) for every prototype-shaped line in
-    every inc/*.h file (not just header.h) -- deterministic, regex-based,
-    reusing PROTOTYPE_RE; no C parser."""
-    for h_file in sorted(INC_DIR.glob("*.h")):
-        text = h_file.read_text(encoding="utf-8", errors="replace")
-        for line in text.splitlines():
-            match = PROTOTYPE_RE.match(line)
-            if match:
-                yield h_file.relative_to(REPO_ROOT), match.group(1)
+    """Yield (header_file, function_name) for every public prototype."""
+    for h_file, _, name in find_prototypes():
+        yield h_file, name
 
 
 def check_duplicate_declarations():

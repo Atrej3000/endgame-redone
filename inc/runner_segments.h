@@ -25,4 +25,6 @@ typedef struct RunnerSegmentDefinition
 
 const RunnerSegmentDefinition *runner_segments_get_definition(RunnerSegmentType type);
 void runner_segments_reset(GameState *game);
+// Bounds work per tick and disables streaming before int-backed coordinates
+// or score thresholds could overflow.
 void runner_segments_update(GameState *game);

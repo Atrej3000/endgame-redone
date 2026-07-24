@@ -20,6 +20,7 @@ const WaveDefinition *arcade_waves_get_definition(int waveNumber)
 
 void arcade_waves_reset(GameState *game)
 {
+    if (game == NULL) return;
     game->arcadeWaves = (ArcadeWaveState){1, 0, 0, 0, 0, 0, false};
 }
 
@@ -111,9 +112,18 @@ static bool spawn_next(GameState *game, const WaveDefinition *definition)
 
 void arcade_waves_update(GameState *game)
 {
+    if (game == NULL) return;
     ArcadeWaveState *state = &game->arcadeWaves;
     const WaveDefinition *definition = arcade_waves_get_definition(state->waveNumber);
-    if (definition == NULL) return;
+    if (definition == NULL ||
+        state->regularSpawned < 0 || state->regularSpawned > definition->regularEnemies ||
+        state->smartSpawned < 0 || state->smartSpawned > definition->smartEnemies ||
+        state->bossesSpawned < 0 || state->bossesSpawned > definition->bosses ||
+        state->spawnCooldownTicks < 0 || state->restTicksRemaining < 0)
+    {
+        arcade_waves_reset(game);
+        return;
+    }
     if (state->restTicksRemaining > 0)
     {
         state->restTicksRemaining--;
@@ -136,7 +146,10 @@ void arcade_waves_update(GameState *game)
     }
     if (active_entities(game)) return;
 
-    state->waveNumber++;
+    if (state->waveNumber < INT_MAX)
+    {
+        state->waveNumber++;
+    }
     state->regularSpawned = 0;
     state->smartSpawned = 0;
     state->bossesSpawned = 0;
@@ -147,7 +160,7 @@ void arcade_waves_update(GameState *game)
 
 void arcade_waves_draw_hud(SDL_Renderer *renderer, const GameState *game)
 {
-    if (renderer == NULL || game->font == NULL) return;
+    if (renderer == NULL || game == NULL || game->font == NULL) return;
     const ArcadeWaveState *state = &game->arcadeWaves;
     char text[64];
     if (state->bossTelegraphActive)

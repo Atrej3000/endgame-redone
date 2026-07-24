@@ -76,7 +76,7 @@ int main(void)
     // 2. Render purity -- doRender2() (Runner), confirms the Phase 5 fix:
     // even with man.isDead forced true, doRender2() alone must no longer
     // mutate gameLives/isDead/man.y (that mutation moved to
-    // runner_resolve_death(), called separately by runner_frame()).
+    // runner_death_step(), called by the fixed simulation path).
     // -------------------------------------------------------------------
     runner_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->statusState = STATUS_STATE_GAME; // test-only precondition
@@ -98,9 +98,9 @@ int main(void)
     CHECK("doRender2(): scene unchanged", game->app.scene == scene2);
 
     // -------------------------------------------------------------------
-    // 3. Death-mutation relocation -- runner_frame() end to end still
-    // applies the relocated mutation, just after doRender2() instead of
-    // inside it.
+    // 3. Death progression is fixed-tick owned. Event polling and rendering
+    // do not advance the countdown; each runner_frame() advances exactly one
+    // simulation tick.
     // -------------------------------------------------------------------
     runner_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->app.scene = APP_SCENE_RUNNER_GAME; // test-only precondition
@@ -108,70 +108,104 @@ int main(void)
     game->man.isDead = 1;
     game->man.x = 100; // keep away from the x<0/y>=719 fall-death checks
     game->man.y = 200;
-    // runner_session_reset() sets deathCountdown=-1, which combined with
-    // isDead=1 would also trigger process2()'s own, separate, already-broken
-    // deathCountdown mechanism (documented in frame-pipeline-map.md, not
-    // fixed this phase). Neutralize it here so this test isolates just the
-    // relocated runner_resolve_death() mutation being verified.
-    game->deathCountdown = 0;
+    game->deathCountdown = 2;
     int gameLivesBefore3 = game->gameLives;
+
+    processEvents2(window, game);
+    doRender2(renderer, game);
+
+    CHECK("processEvents2()/doRender2(): death countdown is unchanged",
+          game->deathCountdown == 2);
+    CHECK("processEvents2()/doRender2(): gameLives is unchanged",
+          game->gameLives == gameLivesBefore3);
 
     runner_frame(game, window, renderer, PHYSICS_DT);
 
-    CHECK("runner_frame(): gameLives decremented once by the relocated mutation",
+    CHECK("runner_frame(): one fixed tick advances the death countdown once",
+          game->deathCountdown == 1);
+    CHECK("runner_frame(): countdown has not charged a life early",
+          game->gameLives == gameLivesBefore3);
+    CHECK("runner_frame(): player remains dead until the countdown resolves",
+          game->man.isDead == 1);
+
+    runner_frame(game, window, renderer, PHYSICS_DT);
+
+    CHECK("runner_frame(): resolving countdown decrements gameLives exactly once",
           game->gameLives == gameLivesBefore3 - 1);
-    CHECK("runner_frame(): man.isDead cleared by the relocated mutation", game->man.isDead == 0);
-    CHECK("runner_frame(): man.y reset to 0 by the relocated mutation", game->man.y == 0);
+    CHECK("runner_frame(): resolved death returns to the idle sentinel",
+          game->deathCountdown == -1);
+    CHECK("runner_frame(): man.isDead clears when a life remains", game->man.isDead == 0);
+    CHECK("runner_frame(): respawn occurs inside the fixed tick",
+          game->man.y >= 0.0f && game->man.y < 5.0f);
 
     // -------------------------------------------------------------------
-    // 4. Double scene-transition guard -- Runner
+    // 4. Runner game-over is a simulation consequence. processEvents2()
+    // only polls events and never persists scores. The one-shot frame must
+    // also skip rendering if simulation changes the scene.
     // -------------------------------------------------------------------
     runner_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->app.scene = APP_SCENE_RUNNER_GAME; // test-only precondition
+    game->statusState = STATUS_STATE_GAME;
     game->gameLives = 0;
     game->x_score = 42;
     game->x_i = 0;
+    game->x_list[0] = -1;
 
     processEvents2(window, game);
 
-    CHECK("processEvents2(): game-over transition fires when scene is still RUNNER_GAME",
-          game->app.scene == APP_SCENE_RUNNER_MENU);
-    CHECK("processEvents2(): score persisted to x_list", game->x_list[0] == 42);
-    CHECK("processEvents2(): x_i incremented", game->x_i == 1);
+    CHECK("processEvents2(): game-over does not transition outside simulation",
+          game->app.scene == APP_SCENE_RUNNER_GAME);
+    CHECK("processEvents2(): score is not persisted", game->x_list[0] == -1);
+    CHECK("processEvents2(): score index is not incremented", game->x_i == 0);
 
-    // Simulate a transition having already happened earlier in the same
-    // call (e.g. SDLK_q) -- the guard must not overwrite it, but the score
-    // must still be saved.
+    game->renderAlpha = 0.25f;
+    runner_frame(game, window, renderer, PHYSICS_DT);
+
+    CHECK("runner_frame(): fixed-tick game-over transitions to RUNNER_MENU",
+          game->app.scene == APP_SCENE_RUNNER_MENU);
+    CHECK("runner_frame(): fixed-tick game-over persists score once",
+          game->x_i == 1 && game->x_list[0] == game->x_score);
+    CHECK("runner_frame(): render is skipped after simulation changes scene",
+          game->renderAlpha == 0.25f);
+
+    // A transition check outside Runner gameplay must neither change the
+    // scene nor persist a score.
     game->app.scene = APP_SCENE_MAIN_MENU; // test-only precondition
     game->gameLives = 0;
     game->x_score = 77;
     game->x_i = 5;
+    game->x_list[5] = -1;
 
     processEvents2(window, game);
+    game_events_begin(game);
+    game_events_push_transition_check(game, GAME_EVENT_RUNNER_GAME_OVER_CHECK);
+    game_events_apply(game);
 
-    CHECK("processEvents2(): guard does not overwrite an already-changed scene",
+    CHECK("runner game-over guard does not overwrite an already-changed scene",
           game->app.scene == APP_SCENE_MAIN_MENU);
-    CHECK("processEvents2(): score still persisted even when the guard skips the transition",
-          game->x_list[5] == 77);
-    CHECK("processEvents2(): x_i still incremented even when the guard skips the transition",
-          game->x_i == 6);
+    CHECK("runner game-over guard does not persist outside gameplay",
+          game->x_list[5] == -1);
+    CHECK("runner game-over guard leaves the score index unchanged outside gameplay",
+          game->x_i == 5);
 
     // -------------------------------------------------------------------
-    // 5. Double scene-transition guard -- Arcade
+    // 5. Arcade transition and post-simulation render guard
     // -------------------------------------------------------------------
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->app.scene = APP_SCENE_ARCADE_GAME; // test-only precondition
-    game->man.lives = 0;
+    game->statusState = STATUS_STATE_GAME;
+    game->gameLives = 0;
+    game->renderAlpha = 0.5f;
 
-    game_events_begin(game);
-    game_events_push_transition_check(game, GAME_EVENT_ARCADE_GAME_OVER_CHECK);
-    game_events_apply(game);
+    arcade_frame(game, window, renderer, PHYSICS_DT);
 
-    CHECK("arcade simulation consequence: game-over transition fires when scene is still ARCADE_GAME",
+    CHECK("arcade_frame(): fixed-tick game-over transitions to ARCADE_MENU",
           game->app.scene == APP_SCENE_ARCADE_MENU);
+    CHECK("arcade_frame(): render is skipped after simulation changes scene",
+          game->renderAlpha == 0.5f);
 
     game->app.scene = APP_SCENE_MAIN_MENU; // test-only precondition, simulating an earlier q press
-    game->man.lives = 0;
+    game->gameLives = 0;
 
     game_events_begin(game);
     game_events_push_transition_check(game, GAME_EVENT_ARCADE_GAME_OVER_CHECK);

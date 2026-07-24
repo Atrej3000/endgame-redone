@@ -1,52 +1,73 @@
 #include "header.h"
+#include "audio_assets.h"
+#include "leaderboard.h"
+#include "scene.h"
 
-void load_menu0(GameState *game) {
+static void request_safe_quit(GameState *game, const char *menuName)
+{
+    fprintf(stderr, "%s: required menu texture could not be loaded; requesting clean shutdown\n",
+            menuName);
+    if (game != NULL)
+    {
+        app_change_scene(game, APP_SCENE_QUIT);
+    }
+
+}
+
+void load_menu0(GameState *game)
+{
+    if (game == NULL)
+    {
+        return;
+    }
     game->menu0_status = 0;
-    //меню0_________________________________________________________________________
-    if (game->menu0 == NULL) {
-        if (!load_texture(game->app.renderer, "./resource/images/backgrounds/menu0.png", &game->menu0)) {
-            printf("Cannot find menu0.png\n");
-            SDL_Quit();
-            exit(1);
+    if (game->menu0 == NULL)
+    {
+        if (!load_texture(game->app.renderer, "./resource/images/backgrounds/menu0.png",
+                          &game->menu0))
+        {
+            request_safe_quit(game, "load_menu0");
+            return;
         }
     }
-    Mix_PlayMusic(game->audio.menuMusic, -1);
+    leaderboard_load(game);
+    (void)audio_assets_play_menu(game);
 }
 
-void load_menu1(GameState *game) {
+void load_menu1(GameState *game)
+{
+    if (game == NULL)
+    {
+        return;
+    }
     game->menu_status = 0;
-    //меню_________________________________________________________________________
-    if (game->menu1 == NULL) {
-        if (!load_texture(game->app.renderer, "./resource/images/backgrounds/menu1.png", &game->menu1)) {
-            printf("Cannot find menu1.png");
-            SDL_Quit();
-            exit(1);
+    if (game->menu1 == NULL)
+    {
+        if (!load_texture(game->app.renderer, "./resource/images/backgrounds/menu1.png",
+                          &game->menu1))
+        {
+            request_safe_quit(game, "load_menu1");
+            return;
         }
     }
-    Mix_PlayMusic(game->audio.menuMusic, -1);
 
-    game->x_score = 0;
-    for(game->x_i = 0; game->x_i < 25; game->x_i++) {
-        game->x_list[game->x_i] = 0;
-    }
-    game->x_i = 0;
 }
 
-void load_menu2(GameState *game) {
+void load_menu2(GameState *game)
+{
+    if (game == NULL)
+    {
+        return;
+    }
     game->menu_status = 0;
-    //меню_________________________________________________________________________
-    if (game->menu2 == NULL) {
-        if (!load_texture(game->app.renderer, "./resource/images/backgrounds/menu2.png", &game->menu2)) {
-            printf("Cannot find menu2.png");
-            SDL_Quit();
-            exit(1);
+    if (game->menu2 == NULL)
+    {
+        if (!load_texture(game->app.renderer, "./resource/images/backgrounds/menu2.png",
+                          &game->menu2))
+        {
+            request_safe_quit(game, "load_menu2");
+            return;
         }
     }
-    Mix_PlayMusic(game->audio.menuMusic, -1);
 
-    game->x_score = 0;
-    for(game->x_i = 0; game->x_i < 25; game->x_i++) {
-        game->x_list[game->x_i] = 0;
-    }
-    game->x_i = 0;
 }

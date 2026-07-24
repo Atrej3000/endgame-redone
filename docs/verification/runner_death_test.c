@@ -1,6 +1,6 @@
 // Standalone Runner death-lifecycle test -- NOT part of the shipped game (main.c is excluded
 // when building this, same pattern as the other docs/verification/*.c harnesses). Exercises the
-// real runner_trigger_death/runner_update_death/runner_frame/process2/collisionDetect2/
+// real runner_trigger_death/runner_death_step/runner_frame/process2/collisionDetect2/
 // processEvents2/doRender2/runner_session_reset functions directly. See
 // docs/runner-death-lifecycle.md for the lifecycle this test guards against regressing.
 //
@@ -28,7 +28,7 @@ static int failures = 0;
         }                                                  \
     } while (0)
 
-// Drives runner_update_death() until it returns to idle (or a safety cap is hit), counting how
+// Drives runner_death_step() until it returns to idle (or a safety cap is hit), counting how
 // many times game->gameLives actually changed. Returns the number of decrements observed.
 static int drive_death_to_idle(GameState *game)
 {
@@ -36,7 +36,7 @@ static int drive_death_to_idle(GameState *game)
     int prevLives = game->gameLives;
     for (int i = 0; i < 500 && game->man.isDead; i++)
     {
-        runner_update_death(game);
+        runner_death_step(game);
         if (game->gameLives != prevLives)
         {
             decrements++;
@@ -89,7 +89,7 @@ int main(void)
     runner_trigger_death(game);
     for (int i = 0; i < 10; i++)
     {
-        runner_update_death(game);
+        runner_death_step(game);
     }
     int countdownAfter10 = game->deathCountdown;
     CHECK("repeated trigger: countdown advanced partway", countdownAfter10 == 110);
@@ -113,8 +113,8 @@ int main(void)
     game->x_i = 0;
 
     runner_trigger_death(game);
-    // Drive the real per-frame pipeline (not just runner_update_death) so the game-over
-    // transition in processEvents2() is exercised too -- stop as soon as the scene actually
+    // Drive the real fixed-tick pipeline (not just runner_death_step) so the game-over
+    // transition event in runner_simulate() is exercised too -- stop as soon as the scene actually
     // changes, mirroring what main.c's dispatch would do (it would stop calling runner_frame()
     // once the scene is no longer APP_SCENE_RUNNER_GAME).
     for (int i = 0; i < 200 && game->app.scene == APP_SCENE_RUNNER_GAME; i++)
@@ -124,7 +124,7 @@ int main(void)
 
     CHECK("game over: gameLives reached exactly 0", game->gameLives == 0);
     CHECK("game over: correct scene transition", game->app.scene == APP_SCENE_RUNNER_MENU);
-    CHECK("game over: no respawn (isDead left at idle, not re-triggered)", game->man.isDead == 0);
+    CHECK("game over: no respawn before the transition", game->man.isDead == 1);
     CHECK("game over: score persisted before transition", game->x_list[0] == 55 && game->x_i == 1);
 
     // Calling processEvents2() once more must not re-fire the transition (Phase 5 guard).
@@ -142,7 +142,7 @@ int main(void)
     runner_trigger_death(game);
     for (int i = 0; i < 20; i++)
     {
-        runner_update_death(game);
+        runner_death_step(game);
     }
     int countdownBeforePause = game->deathCountdown;
 
@@ -156,7 +156,7 @@ int main(void)
     CHECK("pause: isDead unchanged while paused", game->man.isDead == 1);
 
     app_change_scene(game, APP_SCENE_RUNNER_GAME); // resume
-    runner_update_death(game);
+    runner_death_step(game);
     CHECK("resume: countdown continues from where it left off (not reset)",
           game->deathCountdown == countdownBeforePause - 1);
 
@@ -189,14 +189,14 @@ int main(void)
     runner_trigger_death(game);
     for (int i = 0; i < 15; i++)
     {
-        runner_update_death(game);
+        runner_death_step(game);
     }
     int countdownBeforeDeparture = game->deathCountdown;
     int livesBeforeDeparture = game->gameLives;
 
     app_change_scene(game, APP_SCENE_MAIN_MENU); // simulates leaving Runner gameplay (e.g. 'q')
     // Process a frame using the actual functions main.c would call for APP_SCENE_MAIN_MENU --
-    // not runner_frame()/runner_update_death(), which production code no longer invokes once the
+    // not runner_frame()/runner_death_step(), which production code no longer invokes once the
     // scene has changed.
     menu0_events(game);
     doRender_menu0(renderer, game);
@@ -214,7 +214,7 @@ int main(void)
     runner_trigger_death(game);
     for (int i = 0; i < 30; i++)
     {
-        runner_update_death(game);
+        runner_death_step(game);
     }
 
     float manX7 = game->man.x, manY7 = game->man.y;

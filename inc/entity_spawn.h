@@ -8,8 +8,9 @@
 // call sites set -- no new behavior, only a centralized, bounds-checked
 // creation point.
 //
-// Returns false (and mutates nothing) when `index` is out of range for the
-// target array -- a correctness guarantee the original inline code never had.
+// Returns false (and mutates nothing) for null state, non-finite transforms,
+// or an out-of-range index. Successful reuse clears stale runtime flags,
+// counters, hit feedback, and animation state while preserving asset pointers.
 #include "header.h"
 
 bool enemy_spawn(GameState *game, int index, float x, float y, float dx, float dy);

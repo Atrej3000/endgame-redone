@@ -4,11 +4,18 @@
 
 static int render_pixel(float coordinate)
 {
+    if (isnan(coordinate)) return 0;
+    if (coordinate <= (float)INT_MIN) return INT_MIN;
+    if (coordinate >= (float)INT_MAX) return INT_MAX;
     return (int)lroundf(coordinate);
 }
 
 static SDL_Texture *animation_player_texture(const Man *player)
 {
+    if (player == NULL)
+    {
+        return NULL;
+    }
     switch (player->animation.state)
     {
         case ANIMATION_STATE_IDLE: return player->sheetTextureIdle;
@@ -26,19 +33,113 @@ static SDL_Texture *animation_player_texture(const Man *player)
 static void draw_animation_player(SDL_Renderer *renderer, const GameState *game, const Man *player,
                                   float worldOffsetX)
 {
+    if (!renderer || !game || !player)
+    {
+        return;
+    }
     SDL_Texture *texture = animation_player_texture(player);
     if (texture == NULL)
     {
         return;
     }
-    SDL_Rect source = {32 * player->animation.frame, 0, 32, 32};
+    int textureWidth = 0;
+    int textureHeight = 0;
+    if (SDL_QueryTexture(texture, NULL, NULL, &textureWidth, &textureHeight) != 0 ||
+        textureWidth < 32 || textureHeight < 32)
+    {
+        return;
+    }
+    int frame = player->animation.frame;
+    const int availableFrames = textureWidth / 32;
+    if (frame < 0 || frame >= availableFrames)
+    {
+        frame = 0;
+    }
+    SDL_Rect source = {32 * frame, 0, 32, 32};
     SDL_Rect destination = {render_pixel(worldOffsetX + render_lerp(player->prevX, player->x, game->renderAlpha)),
                            render_pixel(render_lerp(player->prevY, player->y, game->renderAlpha)), 54, 54};
-    SDL_RenderCopyEx(renderer, texture, &source, &destination, 0, NULL, player->facingLeft == 1 ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+    (void)SDL_RenderCopyEx(renderer, texture, &source, &destination, 0, NULL,
+                           player->facingLeft == 1
+                               ? SDL_FLIP_HORIZONTAL
+                               : SDL_FLIP_NONE);
+}
+
+static void draw_death_player(SDL_Renderer *renderer, const GameState *game,
+                              const Man *player, float worldOffsetX)
+{
+    if (!renderer || !game || !player || !player->visible0 ||
+        !player->isDead || !game->death)
+    {
+        return;
+    }
+    SDL_Rect destination = {
+        render_pixel(worldOffsetX +
+                     render_lerp(player->prevX, player->x, game->renderAlpha)),
+        render_pixel(render_lerp(player->prevY, player->y, game->renderAlpha) -
+                     10.0f),
+        38, 83};
+    (void)SDL_RenderCopyEx(renderer, game->death, NULL, &destination, 0, NULL,
+                           game->time % 20 < 10
+                               ? SDL_FLIP_HORIZONTAL
+                               : SDL_FLIP_NONE);
+}
+
+static void draw_runner_second_player(SDL_Renderer *renderer,
+                                      const GameState *game,
+                                      float worldOffsetX)
+{
+    const Man *player = &game->secondPlayer;
+    if (!player->visible0 || player->isDead)
+    {
+        return;
+    }
+    int frame = player->animation.frame;
+    if (frame < 0 || frame >= 12)
+    {
+        frame = 0;
+    }
+    SDL_Texture *texture = game->secondPlayerFrames[frame];
+    if (!texture)
+    {
+        texture = game->secondPlayerFrames[0];
+    }
+    if (!texture)
+    {
+        return;
+    }
+    SDL_Rect destination = {
+        render_pixel(worldOffsetX +
+                     render_lerp(player->prevX, player->x, game->renderAlpha)),
+        render_pixel(render_lerp(player->prevY, player->y, game->renderAlpha)),
+        54, 54};
+    (void)SDL_RenderCopyEx(renderer, texture, NULL, &destination, 0, NULL,
+                           player->facingLeft == 1
+                               ? SDL_FLIP_HORIZONTAL
+                               : SDL_FLIP_NONE);
 }
 
 void doRender(SDL_Renderer *renderer, GameState *game)
 {
+    if (!renderer || !game)
+    {
+        return;
+    }
+    if (game->statusState == STATUS_STATE_LIVES)
+    {
+        init_status_lives(game);
+        draw_status_lives(game);
+        SDL_RenderPresent(renderer);
+        return;
+    }
+    if (game->statusState != STATUS_STATE_GAME)
+    {
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        SDL_RenderPresent(renderer);
+        return;
+    }
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
 
     if (game->statusState == STATUS_STATE_GAME)
     {
@@ -140,7 +241,11 @@ void doRender(SDL_Renderer *renderer, GameState *game)
                 SDL_Rect srcRect = {32 * game->CurrentSheetBullet, 0, 32, 32};
                 SDL_Rect rect = {render_pixel(render_lerp(game->bullets[i].prevX, game->bullets[i].x, game->renderAlpha)),
                                  render_pixel(render_lerp(game->bullets[i].prevY, game->bullets[i].y, game->renderAlpha)), 32, 32};
-                SDL_RenderCopyEx(renderer, game->bulletTexture, &srcRect, &rect, 0, NULL, (game->man.facingLeft == 1));
+                (void)SDL_RenderCopyEx(renderer, game->bulletTexture, &srcRect,
+                                       &rect, 0, NULL,
+                                       game->bullets[i].dx < 0.0f
+                                           ? SDL_FLIP_HORIZONTAL
+                                           : SDL_FLIP_NONE);
             }
 
         if (game->multiPlayer)
@@ -152,29 +257,32 @@ void doRender(SDL_Renderer *renderer, GameState *game)
                     SDL_Rect srcRect = {32 * game->CurrentSheetBullet2, 0, 32, 32};
                     SDL_Rect rect = {render_pixel(render_lerp(game->secondBullets[i].prevX, game->secondBullets[i].x, game->renderAlpha)),
                                      render_pixel(render_lerp(game->secondBullets[i].prevY, game->secondBullets[i].y, game->renderAlpha)), 32, 32};
-                    SDL_RenderCopyEx(renderer, game->secondBulletTexture, &srcRect, &rect, 0, NULL, (game->secondPlayer.facingLeft == 1));
+                    (void)SDL_RenderCopyEx(renderer, game->secondBulletTexture,
+                                           &srcRect, &rect, 0, NULL,
+                                           game->secondBullets[i].dx < 0.0f
+                                               ? SDL_FLIP_HORIZONTAL
+                                               : SDL_FLIP_NONE);
                 }
             }
         }
 
-        if (game->man.visible0) draw_animation_player(renderer, game, &game->man, 0.0f);
-        if (game->multiPlayer && game->secondPlayer.visible0)
+        if (game->man.visible0 && !game->man.isDead)
+        {
+            draw_animation_player(renderer, game, &game->man, 0.0f);
+        }
+        if (game->multiPlayer && game->secondPlayer.visible0 &&
+            !game->secondPlayer.isDead)
         {
             draw_animation_player(renderer, game, &game->secondPlayer, 0.0f);
         }
 
-        if (game->man.isDead)
+        draw_death_player(renderer, game, &game->man, 0.0f);
+        if (game->multiPlayer)
         {
-            SDL_Rect rect = {render_pixel(render_lerp(game->man.prevX, game->man.x, game->renderAlpha)),
-                             render_pixel(render_lerp(game->man.prevY, game->man.y, game->renderAlpha) - 10.0f), 38, 83};
-            SDL_RenderCopyEx(renderer, game->death, NULL, &rect, 0, NULL, (game->time % 20 < 10));
+            draw_death_player(renderer, game, &game->secondPlayer, 0.0f);
         }
         combat_feedback_draw(renderer, game, 0.0f);
         combat_feedback_end_render(renderer);
-    }
-    if (game->statusState == STATUS_STATE_LIVES)
-    {
-        draw_status_lives(game);
     }
 
     //show us our Lives in game
@@ -192,6 +300,26 @@ void doRender(SDL_Renderer *renderer, GameState *game)
 
 void doRender2(SDL_Renderer *renderer, GameState *game)
 {
+    if (!renderer || !game)
+    {
+        return;
+    }
+    if (game->statusState == STATUS_STATE_LIVES)
+    {
+        init_status_lives(game);
+        draw_status_lives(game);
+        SDL_RenderPresent(renderer);
+        return;
+    }
+    if (game->statusState != STATUS_STATE_GAME)
+    {
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        SDL_RenderPresent(renderer);
+        return;
+    }
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
     float renderScrollX = render_lerp(game->prevScrollX, game->scrollX, game->renderAlpha);
     if (game->statusState == STATUS_STATE_GAME)
     {
@@ -200,9 +328,7 @@ void doRender2(SDL_Renderer *renderer, GameState *game)
         SDL_RenderCopy(renderer, game->fon, NULL, &fon);
     if (game->multiPlayer)
     {
-        SDL_Rect scdPlr = {render_pixel(renderScrollX + render_lerp(game->secondPlayer.prevX, game->secondPlayer.x, game->renderAlpha)),
-                           render_pixel(render_lerp(game->secondPlayer.prevY, game->secondPlayer.y, game->renderAlpha)), 54, 54};
-        SDL_RenderCopyEx(renderer, game->secondPlayerFrames[game->secondPlayer.animation.frame], NULL, &scdPlr, 0, NULL, (game->secondPlayer.facingLeft == 1));
+        draw_runner_second_player(renderer, game, renderScrollX);
     }
 
 
@@ -211,12 +337,15 @@ void doRender2(SDL_Renderer *renderer, GameState *game)
             SDL_Rect ledgeRect = {render_pixel(renderScrollX + (float)game->ledges[i].x), game->ledges[i].y, game->ledges[i].w, game->ledges[i].h};
             SDL_RenderCopy(renderer, game->brick, NULL, &ledgeRect);
         }
-        draw_animation_player(renderer, game, &game->man, renderScrollX);
-        if (game->man.isDead)
+        if (game->man.visible0 && !game->man.isDead)
         {
-            SDL_Rect deathRect = {render_pixel(renderScrollX + render_lerp(game->man.prevX, game->man.x, game->renderAlpha)),
-                                  render_pixel(render_lerp(game->man.prevY, game->man.y, game->renderAlpha) - 10.0f), 38, 83};
-            SDL_RenderCopyEx(renderer, game->death, NULL, &deathRect, 0, NULL, (game->time % 20 < 10));
+            draw_animation_player(renderer, game, &game->man, renderScrollX);
+        }
+        draw_death_player(renderer, game, &game->man, renderScrollX);
+        if (game->multiPlayer)
+        {
+            draw_death_player(renderer, game, &game->secondPlayer,
+                              renderScrollX);
         }
         combat_feedback_draw(renderer, game, renderScrollX);
         combat_feedback_end_render(renderer);
@@ -229,10 +358,6 @@ void doRender2(SDL_Renderer *renderer, GameState *game)
         SDL_RenderCopy(renderer, game->star, NULL, &starRect);
     }
 
-    if (game->statusState == STATUS_STATE_LIVES)
-    {
-        draw_status_lives(game);
-    }
     //lifes
     init_status_lives(game);
     draw_status_lives2(game);

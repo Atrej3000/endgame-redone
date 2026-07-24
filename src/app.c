@@ -4,6 +4,61 @@
 #include "input_snapshot.h"
 #include "settings.h"
 
+#include <errno.h>
+#include <inttypes.h>
+
+static unsigned int application_seed(void)
+{
+    const char *configuredSeed = SDL_getenv("ENDGAME_SEED");
+    if (configuredSeed != NULL && configuredSeed[0] != '\0')
+    {
+        errno = 0;
+        char *end = NULL;
+        const uintmax_t parsed = strtoumax(configuredSeed, &end, 10);
+        if (errno == 0 && end != configuredSeed && end != NULL && end[0] == '\0' &&
+            parsed <= (uintmax_t)UINT_MAX)
+        {
+            const unsigned int seed = (unsigned int)parsed;
+            printf("[seed] %u (ENDGAME_SEED)\n", seed);
+            return seed;
+        }
+        fprintf(stderr, "app_init: invalid ENDGAME_SEED '%s'; using wall-clock seed\n",
+                configuredSeed);
+    }
+
+    const unsigned int seed = (unsigned int)time(NULL);
+    printf("[seed] %u\n", seed);
+    return seed;
+}
+
+static SDL_Renderer *create_renderer(SDL_Window *window, bool vsync)
+{
+    const Uint32 acceleratedFlags = SDL_RENDERER_ACCELERATED |
+                                    (vsync ? SDL_RENDERER_PRESENTVSYNC : 0U);
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, acceleratedFlags);
+    if (renderer != NULL)
+    {
+        return renderer;
+    }
+
+    if (vsync)
+    {
+        fprintf(stderr, "app_init: accelerated VSync renderer unavailable (%s); "
+                        "trying accelerated renderer without a creation-time VSync requirement\n",
+                SDL_GetError());
+        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+        if (renderer != NULL)
+        {
+            return renderer;
+        }
+    }
+
+    fprintf(stderr, "app_init: accelerated renderer unavailable (%s); trying software renderer\n",
+            SDL_GetError());
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+    return renderer;
+}
+
 void destroy_texture(SDL_Texture **tex)
 {
     if (tex && *tex)
@@ -16,12 +71,16 @@ void destroy_texture(SDL_Texture **tex)
 void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **outRenderer)
 {
     GameState *game = outGame ? *outGame : NULL;
+    const bool audioAvailable = audio_assets_output_available();
 
     if (game)
     {
         // 1. stop active playback before freeing anything it might reference
-        Mix_HaltChannel(-1);
-        Mix_HaltMusic();
+        if (audioAvailable)
+        {
+            Mix_HaltChannel(-1);
+            Mix_HaltMusic();
+        }
 
         // 2. gameplay-owned dynamic allocations
         for (int i = 0; i < MAX_BULLETS; i++)
@@ -33,6 +92,8 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
         // 3. generated (HUD) textures -- not part of any asset group, kept inline
         destroy_texture(&game->label);
         destroy_texture(&game->labelMultiplayer);
+        destroy_texture(&game->scoreLabel);
+        destroy_texture(&game->killsLabel);
 
         // mode-owned asset groups, delegated (see docs/game-session-lifecycle.md)
         arcade_assets_unload(game);
@@ -41,6 +102,11 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
         audio_assets_unload_arcade(game);
         audio_assets_unload_runner(game);
         audio_assets_unload_shared(game);
+        if (game->font)
+        {
+            TTF_CloseFont(game->font);
+            game->font = NULL;
+        }
 
         // manFrames[12] is fully covered by the calls above: index 0 by
         // shared_assets_unload() (both modes load the identical file, see
@@ -66,10 +132,27 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
         }
     }
 
-    // 6. renderer
-    if (outRenderer && *outRenderer)
+    // 6. renderer. The explicit output container and GameState normally
+    // alias the same handle; fall back to the state-owned handle when callers
+    // intentionally omit the optional container.
+    SDL_Renderer *stateRenderer = game ? game->app.renderer : NULL;
+    SDL_Renderer *outputRenderer = outRenderer ? *outRenderer : NULL;
+    if (stateRenderer && outputRenderer && outputRenderer != stateRenderer)
     {
-        SDL_DestroyRenderer(*outRenderer);
+        fprintf(stderr,
+                "app_shutdown: renderer output did not match GameState; "
+                "destroying both owned renderer handles\n");
+    }
+    if (stateRenderer)
+    {
+        SDL_DestroyRenderer(stateRenderer);
+    }
+    if (outputRenderer && outputRenderer != stateRenderer)
+    {
+        SDL_DestroyRenderer(outputRenderer);
+    }
+    if (outRenderer)
+    {
         *outRenderer = NULL;
     }
     if (game)
@@ -77,16 +160,36 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
         game->app.renderer = NULL;
     }
 
-    // 7. persist the windowed display preference before destroying its window
-    if (outWindow && *outWindow)
+    // 7. persist the windowed display preference before destroying its
+    // window. As with the renderer, the GameState handle is authoritative
+    // when the optional output container is omitted.
+    SDL_Window *stateWindow = game ? game->app.window : NULL;
+    SDL_Window *outputWindow = outWindow ? *outWindow : NULL;
+    if (stateWindow && outputWindow && outputWindow != stateWindow)
+    {
+        fprintf(stderr,
+                "app_shutdown: window output did not match GameState; "
+                "destroying both owned window handles\n");
+    }
+    if (stateWindow)
     {
         display_capture_window_settings(game);
-        (void)settings_save(&game->app.settings);
+        if (game && !settings_save(&game->app.settings))
+        {
+            fprintf(stderr, "app_shutdown: could not save game settings\n");
+        }
         if (game && !display_settings_save(&game->app.display))
         {
             fprintf(stderr, "app_shutdown: could not save display settings\n");
         }
-        SDL_DestroyWindow(*outWindow);
+        SDL_DestroyWindow(stateWindow);
+    }
+    if (outputWindow && outputWindow != stateWindow)
+    {
+        SDL_DestroyWindow(outputWindow);
+    }
+    if (outWindow)
+    {
         *outWindow = NULL;
     }
     if (game)
@@ -96,7 +199,11 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
 
     // 8. audio + extension subsystems (each is documented safe to call even
     // if the matching init never ran or already ran once this process)
-    Mix_CloseAudio();
+    if (audioAvailable)
+    {
+        Mix_CloseAudio();
+    }
+    Mix_Quit();
     IMG_Quit();
     TTF_Quit();
 
@@ -113,6 +220,18 @@ void app_shutdown(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **ou
 
 bool app_init(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **outRenderer)
 {
+    if (outGame == NULL || outWindow == NULL || outRenderer == NULL)
+    {
+        fprintf(stderr, "app_init: output pointers must not be NULL\n");
+        return false;
+    }
+    if (*outGame != NULL || *outWindow != NULL || *outRenderer != NULL)
+    {
+        fprintf(stderr,
+                "app_init: output containers must be empty to preserve existing ownership\n");
+        return false;
+    }
+
     *outGame = NULL;
     *outWindow = NULL;
     *outRenderer = NULL;
@@ -141,8 +260,6 @@ bool app_init(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **outRen
         return false;
     }
 
-    srandom((unsigned int)time(NULL));
-
     display_settings_defaults(&game->app.display);
     display_settings_load(&game->app.display);
     settings_load(&game->app.settings);
@@ -162,8 +279,12 @@ bool app_init(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **outRen
         return false;
     }
     game->app.window = *outWindow;
+    const Uint32 activeFullscreenFlags =
+        SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP;
+    game->app.display.fullscreen =
+        (SDL_GetWindowFlags(*outWindow) & activeFullscreenFlags) != 0U;
 
-    *outRenderer = SDL_CreateRenderer(*outWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    *outRenderer = create_renderer(*outWindow, game->app.settings.vsync);
     if (!*outRenderer)
     {
         fprintf(stderr, "app_init: SDL_CreateRenderer failed: %s\n", SDL_GetError());
@@ -186,23 +307,34 @@ bool app_init(GameState **outGame, SDL_Window **outWindow, SDL_Renderer **outRen
 
     if (Mix_OpenAudio(MIX_DEFAULT_FREQUENCY, MIX_DEFAULT_FORMAT, MIX_DEFAULT_CHANNELS, 4096) != 0)
     {
-        fprintf(stderr, "app_init: Mix_OpenAudio failed: %s\n", Mix_GetError());
-        app_shutdown(outGame, outWindow, outRenderer);
-        return false;
+        fprintf(stderr, "app_init: audio unavailable; continuing silently: %s\n", Mix_GetError());
     }
     if (!audio_assets_load_shared(game))
     {
         app_shutdown(outGame, outWindow, outRenderer);
         return false;
     }
-    (void)SDL_RenderSetVSync(*outRenderer, game->app.settings.vsync ? 1 : 0);
+    const bool requestedVsync = game->app.settings.vsync;
+    (void)display_set_vsync(game, requestedVsync);
     if (!load_font("./resource/text/Fonts/crazy-pixel.ttf", 32, &game->font))
     {
         app_shutdown(outGame, outWindow, outRenderer);
         return false;
     }
-    settings_apply_audio(&game->app.settings);
+    if (!load_texture(game->app.renderer, "./resource/images/backgrounds/menu0.png", &game->menu0))
+    {
+        app_shutdown(outGame, outWindow, outRenderer);
+        return false;
+    }
+    if (audio_assets_output_available())
+    {
+        settings_apply_audio(&game->app.settings);
+    }
     input_controller_open_first(&game->app);
+    // Seed only after SDL and its extension libraries have initialized. Some
+    // platform backends use the C random stream internally; seeding earlier
+    // would make the first gameplay value depend on backend initialization.
+    srandom(application_seed());
 
     return true;
 }

@@ -5,6 +5,12 @@ Written **before** any Phase 4 code edit, per that phase's own requirement. Desc
 `refactor-pass-3-scenes`) — the pre-refactor baseline — then is updated in place once the split
 lands, with each new function's actual boundary recorded against this classification.
 
+> **Current-status addendum (pre-Phase 35, 2026-07-23):** the classification
+> below remains the historical Phase 4 record. Runner leaderboard history is
+> no longer reset on mode-menu entry. `load_menu0()` loads the atomically
+> persisted, descending top-25 table; `load_menu1()`/`load_menu2()` preserve it;
+> and `leaderboard_record_score()` updates and saves it.
+
 ## 1. Guard boundaries
 
 | Function | Asset guard opens | Asset guard closes | Flag set | Reset tail |
@@ -15,11 +21,11 @@ lands, with each new function's actual boundary recorded against this classifica
 Both functions are called only from `src/scene.c`: `arcade_menu_enter`/`runner_menu_enter`
 (scene.c:9-26), themselves invoked from `app_change_scene`'s switch (scene.c:40-47) on *every*
 arrival at `APP_SCENE_ARCADE_MENU`/`APP_SCENE_RUNNER_MENU` — including return trips from
-gameplay (ESCAPE, game-over), not just the original Main-menu-to-mode transition. `load_menu1()`/
-`load_menu2()` (the texture+music+leaderboard-reset load, `load_menu.c`) are conditioned on
+gameplay (ESCAPE, game-over), not just the original Main-menu-to-mode transition. Historically,
+`load_menu1()`/`load_menu2()` (then texture+music+leaderboard-reset loads in `load_menu.c`) were conditioned on
 `previous_scene == APP_SCENE_MAIN_MENU` and so run only once per true mode entry — a materially
 different (and already-correct) cadence from `loadGame`/`loadGame2`'s reset tail, which is the
-core problem this phase fixes.
+core problem this phase fixed. Current mode-menu loaders preserve leaderboard state.
 
 ## 2. Statement classification — `loadGame()` (Arcade, `loadGame.c:3-574`)
 
@@ -203,7 +209,8 @@ trace and the death lifecycle this counter now drives correctly.
 | Player state (`man`, `secondPlayer` gameplay fields) | `arcade_session_reset`/`runner_session_reset` | Every new-game-start | Every new-game-start | N/A |
 | Enemies/bosses (`enemyValues`, `smartEnemies`, `boss`) | `arcade_session_reset` (Arcade-only) | Every new-game-start | Every new-game-start | N/A |
 | Bullets (`bullets[]`, `secondBullets[]`) | `arcade_session_reset` (Arcade-only) | Every new-game-start | Every new-game-start, via `removeBullet`/`removeSecondBullet` (fixed leak) | `app_shutdown()` (`removeBullet`/`removeSecondBullet` loop, unchanged) |
-| Score/lives (`gameLives`, `tempScore`, `shotCount*`, `kills_score*`, `x_score`, `x_list`) | `arcade_session_reset`/`runner_session_reset` (gameplay reset); `load_menu1`/`load_menu2` (leaderboard-staging reset, untouched) | Every new-game-start (gameplay); every true mode entry (leaderboard staging) | Same | N/A |
+| Score/lives (`gameLives`, `tempScore`, `shotCount*`, `kills_score*`, `x_score`) | `arcade_session_reset`/`runner_session_reset` | Every new-game-start | Every new-game-start | N/A |
+| Runner leaderboard (`x_list[25]`, `x_i`) | `leaderboard_load`/`leaderboard_record_score`/`leaderboard_save` | Main-menu startup from the per-user preference file | On explicit load/recovery; preserved across mode-menu entry | Atomically persisted text; plain in-memory array needs no destruction |
 | HUD-generated labels (`label`, `labelMultiplayer`) | `doRender`/`doRender2` via `init_status_lives`/`init_status_kills` (untouched) | Every rendered gameplay frame | Every rendered gameplay frame (destroy-before-recreate) | `app_shutdown()` (final, inline) |
 
 ## 10. Confirmed bugs fixed by this phase (not new behavior — closing pre-existing defects)

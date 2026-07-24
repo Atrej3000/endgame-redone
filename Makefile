@@ -6,14 +6,18 @@ INC = inc
 
 
 # set the compiler flags
-FFLAGS = -F ./resource/frameworks -framework SDL2 -rpath ./resource/frameworks \
-	 -F ./resource/frameworks -framework SDL2_image -rpath ./resource/frameworks \
-	 -F ./resource/frameworks -framework SDL2_ttf -rpath ./resource/frameworks \
-	 -F ./resource/frameworks -framework SDL2_mixer -rpath ./resource/frameworks \
+MACOS_ARCH_FLAGS ?= -arch x86_64
+FFLAGS = $(MACOS_ARCH_FLAGS) \
+	-F ./resource/frameworks -framework SDL2 -rpath @executable_path/resource/frameworks \
+	-F ./resource/frameworks -framework SDL2_image -rpath @executable_path/resource/frameworks \
+	-F ./resource/frameworks -framework SDL2_ttf -rpath @executable_path/resource/frameworks \
+	-F ./resource/frameworks -framework SDL2_mixer -rpath @executable_path/resource/frameworks
 
 CFLAGS = -std=c11 -Wall -Wextra -Wpedantic -Werror
-# add header files here
-HDRS := inc/header.h \
+# All public headers participate in incremental rebuild decisions. Depending
+# on the directory itself allowed edits to an existing header to leave a
+# stale executable considered up to date.
+HDRS := $(wildcard inc/*.h)
 
 # add source files here
 SRCS := src/*.c
@@ -28,7 +32,7 @@ EXEC := endgame
 all: $(EXEC)
 
 # recipe for building the final executable
-$(EXEC): $(SRCS) $(INC) Makefile
+$(EXEC): $(SRCS) $(HDRS) Makefile
 	@$(CC) $(SRCS) $(CFLAGS) $(FFLAGS) -o $(EXEC) -I $(INC)
 	@printf "\r\33[2K $(NAME)\033[33;1m\tcompile\n"
 
@@ -37,9 +41,9 @@ $(EXEC): $(SRCS) $(INC) Makefile
 #	$(CC) -o $@ $(@:.o=.c) -c $(CFLAGS)
 
 # recipe to clean the workspace
-clean:		
-	rm -f $(OBJS)
-	@printf "Object files - \t\033[31;1mdeleted\033[0m\n"
+clean:
+	rm -f $(EXEC)
+	@printf "Build output - \t\033[31;1mdeleted\033[0m\n"
 
 
 uninstall: clean
@@ -152,6 +156,22 @@ mingw-asan: $(BUILD_DIR) mingw-dlls
 mingw-run: mingw
 	./$(MINGW_EXEC)
 
+# A package destination is deliberately caller-supplied: the packager refuses
+# source/build roots and --force only replaces a directory carrying its exact
+# ownership marker. Keeping this path explicit also avoids silently creating a
+# large untracked resource tree in the repository.
+MINGW_PACKAGE_DIR ?=
+
+mingw-package: mingw
+	$(if $(strip $(MINGW_PACKAGE_DIR)),,$(error MINGW_PACKAGE_DIR is required (for example: /tmp/endgame-windows)))
+	$(PYTHON) scripts/package_mingw.py \
+		--destination "$(MINGW_PACKAGE_DIR)" --force
+
+mingw-package-verify:
+	$(if $(strip $(MINGW_PACKAGE_DIR)),,$(error MINGW_PACKAGE_DIR is required (for example: /tmp/endgame-windows)))
+	$(PYTHON) scripts/package_mingw.py \
+		--destination "$(MINGW_PACKAGE_DIR)" --verify
+
 # Non-interactive runtime smoke test: exercises the real app_init -> one real
 # asset-load pass -> app_shutdown -> repeated app_shutdown cycle end to end,
 # without needing keyboard/window input injection. See
@@ -254,6 +274,10 @@ mingw-headertest: $(BUILD_DIR)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_arcade_waves.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_runner_segments.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	$(CC_MINGW) -fsyntax-only docs/verification/header_only_combat_feedback.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_atomic_file.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_fixed_step.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_leaderboard.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
+	$(CC_MINGW) -fsyntax-only docs/verification/header_only_preferences.c $(MINGW_WARN_FLAGS) $(MINGW_INCLUDES)
 	@echo "HEADER SELF-CONTAINMENT TEST: ALL PASS"
 
 # Non-interactive GameState nested-struct grouping test: verifies
@@ -459,11 +483,78 @@ mingw-feedbacktest: $(BUILD_DIR) mingw-dlls
 		-o $(BUILD_DIR)/feedbacktest.exe $(MINGW_LIBS)
 	./$(BUILD_DIR)/feedbacktest.exe
 
+# Pre-Phase-35 whole-game gap-audit gates. These deliberately link the real
+# production sources (minus main.c) under the same strict warning policy as
+# every established MinGW check.
+mingw-prephase35-statetest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_state_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/prephase35-statetest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/prephase35-statetest.exe
+
+mingw-prephase35-simulationtest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_simulation_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/prephase35-simulationtest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/prephase35-simulationtest.exe
+
+mingw-prephase35-lifecycletest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_lifecycle_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/prephase35-lifecycletest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/prephase35-lifecycletest.exe
+
+mingw-prephase35-integrationtest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_integration_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/prephase35-integrationtest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/prephase35-integrationtest.exe
+
+# Persistence is already covered by the expanded settings/display harnesses;
+# this named audit gate composes those real checks instead of duplicating them.
+mingw-prephase35-persistencetest: mingw-settingstest mingw-displaytest
+	@echo "PRE-PHASE35 PERSISTENCE TEST: ALL PASS"
+
+mingw-prephase35-uitest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_ui_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/prephase35-uitest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/prephase35-uitest.exe
+
+mingw-prephase35-robustnesstest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_robustness_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/prephase35-robustnesstest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/prephase35-robustnesstest.exe
+
+mingw-prephase35-collisionaitest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_collision_ai_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/prephase35-collisionaitest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/prephase35-collisionaitest.exe
+
+mingw-prephase35-soaktest: $(BUILD_DIR) mingw-dlls
+	$(CC_MINGW) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_soak_test.c \
+		$(MINGW_WARN_FLAGS) $(MINGW_INCLUDES) $(MINGW_LIBDIRS) \
+		-o $(BUILD_DIR)/prephase35-soaktest.exe $(MINGW_LIBS)
+	./$(BUILD_DIR)/prephase35-soaktest.exe
+
+mingw-prephase35: mingw-prephase35-statetest \
+	mingw-prephase35-simulationtest \
+	mingw-prephase35-lifecycletest \
+	mingw-prephase35-integrationtest \
+	mingw-prephase35-persistencetest \
+	mingw-prephase35-uitest \
+	mingw-prephase35-robustnesstest \
+	mingw-prephase35-collisionaitest \
+	mingw-prephase35-soaktest
+
 # Repository usage integrity check: confirms every resource/-shaped string
 # literal in src/*.c points at a file that exists with exact case, and every
 # inc/header.h function prototype has a matching definition. See
 # scripts/audit_repository_usage.py and docs/unused-code-assets-audit.md.
 audit-repo:
+	$(PYTHON) scripts/test_audit_repository_usage.py
 	$(PYTHON) scripts/audit_repository_usage.py
 
 mingw-clean:
@@ -486,7 +577,7 @@ mingw-clean:
 # ---------------------------------------------------------------------------
 CC_LINUX := gcc
 LINUX_WARN_FLAGS := -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -Wpedantic -Wshadow -Wconversion \
-	-Wsign-conversion -Wformat=2 -Wnull-dereference -Wdouble-promotion
+	-Wsign-conversion -Wformat=2 -Wnull-dereference -Wdouble-promotion -Werror
 LINUX_PKGS := sdl2 SDL2_image SDL2_ttf SDL2_mixer
 LINUX_COMPAT_INCLUDE :=
 LINUX_INCLUDES := -I $(INC) $(if $(LINUX_COMPAT_INCLUDE),-I $(LINUX_COMPAT_INCLUDE)) $(shell pkg-config --cflags $(LINUX_PKGS) 2>/dev/null)
@@ -515,19 +606,57 @@ linux-smoketest: $(LINUX_BUILD_DIR)
 		-o $(LINUX_BUILD_DIR)/smoketest $(LINUX_LIBS)
 	./$(LINUX_BUILD_DIR)/smoketest
 
-# Required Linux ASan/UBSan verification. This uses the replay test because
-# it exercises the production simulation without a display/audio device.
-LINUX_SANITIZER_FLAGS := $(LINUX_WARN_FLAGS) -Werror -g -O1 \
+# Required Linux ASan/UBSan verification. Replay plus the pre-Phase-35
+# simulation and integration gates exercise deterministic, headless production
+# paths without relying on a display or audio device.
+LINUX_SANITIZER_FLAGS := $(LINUX_WARN_FLAGS) -g -O1 \
 	-fsanitize=address,undefined -fno-omit-frame-pointer
 
-linux-asan: $(LINUX_BUILD_DIR)
+linux-asan-replay: $(LINUX_BUILD_DIR)
 	$(CC_LINUX) $(MINGW_SRCS_NO_MAIN) docs/verification/replay_test.c \
 		$(LINUX_SANITIZER_FLAGS) $(LINUX_INCLUDES) \
 		-o $(LINUX_BUILD_DIR)/replay-asan $(LINUX_LIBS)
 	ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
 		./$(LINUX_BUILD_DIR)/replay-asan
 
+linux-asan-simulation: $(LINUX_BUILD_DIR)
+	$(CC_LINUX) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_simulation_test.c \
+		$(LINUX_SANITIZER_FLAGS) $(LINUX_INCLUDES) \
+		-o $(LINUX_BUILD_DIR)/prephase35-simulation-asan $(LINUX_LIBS)
+	ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+		./$(LINUX_BUILD_DIR)/prephase35-simulation-asan
+
+linux-asan-integration: $(LINUX_BUILD_DIR)
+	$(CC_LINUX) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_integration_test.c \
+		$(LINUX_SANITIZER_FLAGS) $(LINUX_INCLUDES) \
+		-o $(LINUX_BUILD_DIR)/prephase35-integration-asan $(LINUX_LIBS)
+	ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+		./$(LINUX_BUILD_DIR)/prephase35-integration-asan
+
+linux-asan-robustness: $(LINUX_BUILD_DIR)
+	$(CC_LINUX) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_robustness_test.c \
+		$(LINUX_SANITIZER_FLAGS) $(LINUX_INCLUDES) \
+		-o $(LINUX_BUILD_DIR)/prephase35-robustness-asan $(LINUX_LIBS)
+	ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+		./$(LINUX_BUILD_DIR)/prephase35-robustness-asan
+
+linux-asan-collision-ai: $(LINUX_BUILD_DIR)
+	$(CC_LINUX) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_collision_ai_test.c \
+		$(LINUX_SANITIZER_FLAGS) $(LINUX_INCLUDES) \
+		-o $(LINUX_BUILD_DIR)/prephase35-collision-ai-asan $(LINUX_LIBS)
+	ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+		./$(LINUX_BUILD_DIR)/prephase35-collision-ai-asan
+
+linux-asan-soak: $(LINUX_BUILD_DIR)
+	$(CC_LINUX) $(MINGW_SRCS_NO_MAIN) docs/verification/pre_phase35_soak_test.c \
+		$(LINUX_SANITIZER_FLAGS) $(LINUX_INCLUDES) \
+		-o $(LINUX_BUILD_DIR)/prephase35-soak-asan $(LINUX_LIBS)
+	ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 \
+		./$(LINUX_BUILD_DIR)/prephase35-soak-asan
+
+linux-asan: linux-asan-replay linux-asan-simulation linux-asan-integration linux-asan-robustness linux-asan-collision-ai linux-asan-soak
+
 linux-clean:
 	rm -rf $(LINUX_BUILD_DIR)
 
-.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest mingw-projectiletest mingw-gamefeeltest mingw-inputsnapshottest mingw-aiforcestest mingw-collisionorderingtest mingw-interpolationtest mingw-physicsunitstest mingw-physicsbodytest mingw-worldcollisiontest mingw-displaytest mingw-settingstest mingw-replaytest mingw-wavetest mingw-segmenttest mingw-feedbacktest print-mingw-versions audit-repo linux linux-smoketest linux-asan linux-clean mingw-clean
+.PHONY: all clean mingw mingw-dlls mingw-asan mingw-run mingw-package mingw-package-verify mingw-smoketest mingw-scenetest mingw-lifecycletest mingw-deathtest mingw-entityspawntest mingw-commandtest mingw-headertest mingw-groupingtest mingw-physicstest mingw-inputtest mingw-collisiontest mingw-projectiletest mingw-gamefeeltest mingw-inputsnapshottest mingw-aiforcestest mingw-collisionorderingtest mingw-interpolationtest mingw-physicsunitstest mingw-physicsbodytest mingw-worldcollisiontest mingw-displaytest mingw-settingstest mingw-replaytest mingw-wavetest mingw-segmenttest mingw-feedbacktest mingw-prephase35-statetest mingw-prephase35-simulationtest mingw-prephase35-lifecycletest mingw-prephase35-integrationtest mingw-prephase35-persistencetest mingw-prephase35-uitest mingw-prephase35-robustnesstest mingw-prephase35-collisionaitest mingw-prephase35-soaktest mingw-prephase35 print-mingw-versions audit-repo linux linux-smoketest linux-asan-replay linux-asan-simulation linux-asan-integration linux-asan-robustness linux-asan-collision-ai linux-asan-soak linux-asan linux-clean mingw-clean

@@ -49,10 +49,15 @@ typedef struct ReplayResult
     int firstStarX;
     int firstStarY;
     unsigned int worldSignature;
+    // True only when replay stayed inside its render/event/asset-free
+    // contract and did not route through application scene hooks.
+    bool externalStateUntouched;
 } ReplayResult;
 
 bool replay_recording_init(ReplayRecording *recording, ReplayScene scene,
                            GameMode playerMode, unsigned int seed, int tickCount);
+// Revalidates recording metadata before indexing, so corrupted/untrusted
+// tickCount values cannot escape the bounded input array.
 bool replay_recording_set_input(ReplayRecording *recording, int tick,
                                 InputState input);
 bool replay_run(const ReplayRecording *recording, ReplayResult *result);

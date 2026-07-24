@@ -2,61 +2,85 @@
 
 void init_status_kills(GameState *game)
 {
-    char str[32] = "";
-    sprintf(str, "Kills: %d", (int)game->kills_score);
-
+    if (!game || !game->font || !game->app.renderer) return;
     SDL_Color white = {0, 255, 255, 255};
-
-    //SDL_Surface *tmp = TTF_RenderText_Blended(game->font, "TRIPLE AAA PROJECT!!!", white);
-    SDL_Surface *tmp = TTF_RenderText_Blended(game->font, str, white);
-    game->labelW = tmp->w;
-    game->labelH = tmp->h;
-    if (game->label) {
-        SDL_DestroyTexture(game->label);
-        game->label = NULL;
+    if (!game->cachedKillsValid ||
+        game->cachedKillsValue != game->kills_score ||
+        !game->killsLabel)
+    {
+        char str[32] = "";
+        (void)snprintf(str, sizeof(str), "P1 Kills: %d", game->kills_score);
+        SDL_Surface *tmp = TTF_RenderText_Blended(game->font, str, white);
+        if (tmp)
+        {
+            SDL_Texture *replacement =
+                SDL_CreateTextureFromSurface(game->app.renderer, tmp);
+            if (replacement)
+            {
+                destroy_texture(&game->killsLabel);
+                game->killsLabel = replacement;
+                game->killsLabelW = tmp->w;
+                game->killsLabelH = tmp->h;
+                game->cachedKillsValue = game->kills_score;
+                game->cachedKillsValid = true;
+            }
+            SDL_FreeSurface(tmp);
+        }
     }
-    game->label = SDL_CreateTextureFromSurface(game->app.renderer, tmp);
-    SDL_FreeSurface(tmp);
 
     if(game->multiPlayer)
     {
-    char multiplayerStr[128] = "";
-    sprintf(multiplayerStr, "Kills: %d", (int)game->kills_score_multi);
-
-    SDL_Color multiplayerWhite = {0, 255, 255, 255};
-
-    //SDL_Surface *tmp = TTF_RenderText_Blended(game->font, "TRIPLE AAA PROJECT!!!", multiplayerWhite);
-    SDL_Surface *multiplayerSurface = TTF_RenderText_Blended(game->font, multiplayerStr, multiplayerWhite);
-    game->labelW = multiplayerSurface->w;
-    game->labelH = multiplayerSurface->h;
-    if (game->labelMultiplayer) {
-        SDL_DestroyTexture(game->labelMultiplayer);
-        game->labelMultiplayer = NULL;
+        if (!game->cachedMultiplayerKillsValid ||
+            game->cachedMultiplayerKillsValue != game->kills_score_multi ||
+            !game->labelMultiplayer)
+        {
+            char multiplayerStr[32] = "";
+            (void)snprintf(multiplayerStr, sizeof(multiplayerStr),
+                           "P2 Kills: %d", game->kills_score_multi);
+            SDL_Surface *multiplayerSurface =
+                TTF_RenderText_Blended(game->font, multiplayerStr, white);
+            if (multiplayerSurface)
+            {
+                SDL_Texture *replacement =
+                    SDL_CreateTextureFromSurface(game->app.renderer,
+                                                 multiplayerSurface);
+                if (replacement)
+                {
+                    destroy_texture(&game->labelMultiplayer);
+                    game->labelMultiplayer = replacement;
+                    game->multiplayerKillsLabelW = multiplayerSurface->w;
+                    game->multiplayerKillsLabelH = multiplayerSurface->h;
+                    game->cachedMultiplayerKillsValue =
+                        game->kills_score_multi;
+                    game->cachedMultiplayerKillsValid = true;
+                }
+                SDL_FreeSurface(multiplayerSurface);
+            }
+        }
     }
-    game->labelMultiplayer = SDL_CreateTextureFromSurface(game->app.renderer, multiplayerSurface);
-    SDL_FreeSurface(multiplayerSurface);
-    }
-
 }
 
 void draw_status_kills(GameState *game)
 {
+    if (!game || !game->app.renderer) return;
     SDL_Renderer *renderer = game->app.renderer;
     SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 
-    SDL_Rect textRect = {50, 00, game->labelW, game->labelH};
-    SDL_RenderCopy(renderer, game->label, NULL, &textRect);
-
-    if (game->multiPlayer)
+    if (game->killsLabel)
     {
-    SDL_SetRenderDrawColor (renderer, 0, 0, 0, 255);
-
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-
-    SDL_Rect multiplayerTextRect = {1150, 00, game->labelW, game->labelH};
-    SDL_RenderCopy(renderer, game->labelMultiplayer, NULL, &multiplayerTextRect);
+        SDL_Rect textRect = {24, 20, game->killsLabelW,
+                             game->killsLabelH};
+        (void)SDL_RenderCopy(renderer, game->killsLabel, NULL, &textRect);
     }
 
+    if (game->multiPlayer && game->labelMultiplayer)
+    {
+        SDL_Rect multiplayerTextRect = {
+            WIDTH - game->multiplayerKillsLabelW - 24, 20,
+            game->multiplayerKillsLabelW, game->multiplayerKillsLabelH};
+        (void)SDL_RenderCopy(renderer, game->labelMultiplayer, NULL,
+                            &multiplayerTextRect);
+    }
 }

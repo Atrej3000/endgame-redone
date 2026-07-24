@@ -30,11 +30,15 @@ typedef enum GameCommand
 // processEvents()'s discrete-action keys: ESCAPE/p/w/UP/q.
 GameCommand translate_arcade_command(SDL_Keycode key);
 
-// processEvents2()'s discrete-action keys: ESCAPE/p/w/UP/q (the SDLK_0 cheat
-// code is intentionally not represented here -- it is not duplicated
-// elsewhere, so routing it through this boundary would add indirection with
-// no deduplication benefit).
+// processEvents2()'s discrete-action keys: ESCAPE/p/w/UP/q.
 GameCommand translate_runner_command(SDL_Keycode key);
+
+// Gameplay translation using the configured scancodes for pause and both
+// jump actions. Escape/q remain semantic navigation keys. This is the path
+// live event polling uses; the legacy one-argument helpers above remain as
+// small default-key translation functions for their focused unit tests.
+GameCommand translate_gameplay_command(SDL_Keycode key, SDL_Scancode scancode,
+                                       const GameSettings *settings);
 
 // menu0_events()'s dual-keycode pairs: b/1, r/2, q/ESCAPE.
 GameCommand translate_menu_command(SDL_Keycode key);

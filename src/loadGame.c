@@ -3,19 +3,52 @@
 #include "arcade_waves.h"
 #include "combat_feedback.h"
 #include "entity_spawn.h"
+#include "input_snapshot.h"
 #include "runner_segments.h"
 
 // ---------------------------------------------------------------------------
-// Shared assets: textures/font whose content is identical regardless of which
+// Shared assets: textures whose content is identical regardless of which
 // mode loads them (see docs/game-session-lifecycle.md). Loaded once, by
 // whichever mode is visited first; the other mode's load is a no-op skip via
 // the game->FIELD == NULL guards below.
 // ---------------------------------------------------------------------------
+static bool texture_group_complete(SDL_Texture *const *textures, size_t count)
+{
+    if (!textures) return false;
+    for (size_t index = 0U; index < count; index++)
+    {
+        if (textures[index] == NULL) return false;
+    }
+    return true;
+}
+
+static bool shared_assets_complete(const GameState *game)
+{
+    if (!game) return false;
+    SDL_Texture *const textures[] = {
+        game->mult, game->leaders, game->pause, game->brick, game->death,
+        game->manFrames[0], game->man.sheetTextureIdle,
+        game->man.sheetTextureRun, game->man.sheetTextureJump,
+        game->man.sheetTextureFall, game->man.sheetTextureHit,
+        game->man.sheetTextureDoubleJump, game->man.sheetTextureWallJump,
+        game->appearanceEffect, game->disappearanceEffect,
+        game->shadowEffect, game->dustParticle,
+    };
+    return texture_group_complete(textures,
+                                  sizeof(textures) / sizeof(textures[0]));
+}
+
 static bool shared_assets_load(GameState *game)
 {
+    if (!game || !game->app.renderer) return false;
+    if (shared_assets_complete(game))
+    {
+        game->assetFlags.sharedAssetsLoaded = true;
+        return true;
+    }
     if (game->assetFlags.sharedAssetsLoaded)
     {
-        return true;
+        shared_assets_unload(game);
     }
 
     bool ok = true;
@@ -38,10 +71,6 @@ static bool shared_assets_load(GameState *game)
     if (game->death == NULL)
     {
         ok = ok && load_texture(game->app.renderer, "./resource/images/main_hero/death/fire.png", &game->death);
-    }
-    if (game->font == NULL)
-    {
-        ok = ok && load_font("./resource/text/Fonts/crazy-pixel.ttf", 48, &game->font);
     }
     if (game->manFrames[0] == NULL)
     {
@@ -104,6 +133,7 @@ static bool shared_assets_load(GameState *game)
 
 void shared_assets_unload(GameState *game)
 {
+    if (!game) return;
     destroy_texture(&game->mult);
     destroy_texture(&game->leaders);
     destroy_texture(&game->pause);
@@ -121,19 +151,49 @@ void shared_assets_unload(GameState *game)
     destroy_texture(&game->disappearanceEffect);
     destroy_texture(&game->shadowEffect);
     destroy_texture(&game->dustParticle);
-    if (game->font)
-    {
-        TTF_CloseFont(game->font);
-        game->font = NULL;
-    }
     game->assetFlags.sharedAssetsLoaded = false;
 }
 
 // ---------------------------------------------------------------------------
 // Arcade mode
 // ---------------------------------------------------------------------------
+static bool arcade_assets_complete(const GameState *game)
+{
+    if (!game) return false;
+    SDL_Texture *const textures[] = {
+        game->bossTexture, game->bulletTexture, game->secondBulletTexture,
+        game->secondPlayer.sheetTextureIdle,
+        game->secondPlayer.sheetTextureRun,
+        game->secondPlayer.sheetTextureJump,
+        game->secondPlayer.sheetTextureFall,
+        game->secondPlayer.sheetTextureHit,
+        game->secondPlayer.sheetTextureDoubleJump,
+        game->secondPlayer.sheetTextureWallJump,
+        game->enemy.sheetTextureRun, game->enemy.sheetTextureRun2,
+        game->sheetTextureBack, game->cloud1.sheetTextureCloud1,
+        game->cloud2.sheetTextureCloud2, game->cloud3.sheetTextureCloud3,
+        game->cloud4.sheetTextureCloud4, game->cloud5.sheetTextureCloud5,
+        game->cloud6.sheetTextureCloud6, game->cloud7.sheetTextureCloud7,
+        game->cloud8.sheetTextureCloud8, game->sheetTextureSun,
+        game->sheetTextureBack2, game->train.textureTrain,
+        game->brick_block, game->copper_block,
+    };
+    const bool texturesComplete =
+        texture_group_complete(textures,
+                               sizeof(textures) / sizeof(textures[0]));
+    const bool audioComplete =
+        !audio_assets_output_available() ||
+        (game->assetFlags.sharedAudioAssetsLoaded &&
+         game->audio.menuMusic != NULL && game->audio.select != NULL &&
+         game->audio.jump != NULL && game->audio.arcadeMusic != NULL &&
+         game->audio.shoot != NULL && game->audio.damage != NULL &&
+         game->audio.kick != NULL);
+    return texturesComplete && audioComplete;
+}
+
 bool arcade_assets_load(GameState *game)
 {
+    if (!game || !game->app.renderer) return false;
     // Checked before the arcadeAssetsLoaded early-return (not after) so that
     // if the shared bucket is ever unloaded independently of the Arcade
     // flag, calling this again still re-establishes it -- arcadeAssetsLoaded
@@ -143,10 +203,12 @@ bool arcade_assets_load(GameState *game)
         return false;
     }
 
-    if (game->assetFlags.arcadeAssetsLoaded)
+    if (arcade_assets_complete(game))
     {
+        game->assetFlags.arcadeAssetsLoaded = true;
         return true;
     }
+    arcade_assets_unload(game);
 
     bool ok = true;
     ok = ok && audio_assets_load_arcade(game);
@@ -193,6 +255,7 @@ bool arcade_assets_load(GameState *game)
 
 void arcade_assets_unload(GameState *game)
 {
+    if (!game) return;
     audio_assets_unload_arcade(game);
     destroy_texture(&game->bossTexture);
     destroy_texture(&game->bulletTexture);
@@ -225,54 +288,97 @@ void arcade_assets_unload(GameState *game)
     game->assetFlags.arcadeAssetsLoaded = false;
 }
 
+static void reset_player_runtime(Man *player, float x, float y, bool active)
+{
+    if (!player) return;
+
+    player->x = x;
+    player->y = y;
+    player->prevX = x;
+    player->prevY = y;
+    player->dx = 0.0f;
+    player->dy = 0.0f;
+    player->onLedge = 0;
+    player->isDead = 0;
+    player->lives = active ? 3 : 0;
+    player->visible0 = active ? 1 : 0;
+    player->coyoteTicksRemaining = 0;
+    player->jumpKeyHeldLastTick = false;
+    player->airJumpsRemaining = 0;
+    player->doubleJumpAnimationTicks = 0;
+    player->damageInvulnerabilityTicks = 0;
+    player->animFrame = 0;
+    player->animFrameSecond = 0;
+    player->currentSpriteIdle = 0;
+    player->currentSpriteRun = 0;
+    player->currentSpriteRun2 = 0;
+    player->currentSpriteJump = 0;
+    player->currentSpriteJump2 = 0;
+    player->facingLeft = 0;
+    player->slowingDown = 0;
+    player->animation = (AnimationPlayer){.state = ANIMATION_STATE_IDLE};
+    player->hitFlashTicks = 0;
+}
+
+static void deactivate_enemy_runtime(Enemies *enemy, float x, float y)
+{
+    if (!enemy) return;
+
+    enemy->x = x;
+    enemy->y = y;
+    enemy->prevX = x;
+    enemy->prevY = y;
+    enemy->dx = 0.0f;
+    enemy->dy = 0.0f;
+    enemy->onLedge = 0;
+    enemy->isdead = 0;
+    enemy->visible = 0;
+    enemy->countShots = 0;
+    enemy->currentSpriteRun = 0;
+    enemy->currentSpriteRun2 = 0;
+    enemy->animation = (AnimationPlayer){.state = ANIMATION_STATE_IDLE};
+    enemy->hitFlashTicks = 0;
+}
+
+static void reset_session_transients(GameState *game)
+{
+    game->input = (InputState){0};
+    game->events = (GameEventQueue){0};
+    input_controller_sync_jump_edge(&game->app);
+    game->shotCount = 0;
+    game->shotCountMultiplayer = 0;
+    for (int index = 0; index < MAX_BULLETS; index++)
+    {
+        removeBullet(game, index);
+        removeSecondBullet(game, index);
+    }
+    game->CurrentSheetBullet = 0;
+    game->CurrentSheetBullet2 = 0;
+    game->CurrentSheetBoss = 0;
+    game->CurrentSpriteBack = 0;
+    game->CurrentSpriteBack2 = 0;
+    game->CurrentSpriteBack3 = 0;
+    game->renderAlpha = 0.0f;
+    game->perfProjectileActiveSamples = 0;
+    game->perfProjectileTargetChecks = 0;
+    game->simulationOnly = false;
+}
+
 void arcade_session_reset(GameState *game, GameMode mode)
 {
+    if (!game) return;
     game->multiPlayer = mode;
     combat_feedback_reset(game);
+    reset_session_transients(game);
 
     game->kills_score = 0;
     game->kills_score_multi = 0;
     arcade_waves_reset(game);
 
-    game->man.x = 320 - 40;
-    game->man.y = 240 - 40;
-    game->man.dy = 0;
-    game->man.dx = 0;
-    game->man.onLedge = 0;
-    game->man.animFrame = 0;
-    game->man.facingLeft = 0;
-    game->man.slowingDown = 0;
-    game->man.lives = 3;
-    game->man.visible0 = 1;
-    game->man.isDead = 0;
-    game->man.coyoteTicksRemaining = 0;
-    game->man.jumpKeyHeldLastTick = false;
-    game->man.airJumpsRemaining = 0;
-    game->man.doubleJumpAnimationTicks = 0;
-    game->man.damageInvulnerabilityTicks = 0;
+    reset_player_runtime(&game->man, 320.0f - 40.0f, 240.0f - 40.0f, true);
+    reset_player_runtime(&game->secondPlayer, 1000.0f, 240.0f - 40.0f,
+                         mode == GAME_MODE_MULTIPLAYER);
     game->statusState = STATUS_STATE_LIVES;
-
-    // Clear any edge-triggered jump request left over from a previous
-    // session (e.g. quit mid-air, just after a keydown but before the next
-    // physics tick consumed it) -- see docs/input-simulation-separation-map.md
-    // and docs/game-feel-map.md (Phase 15: also prevents a stale buffered
-    // request from firing an instant jump at the start of the next session).
-    game->input.jumpBufferTicksPlayer1 = 0;
-    game->input.jumpBufferTicksPlayer2 = 0;
-
-    // Clear the continuous-input snapshot too (Phase 17, see
-    // docs/input-snapshot-architecture-map.md) -- defensive, not strictly
-    // required since input_capture_arcade() always overwrites these fields
-    // before any consumer reads them each frame, but keeps a session-reset
-    // state fully deterministic rather than relying on that ordering.
-    game->input.moveLeftPlayer1 = false;
-    game->input.moveRightPlayer1 = false;
-    game->input.jumpHeldPlayer1 = false;
-    game->input.shootHeldPlayer1 = false;
-    game->input.moveLeftPlayer2 = false;
-    game->input.moveRightPlayer2 = false;
-    game->input.jumpHeldPlayer2 = false;
-    game->input.shootHeldPlayer2 = false;
 
     game->train.x = 0;
     game->train.y = 440;
@@ -296,64 +402,17 @@ void arcade_session_reset(GameState *game, GameMode mode)
 
     game->gameLives = 10;
     game->tempScore = 0;
-    game->shotCount = 0;
-    game->shotCountMultiplayer = 0;
-
-    if (game->multiPlayer)
-    {
-        game->secondPlayer.x = 1000;
-        game->secondPlayer.y = 240 - 40;
-        game->secondPlayer.dy = 0;
-        game->secondPlayer.dx = 0;
-        game->secondPlayer.onLedge = 0;
-        game->secondPlayer.animFrameSecond = 0;
-        game->secondPlayer.facingLeft = 0;
-        game->secondPlayer.slowingDown = 0;
-        game->secondPlayer.lives = 3;
-        game->secondPlayer.visible0 = 1;
-        game->secondPlayer.isDead = 0;
-        game->secondPlayer.coyoteTicksRemaining = 0;
-        game->secondPlayer.jumpKeyHeldLastTick = false;
-        game->secondPlayer.airJumpsRemaining = 0;
-        game->secondPlayer.doubleJumpAnimationTicks = 0;
-        game->secondPlayer.damageInvulnerabilityTicks = 0;
-        game->statusState = STATUS_STATE_LIVES;
-    }
-
-    // enemyValues is deliberately NOT converted to enemy_spawn() here: unlike
-    // every wave-spawn site in process.c, this reset loop leaves `visible`
-    // untouched (a different contract) -- see docs/solid-gof-audit.md
-    // section 7.1 for why forcing it through enemy_spawn would silently
-    // change behavior.
     for (int i = 0; i < NUM_ENEMIES; i++)
     {
-        game->enemyValues[i].x = 640;
-        game->enemyValues[i].y = 1000;
-        game->enemyValues[i].dy = 0;
-        game->enemyValues[i].dx = 0;
+        deactivate_enemy_runtime(&game->enemyValues[i], 640.0f, 1000.0f);
     }
     for (int i = 0; i < NUM_SMART_ENEMIES; i++)
     {
-        smart_enemy_spawn(game, i, 640, 1000, 0, 0);
+        deactivate_enemy_runtime(&game->smartEnemies[i], 640.0f, 1000.0f);
     }
     for (int i = 0; i < 2; i++)
     {
-        boss_spawn(game, i, 1100, 1000, 0, 0);
-    }
-
-    // removeBullet/removeSecondBullet free() any still-live bullet before
-    // nulling the slot -- the previous direct "= NULL" here leaked whatever
-    // was still in flight (see docs/game-session-lifecycle.md).
-    for (int i = 0; i < MAX_BULLETS; i++)
-    {
-        removeBullet(game, i);
-    }
-    if (game->multiPlayer)
-    {
-        for (int i = 0; i < MAX_BULLETS; i++)
-        {
-            removeSecondBullet(game, i);
-        }
+        deactivate_enemy_runtime(&game->boss[i], 1100.0f, 1000.0f);
     }
 
     game->time = 0;
@@ -439,8 +498,26 @@ void arcade_session_reset(GameState *game, GameMode mode)
 // ---------------------------------------------------------------------------
 // Runner mode
 // ---------------------------------------------------------------------------
+static bool runner_assets_complete(const GameState *game)
+{
+    if (!game || game->fon == NULL || game->star == NULL) return false;
+    for (int index = 1; index < 12; index++)
+    {
+        if (game->manFrames[index] == NULL) return false;
+    }
+    for (int index = 0; index < 12; index++)
+    {
+        if (game->secondPlayerFrames[index] == NULL) return false;
+    }
+    return !audio_assets_output_available() ||
+           (game->assetFlags.sharedAudioAssetsLoaded &&
+            game->audio.menuMusic != NULL && game->audio.select != NULL &&
+            game->audio.jump != NULL && game->audio.runnerMusic != NULL);
+}
+
 bool runner_assets_load(GameState *game)
 {
+    if (!game || !game->app.renderer) return false;
     // See arcade_assets_load()'s comment -- checked before the
     // runnerAssetsLoaded early-return for the same reason.
     if (!shared_assets_load(game))
@@ -448,10 +525,12 @@ bool runner_assets_load(GameState *game)
         return false;
     }
 
-    if (game->assetFlags.runnerAssetsLoaded)
+    if (runner_assets_complete(game))
     {
+        game->assetFlags.runnerAssetsLoaded = true;
         return true;
     }
+    runner_assets_unload(game);
 
     bool ok = true;
     ok = ok && audio_assets_load_runner(game);
@@ -497,6 +576,7 @@ bool runner_assets_load(GameState *game)
 
 void runner_assets_unload(GameState *game)
 {
+    if (!game) return;
     audio_assets_unload_runner(game);
     destroy_texture(&game->fon);
     destroy_texture(&game->star);
@@ -518,65 +598,18 @@ void runner_assets_unload(GameState *game)
 // the full lifecycle these fields drive.
 void runner_session_reset(GameState *game, GameMode mode)
 {
+    if (!game) return;
     game->multiPlayer = mode;
     combat_feedback_reset(game);
+    reset_session_transients(game);
 
     game->x_score = 0;
 
-    game->man.x = 320 - 240;
-    game->man.y = 240 - 240;
-    game->man.dy = 0;
-    game->man.dx = 0;
-    game->man.onLedge = 0;
-    game->man.animFrame = 0;
-    game->man.facingLeft = 0;
-    game->man.slowingDown = 0;
+    reset_player_runtime(&game->man, 320.0f - 240.0f, 240.0f - 240.0f, true);
+    reset_player_runtime(&game->secondPlayer, 100.0f, 80.0f,
+                         mode == GAME_MODE_MULTIPLAYER);
     game->gameLives = 3;
-    game->man.isDead = 0;
-    game->man.coyoteTicksRemaining = 0;
-    game->man.jumpKeyHeldLastTick = false;
-    game->man.airJumpsRemaining = 0;
-    game->man.doubleJumpAnimationTicks = 0;
-    game->man.damageInvulnerabilityTicks = 0;
     game->statusState = STATUS_STATE_LIVES;
-
-    // Clear any edge-triggered jump request left over from a previous
-    // session -- see docs/input-simulation-separation-map.md and
-    // docs/game-feel-map.md (Phase 15).
-    game->input.jumpBufferTicksPlayer1 = 0;
-    game->input.jumpBufferTicksPlayer2 = 0;
-
-    // Clear the continuous-input snapshot too (Phase 17, see
-    // docs/input-snapshot-architecture-map.md) -- see the identical block in
-    // arcade_session_reset() above for the rationale.
-    game->input.moveLeftPlayer1 = false;
-    game->input.moveRightPlayer1 = false;
-    game->input.jumpHeldPlayer1 = false;
-    game->input.shootHeldPlayer1 = false;
-    game->input.moveLeftPlayer2 = false;
-    game->input.moveRightPlayer2 = false;
-    game->input.jumpHeldPlayer2 = false;
-    game->input.shootHeldPlayer2 = false;
-
-    if (game->multiPlayer)
-    {
-        game->secondPlayer.x = 100;
-        game->secondPlayer.y = 80;
-        game->secondPlayer.dy = 0;
-        game->secondPlayer.dx = 0;
-        game->secondPlayer.onLedge = 0;
-        game->secondPlayer.animFrameSecond = 0;
-        game->secondPlayer.facingLeft = 0;
-        game->secondPlayer.slowingDown = 0;
-        game->gameLives = 3;
-        game->secondPlayer.isDead = 0;
-        game->secondPlayer.coyoteTicksRemaining = 0;
-        game->secondPlayer.jumpKeyHeldLastTick = false;
-        game->secondPlayer.airJumpsRemaining = 0;
-        game->secondPlayer.doubleJumpAnimationTicks = 0;
-        game->secondPlayer.damageInvulnerabilityTicks = 0;
-        game->statusState = STATUS_STATE_LIVES;
-    }
 
     game->time = 0;
     game->scrollX = 0;

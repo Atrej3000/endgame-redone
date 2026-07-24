@@ -86,8 +86,8 @@ int main(void)
     // ------------------------------------------------------------------
     InputState runnerCaptured;
     memset(&runnerCaptured, 0, sizeof(runnerCaptured));
-    runnerCaptured.shootHeldPlayer1 = true; // pre-set sentinel value
-    runnerCaptured.shootHeldPlayer2 = true; // pre-set sentinel value
+    runnerCaptured.shootHeldPlayer1 = true; // stale Arcade sentinel
+    runnerCaptured.shootHeldPlayer2 = true; // stale Arcade sentinel
     input_capture_runner(&runnerCaptured, keys, &game->app.settings);
 
     CHECK("runner capture: moveLeftPlayer1 set from SDL_SCANCODE_A",
@@ -96,10 +96,10 @@ int main(void)
           runnerCaptured.jumpHeldPlayer1 == true);
     CHECK("runner capture: moveRightPlayer2 set from SDL_SCANCODE_RIGHT",
           runnerCaptured.moveRightPlayer2 == true);
-    CHECK("runner capture: shootHeldPlayer1 left untouched (no shoot mechanic)",
-          runnerCaptured.shootHeldPlayer1 == true);
-    CHECK("runner capture: shootHeldPlayer2 left untouched (no shoot mechanic)",
-          runnerCaptured.shootHeldPlayer2 == true);
+    CHECK("runner capture: stale shootHeldPlayer1 cleared (no shoot mechanic)",
+          runnerCaptured.shootHeldPlayer1 == false);
+    CHECK("runner capture: stale shootHeldPlayer2 cleared (no shoot mechanic)",
+          runnerCaptured.shootHeldPlayer2 == false);
 
     // ------------------------------------------------------------------
     // 3. One frame, several physics ticks: held movement applies on every
@@ -134,7 +134,8 @@ int main(void)
     // ------------------------------------------------------------------
     // 4. Simultaneous left+right: preserves the pre-existing, documented
     //    left-wins precedence (if (moveLeft) ... else if (moveRight) ...),
-    //    now made an explicit, tested rule rather than an implicit one.
+    //    now made an explicit, tested neutral-input rule rather than an
+    //    order-dependent precedence rule.
     // ------------------------------------------------------------------
     arcade_session_reset(game, GAME_MODE_SINGLE_PLAYER);
     game->input.moveLeftPlayer1 = true;
@@ -142,8 +143,8 @@ int main(void)
     game->man.dx = 0.0f;
 
     apply_arcade_player_forces(game, PHYSICS_DT);
-    CHECK("left+right precedence: simultaneous hold resolves to left (dx negative)",
-          game->man.dx < 0.0f);
+    CHECK("left+right neutralization: simultaneous hold adds no horizontal acceleration",
+          game->man.dx == 0.0f);
 
     // ------------------------------------------------------------------
     // 5. Multiplayer isolation: player 1 input must not mutate player 2

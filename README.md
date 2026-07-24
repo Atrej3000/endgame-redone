@@ -26,9 +26,26 @@ make mingw-run
 
 `make mingw` copies the four required SDL DLLs with `scripts/copy_mingw_dlls.py` and `shutil.copy2()`. The target works from PowerShell, CMD, MSYS2, and Linux; on native Windows it selects `py -3`, while other environments use `python3`. Override `PYTHON` if your Python command differs.
 
+Create and verify a runnable directory outside the repository with:
+
+```sh
+make mingw-package MINGW_PACKAGE_DIR=/tmp/endgame-windows
+make mingw-package-verify MINGW_PACKAGE_DIR=/tmp/endgame-windows
+```
+
+The package contains the production executable, four SDL DLLs, runtime
+resources, license, and README. It excludes test executables and logs.
+Replacement is limited to a directory carrying the packager's exact
+`.endgame-package` ownership marker; arbitrary existing directories and
+symbolic-link destinations are refused. Verification requires the exact
+runtime-resource relative file set and SHA-256 content from the repository,
+byte-identical SHA-256-checked executable and DLL build artifacts, plus the
+exact release root layout.
+
 ### Focused validation targets
 
-The repository has 27 focused MinGW checks, plus `audit-repo`:
+The repository has 35 focused MinGW checks, plus `audit-repo` and package
+verification:
 
 ```sh
 make mingw-smoketest             # init, asset guard, shutdown
@@ -58,6 +75,16 @@ make mingw-replaytest            # deterministic seed/input simulation replay
 make mingw-wavetest              # data-driven Arcade wave progression
 make mingw-segmenttest           # authored Runner segments and streaming
 make mingw-feedbacktest          # combat effects, hit-stop, and animation clocks
+make mingw-prephase35-statetest  # input/event/state-transition audit
+make mingw-prephase35-simulationtest # cross-system simulation correctness
+make mingw-prephase35-lifecycletest  # assets, audio, renderer, seed, shutdown
+make mingw-prephase35-integrationtest # session reset and fixed-step boundaries
+make mingw-prephase35-persistencetest # aggregate settings/display persistence
+make mingw-prephase35-uitest     # leaderboard, menus, HUD, UI recovery
+make mingw-prephase35-robustnesstest # API bounds and long-session invariants
+make mingw-prephase35-collisionaitest # collider, queue, AI, and multiplayer symmetry
+make mingw-prephase35-soaktest   # deterministic restarts and long-session soak
+make mingw-prephase35            # run all nine pre-Phase-35 audit gates
 make audit-repo                   # resource-path and prototype integrity
 ```
 
@@ -67,11 +94,14 @@ Set `ENDGAME_PERF_LOG=1` before running `endgame-mingw.exe` or `make mingw-run` 
 
 ### Linux
 
-`make linux` and `make linux-smoketest` build the production sources against system SDL2 development packages discovered through `pkg-config`. `make linux-asan` runs the deterministic replay test under AddressSanitizer and UndefinedBehaviorSanitizer. This path is validated in CI and is not a replacement for the original macOS build.
+`make linux` and `make linux-smoketest` build the production sources with warnings-as-errors against system SDL2 development packages discovered through `pkg-config`. `make linux-asan` runs deterministic replay plus the headless pre-Phase-35 simulation, integration, robustness, collision/AI, and soak gates under AddressSanitizer and UndefinedBehaviorSanitizer. The production build, smoke test, and sanitizer matrix are required CI gates; this path is not a replacement for the original macOS build.
 
 ## Continuous integration
 
-`.github/workflows/mingw-validation.yml` runs the Windows/MinGW build, all 27 focused checks, and repository integrity audit for pull requests and pushes to `main`. Its Linux jobs validate asset-path case, perform a best-effort Linux build/smoke test, and run a required deterministic replay ASan/UBSan check.
+`.github/workflows/mingw-validation.yml` runs the Windows/MinGW build, all 35 focused checks, the nine-gate pre-Phase-35 audit aggregate, package build/verification, and repository integrity audit for pull requests and pushes to `main`. Its required Linux jobs validate asset-path case, build and smoke-test the production executable, and run replay plus the pre-Phase-35 headless simulation/integration/robustness/collision/soak checks under ASan/UBSan.
+
+The whole-game pre-Phase-35 findings, fixes, evidence, and remaining platform
+limits are recorded in `docs/pre-phase35-gap-audit.md`.
 
 ## Asset ownership
 
@@ -107,13 +137,13 @@ Key supporting records:
 - `docs/collision-ordering-map.md` records the Phase 24 event-consequence architecture; `docs/phase25-profile-guided-optimization.md` records active projectile indexing and telemetry.
 - The Phase 20–24 focused verification sources (`docs/verification/render_interpolation_test.c`, `physics_body_test.c`, `world_collision_test.c`, and `collision_pipeline_test.c`) lock in interpolation, bodies/colliders, the world solver, and event consequences.
 
-## Supported-platform status (Phase 26, 2026-07-22)
+## Supported-platform status (pre-Phase 35, 2026-07-23)
 
 | Platform | Build | Verification | Runtime validation |
 |---|---|---|---|
-| Windows / MinGW | Local and CI `make mingw`; portable Python DLL copy | 27 focused checks + audit in CI | Headless runtime checks |
+| Windows / MinGW | Local and CI `make mingw`; verified runnable-directory packaging | 35 focused checks + nine audit gates + package verification in CI | Headless runtime checks |
 | macOS (bundled frameworks) | Original `make` target | Not run in this environment | Not runtime-validated here |
-| Linux | `make linux-asan` and best-effort `make linux` | Case-sensitive asset audit + required replay ASan/UBSan + best-effort smoke test | Sanitized simulation coverage |
+| Linux | Required warnings-as-errors production build and `make linux-asan` | Case-sensitive asset audit + required build/smoke + replay/simulation/integration/robustness/collision/soak ASan/UBSan | Headless loader and sanitized simulation coverage |
 
 Asset-path casing fixes are documented in `docs/asset-path-portability.md`. AddressSanitizer/UndefinedBehaviorSanitizer are unavailable in the validated MinGW toolchains; use a sanitizer-capable Linux or MSVC/clang-cl environment for sanitizer builds.
 

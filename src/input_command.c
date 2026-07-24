@@ -38,6 +38,36 @@ GameCommand translate_runner_command(SDL_Keycode key)
     }
 }
 
+GameCommand translate_gameplay_command(SDL_Keycode key, SDL_Scancode scancode,
+                                       const GameSettings *settings)
+{
+    if (key == SDLK_ESCAPE)
+    {
+        return GAME_COMMAND_QUIT_TO_MODE_MENU;
+    }
+    if (key == SDLK_q)
+    {
+        return GAME_COMMAND_QUIT_TO_MAIN_MENU;
+    }
+    if (settings == NULL)
+    {
+        return GAME_COMMAND_NONE;
+    }
+    if (scancode == settings->player1.pause)
+    {
+        return GAME_COMMAND_PAUSE;
+    }
+    if (scancode == settings->player1.jump)
+    {
+        return GAME_COMMAND_JUMP_PLAYER1;
+    }
+    if (scancode == settings->player2.jump)
+    {
+        return GAME_COMMAND_JUMP_PLAYER2;
+    }
+    return GAME_COMMAND_NONE;
+}
+
 GameCommand translate_menu_command(SDL_Keycode key)
 {
     switch (key)
